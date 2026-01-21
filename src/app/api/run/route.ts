@@ -46,7 +46,29 @@ export async function POST(req: NextRequest) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
     async start(controller) {
-      const send = (msg: string) => controller.enqueue(encoder.encode(msg));
+      const send = (msg: string) => {
+        try {
+          controller.enqueue(encoder.encode(msg));
+        } catch (e) {
+           // Controller likely closed, ignore
+        }
+      };
+
+      let child: any = null;
+      let isAborted = false;
+
+      // Handle client disconnect explicitly
+      req.signal.addEventListener('abort', () => {
+        isAborted = true;
+        if (child) {
+            try {
+                child.kill('SIGTERM'); 
+            } catch (e) {
+                console.error('Failed to kill child process:', e);
+            }
+        }
+        try { controller.close(); } catch {}
+      });
 
       try {
         let args: string[] = [];
@@ -104,8 +126,7 @@ export async function POST(req: NextRequest) {
           command = castBin;
           args = ['run', inputs.txHash, '--rpc-url', inputs.rpcUrl];
           
-          send(`Creating trace for ${inputs.txHash}...\r\n`);
-          send(`> cast run ...\r\n\r\n`);
+          send(`> cast ${args.join(' ')}\r\n\r\n`);
 
         } else if (type === 'SIMULATE') {
           // Validation
@@ -125,7 +146,6 @@ export async function POST(req: NextRequest) {
             fs.mkdirSync(path.dirname(testFile), { recursive: true });
           }
 
-          send('Writing simulation test contract...\r\n');
           fs.writeFileSync(testFile, inputs.scriptContent);
           
           command = forgeBin;
@@ -144,7 +164,7 @@ export async function POST(req: NextRequest) {
         const fakeHome = path.join(tempDir, '.home');
         fs.mkdirSync(fakeHome, { recursive: true });
 
-        const child = spawn(command, args, {
+        child = spawn(command, args, {
             cwd: foundryDir,
             env: {
                 ...process.env,
@@ -155,15 +175,23 @@ export async function POST(req: NextRequest) {
             }
         });
 
-        child.stdout.on('data', (data) => send(data.toString()));
-        child.stderr.on('data', (data) => send(data.toString()));
+        child.stdout.on('data', (data: any) => {
+            if (!isAborted) send(data.toString());
+        });
+        child.stderr.on('data', (data: any) => {
+            if (!isAborted) send(data.toString());
+        });
 
-        child.on('error', (err) => {
+        child.on('error', (err: any) => {
+            if (isAborted) return;
             send(`\r\nFailed to start subprocess: ${err.message}\r\n`);
         });
 
-        child.on('close', (code) => {
-            send(`\r\nProcess exited with code ${code}`);
+        child.on('close', (code: any) => {
+            if (!isAborted) {
+                send(`\r\nProcess exited with code ${code}`);
+                try { controller.close(); } catch {}
+            }
             
             // CLEANUP: Remove temp dir
             try {
@@ -171,14 +199,17 @@ export async function POST(req: NextRequest) {
             } catch (e) {
                 console.error("Failed to cleanup temp dir", e);
             }
-            
-            controller.close();
         });
 
       } catch (err: any) {
-        send(`\r\nSystem Error: ${err.message}`);
-        controller.close();
+        if (!isAborted) {
+            send(`\r\nSystem Error: ${err.message}`);
+            try { controller.close(); } catch {}
+        }
       }
+    },
+    cancel() {
+        // Fallback cleanup if managing via stream reader cancel
     }
   });
 

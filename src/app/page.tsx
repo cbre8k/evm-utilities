@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import TraceInput from '@/components/TraceInput';
 import SimulateInput from '@/components/SimulateInput';
 import Terminal from '@/components/Terminal';
@@ -29,6 +29,29 @@ export default function Home() {
 
   const [scriptContent, setScriptContent] = useState('');
 
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const startTimeRef = useRef<number>(0);
+
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRunning) {
+      startTimeRef.current = Date.now();
+      setElapsedTime(0);
+      interval = setInterval(() => {
+        setElapsedTime(Date.now() - startTimeRef.current);
+      }, 100);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning]);
+
+  const formatTime = (ms: number) => {
+    const seconds = Math.floor(ms / 1000);
+    const decimal = Math.floor((ms % 1000) / 100);
+    return `${seconds}.${decimal}s`;
+  };
+
   useEffect(() => {
     setLatestOutput('\x1b[2J\x1b[3J\x1b[H');
   }, [activeTab]);
@@ -52,10 +75,14 @@ export default function Home() {
   }, [activeTab, sender, shouldDealToken, tokenAddress, spender, amount, calldata, to, msgValue, rpcUrl, txHash]);
 
   const handleRun = async () => {
+    if (isRunning) return;
     setIsRunning(true);
     // Clear previous or init
     setLatestOutput('\x1b[2J\x1b[3J\x1b[H'); // Clear screen
     
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     try {
       const response = await fetch('/api/run', {
         method: 'POST',
@@ -66,7 +93,8 @@ export default function Home() {
             rpcUrl, txHash, sender, shouldDealToken, 
             tokenAddress, spender, amount, calldata, to, msgValue, scriptContent 
           }
-        })
+        }),
+        signal: controller.signal
       });
 
       const reader = response.body?.getReader();
@@ -79,10 +107,21 @@ export default function Home() {
         const text = decoder.decode(value);
         setLatestOutput(text); // Pass the chunk directly
       }
-    } catch (error) {
-      setLatestOutput(`\r\nError: ${error}\r\n`);
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        setLatestOutput('\x1b[31mProcess cancelled by user.\x1b[0m\n');
+      } else {
+        setLatestOutput(`\r\nError: ${error}\r\n`);
+      }
     } finally {
       setIsRunning(false);
+      abortControllerRef.current = null;
+    }
+  };
+
+  const handleCancel = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
   };
 
@@ -131,14 +170,36 @@ export default function Home() {
           </div>
         </div>
         
-        <div className="glass-panel">
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
           <button 
-            className="btn-primary w-full text-md shadow-lg shadow-primary/20 hover:shadow-primary/40 p-4 rounded-xl"
+            className="btn-primary text-md shadow-lg shadow-primary/20 hover:shadow-primary/40 p-4 rounded-xl flex-center-gap"
+            style={{ flex: 1 }}
             onClick={handleRun}
             disabled={isRunning}
           >
-            {isRunning ? 'Processing...' : 'Run'}
+            {isRunning ? (
+              <>
+                <svg className="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="4"></circle>
+                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Processing... {formatTime(elapsedTime)}</span>
+              </>
+            ) : 'Run'}
           </button>
+
+          {isRunning && (
+            <button 
+              className="btn-danger rounded-xl flex-center-gap"
+              style={{ width: '40px', padding: 0, flexShrink: 0 }}
+              onClick={handleCancel}
+              title="Cancel"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" style={{ width: '24px', height: '24px' }}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Right Column: Terminal */}
