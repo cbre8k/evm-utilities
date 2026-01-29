@@ -4,7 +4,6 @@ import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
 
-// Prevent Next.js from caching the response
 export const dynamic = 'force-dynamic';
 
 function copyRecursiveSync(src: string, dest: string, excludes: string[] = []) {
@@ -50,7 +49,7 @@ export async function POST(req: NextRequest) {
         try {
           controller.enqueue(encoder.encode(msg));
         } catch (e) {
-           // Controller likely closed, ignore
+          // Controller likely closed, ignore
         }
       };
 
@@ -61,11 +60,11 @@ export async function POST(req: NextRequest) {
       req.signal.addEventListener('abort', () => {
         isAborted = true;
         if (child) {
-            try {
-                child.kill('SIGTERM'); 
-            } catch (e) {
-                console.error('Failed to kill child process:', e);
-            }
+          try {
+            child.kill('SIGTERM'); 
+          } catch (e) {
+            console.error('Failed to kill child process:', e);
+          }
         }
         try { controller.close(); } catch {}
       });
@@ -86,9 +85,9 @@ export async function POST(req: NextRequest) {
         
         // Safety check: ensure source exists
         if (!fs.existsSync(sourceFoundryDir)) {
-             send('Error: Source foundry directory not found.\n');
-             controller.close();
-             return;
+          send('Error: Source foundry directory not found.\n');
+          controller.close();
+          return;
         }
 
         // Copy everything to temp (expensive but necessary for isolation and read-only fs)
@@ -109,11 +108,11 @@ export async function POST(req: NextRequest) {
         let castBin = 'cast';
 
         if (fs.existsSync(path.join(projectBin, 'forge'))) {
-            forgeBin = path.join(projectBin, 'forge');
-            castBin = path.join(projectBin, 'cast');
+          forgeBin = path.join(projectBin, 'forge');
+          castBin = path.join(projectBin, 'cast');
         } else if (fs.existsSync(path.join(userBin, 'forge'))) {
-            forgeBin = path.join(userBin, 'forge');
-            castBin = path.join(userBin, 'cast');
+          forgeBin = path.join(userBin, 'forge');
+          castBin = path.join(userBin, 'cast');
         }
 
         // --- 3. PREPARE COMMAND ---
@@ -124,7 +123,7 @@ export async function POST(req: NextRequest) {
             return;
           }
           command = castBin;
-          args = ['run', inputs.txHash, '--rpc-url', inputs.rpcUrl];
+          args = ['run', inputs.txHash, '--rpc-url', inputs.rpcUrl, '--color', 'always'];
           
           send(`> cast ${args.join(' ')}\r\n\r\n`);
 
@@ -154,9 +153,9 @@ export async function POST(req: NextRequest) {
           
           send(`> forge ${args.join(' ')}\r\n\r\n`);
         } else {
-            send('Error: Unknown operation type\n');
-            controller.close();
-            return;
+          send('Error: Unknown operation type\n');
+          controller.close();
+          return;
         }
 
         // --- 4. EXECUTE ---
@@ -165,51 +164,54 @@ export async function POST(req: NextRequest) {
         fs.mkdirSync(fakeHome, { recursive: true });
 
         child = spawn(command, args, {
-            cwd: foundryDir,
-            env: {
-                ...process.env,
-                // Ensure the binaries are in PATH if calling by name
-                PATH: `${projectBin}:${userBin}:${process.env.PATH}`, 
-                FORCE_COLOR: '1', // Force color for standard spawn
-                HOME: fakeHome // Override HOME so foundry writes to tmp
-            }
+          cwd: foundryDir,
+          env: {
+            ...process.env,
+            // Ensure the binaries are in PATH if calling by name
+            PATH: `${projectBin}:${userBin}:${process.env.PATH}`, 
+            FORCE_COLOR: '1', // Force color for standard spawn
+            TERM: 'xterm-256color', // Emulate a terminal
+            COLUMNS: '100', // Force width for progress bars
+            LINES: '24',    // Force height
+            HOME: fakeHome // Override HOME so foundry writes to tmp
+          }
         });
 
         child.stdout.on('data', (data: any) => {
-            if (!isAborted) send(data.toString());
+          if (!isAborted) send(data.toString());
         });
         child.stderr.on('data', (data: any) => {
-            if (!isAborted) send(data.toString());
+          if (!isAborted) send(data.toString());
         });
 
         child.on('error', (err: any) => {
-            if (isAborted) return;
-            send(`\r\nFailed to start subprocess: ${err.message}\r\n`);
+          if (isAborted) return;
+          send(`\r\nFailed to start subprocess: ${err.message}\r\n`);
         });
 
         child.on('close', (code: any) => {
-            if (!isAborted) {
-                send(`\r\nProcess exited with code ${code}`);
-                try { controller.close(); } catch {}
-            }
-            
-            // CLEANUP: Remove temp dir
-            try {
-                fs.rmSync(tempDir, { recursive: true, force: true });
-            } catch (e) {
-                console.error("Failed to cleanup temp dir", e);
-            }
+          if (!isAborted) {
+            send(`\r\nProcess exited with code ${code}`);
+            try { controller.close(); } catch {}
+          }
+          
+          // CLEANUP: Remove temp dir
+          try {
+              fs.rmSync(tempDir, { recursive: true, force: true });
+          } catch (e) {
+              console.error("Failed to cleanup temp dir", e);
+          }
         });
 
       } catch (err: any) {
         if (!isAborted) {
-            send(`\r\nSystem Error: ${err.message}`);
-            try { controller.close(); } catch {}
+          send(`\r\nSystem Error: ${err.message}`);
+          try { controller.close(); } catch {}
         }
       }
     },
     cancel() {
-        // Fallback cleanup if managing via stream reader cancel
+      // Fallback cleanup if managing via stream reader cancel
     }
   });
 

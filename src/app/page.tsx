@@ -3,15 +3,17 @@
 import { useState, useEffect, useRef } from 'react';
 import TraceInput from '@/components/TraceInput';
 import SimulateInput from '@/components/SimulateInput';
-import Terminal from '@/components/Terminal';
+import Terminal, { TerminalHandle } from '@/components/Terminal';
 import { generateSimulationTest } from '@/lib/templates';
+import { Button, Radio, Row, Col, Flex } from 'antd';
+import { PlayCircleOutlined, StopOutlined, LoadingOutlined } from '@ant-design/icons';
 
 type Tab = 'TRACE' | 'SIMULATE';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('TRACE');
   const [isRunning, setIsRunning] = useState(false);
-  const [latestOutput, setLatestOutput] = useState<string | null>(null);
+  const terminalRef = useRef<TerminalHandle>(null);
 
   // Trace State
   const [rpcUrl, setRpcUrl] = useState('');
@@ -53,7 +55,8 @@ export default function Home() {
   };
 
   useEffect(() => {
-    setLatestOutput('\x1b[2J\x1b[3J\x1b[H');
+    terminalRef.current?.clear();
+    terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
   }, [activeTab]);
 
   // Update script preview when inputs change
@@ -77,8 +80,10 @@ export default function Home() {
   const handleRun = async () => {
     if (isRunning) return;
     setIsRunning(true);
-    // Clear previous or init
-    setLatestOutput('\x1b[2J\x1b[3J\x1b[H'); // Clear screen
+    
+    // Clear terminal
+    terminalRef.current?.clear();
+    terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
     
     const controller = new AbortController();
     abortControllerRef.current = controller;
@@ -105,13 +110,13 @@ export default function Home() {
         const { done, value } = await reader.read();
         if (done) break;
         const text = decoder.decode(value);
-        setLatestOutput(text); // Pass the chunk directly
+        terminalRef.current?.write(text);
       }
     } catch (error: any) {
       if (error.name === 'AbortError') {
-        setLatestOutput('\x1b[31mProcess cancelled by user.\x1b[0m\n');
+        terminalRef.current?.write('\x1b[31mProcess cancelled by user.\x1b[0m\n');
       } else {
-        setLatestOutput(`\r\nError: ${error}\r\n`);
+        terminalRef.current?.write(`\r\nError: ${error}\r\n`);
       }
     } finally {
       setIsRunning(false);
@@ -126,28 +131,22 @@ export default function Home() {
   };
 
   return (
-    <main>
-      <div style={{marginBottom: '10px'}}>
-        <div className="flex space-x-2">
-          <button 
-            className={`tab-btn mr-4 ${activeTab === 'TRACE' ? 'active shadow-sm' : 'hover:bg-gray-100'}`}
-            onClick={() => setActiveTab('TRACE')}
-          >
-            Trace Transaction
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'SIMULATE' ? 'active shadow-sm' : 'hover:bg-gray-100'}`}
-            onClick={() => setActiveTab('SIMULATE')}
-          >
-            Simulate Transaction
-          </button>
-        </div>
-      </div>
+    <div style={{ padding: '24px', height: 'calc(100vh - 64px)', display: 'flex', flexDirection: 'column' }}>
+      <Flex justify="space-between" align="center" style={{ marginBottom: 16 }}>
+        <Radio.Group 
+          value={activeTab} 
+          onChange={(e) => setActiveTab(e.target.value)} 
+          buttonStyle="solid"
+        >
+          <Radio.Button value="TRACE">Trace Transaction</Radio.Button>
+          <Radio.Button value="SIMULATE">Simulate Transaction</Radio.Button>
+        </Radio.Group>
+      </Flex>
 
-      <div>
-        {/* Left Column: Inputs & Controls */}
-        <div className="glass-panel">
-          <div>
+      <Row gutter={24} style={{ flex: 1, overflow: 'hidden' }}>
+        {/* Left Column: Inputs */}
+        <Col span={10} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div style={{ flex: 1, overflowY: 'auto', paddingRight: 8, paddingBottom: 16 }}>
             {activeTab === 'TRACE' ? (
               <TraceInput 
                 rpcUrl={rpcUrl} setRpcUrl={setRpcUrl}
@@ -166,47 +165,37 @@ export default function Home() {
                 msgValue={msgValue} setMsgValue={setMsgValue}
               />
             )}
-
+            <div style={{ marginTop: 16 }}>
+              <Flex gap="small">
+                <Button 
+                  type="primary" 
+                  size="large" 
+                  icon={isRunning ? <LoadingOutlined /> : <PlayCircleOutlined />} 
+                  onClick={handleRun}
+                  disabled={isRunning}
+                  style={{ flex: 1, height: '48px', fontSize: '16px' }}
+                >
+                  {isRunning ? `Processing... ${formatTime(elapsedTime)}` : 'Run'}
+                </Button>
+                {isRunning && (
+                  <Button 
+                    danger 
+                    size="large" 
+                    icon={<StopOutlined />} 
+                    onClick={handleCancel}
+                    style={{ height: '48px', width: '48px' }}
+                  />
+                )}
+              </Flex>
+            </div>
           </div>
-        </div>
-        
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
-          <button 
-            className="btn-primary text-md shadow-lg shadow-primary/20 hover:shadow-primary/40 p-4 rounded-xl flex-center-gap"
-            style={{ flex: 1 }}
-            onClick={handleRun}
-            disabled={isRunning}
-          >
-            {isRunning ? (
-              <>
-                <svg className="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)" strokeWidth="4"></circle>
-                  <path fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                <span>Processing... {formatTime(elapsedTime)}</span>
-              </>
-            ) : 'Run'}
-          </button>
-
-          {isRunning && (
-            <button 
-              className="btn-danger rounded-xl flex-center-gap"
-              style={{ width: '40px', padding: 0, flexShrink: 0 }}
-              onClick={handleCancel}
-              title="Cancel"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" style={{ width: '24px', height: '24px' }}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
+        </Col>
 
         {/* Right Column: Terminal */}
-        <div className="terminal-container">
-          <Terminal data={latestOutput} />
-        </div>
-      </div>
-    </main>
+        <Col span={14} style={{ height: '100%' }}>
+          <Terminal ref={terminalRef} />
+        </Col>
+      </Row>
+    </div>
   );
 }

@@ -1,4 +1,6 @@
-import React from 'react';
+import { Input, Typography, Card, Flex } from 'antd';
+
+const { Text } = Typography;
 
 interface TraceInputProps {
   rpcUrl: string;
@@ -14,30 +16,30 @@ export default function TraceInput({
   setTxHash,
 }: TraceInputProps) {
   return (
-    <div>
-      <div className="input-group">
-        <label className="input-label">RPC URL</label>
-        <input 
-          type="text" 
-          className="input-field" 
-          placeholder="https://eth-mainnet.alchemyapi.io/v2/..."
-          value={rpcUrl}
-          onChange={(e) => setRpcUrl(e.target.value)}
-        />
-      </div>
+    <Flex vertical gap="middle" style={{ width: '100%' }}>
+      <Card>
+        <Flex vertical gap="large" style={{ width: '100%' }}>
+          <div>
+            <Text>RPC URL</Text>
+            <Input 
+              placeholder="https://rpc.ankr.com/eth/..." 
+              value={rpcUrl}
+              onChange={(e) => setRpcUrl(e.target.value)}
+              style={{ marginTop: 8, fontFamily: 'monospace' }}
+            />
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="input-group">
-          <label className="input-label">Transaction Hash</label>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="0x..."
-            value={txHash}
-            onChange={(e) => setTxHash(e.target.value)}
-          />
-        </div>
-      </div>
-    </div>
+          <div>
+            <Text>Transaction Hash</Text>
+            <Input 
+              placeholder="0x0"
+              value={txHash}
+              onChange={(e) => setTxHash(e.target.value)}
+              style={{ marginTop: 8, fontFamily: 'monospace' }}
+            />
+          </div>
+        </Flex>
+      </Card>
+    </Flex>
   );
 }

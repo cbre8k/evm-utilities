@@ -1,0 +1,92 @@
+/* src/app/signature-lookup/signature.css */
+.signature-lookup-container {
+  padding: 40px 120px;
+  min-height: calc(100vh - 64px);
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc;
+}
+
+.table-wrapper {
+  max-height: 450px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  background: white;
+  border: 1px solid #e2e8f0;
+  width: 100%;
+  
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Hide scrollbar for IE, Edge and Firefox */
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Fix for the blue header background and potential right gap */
+.styled-signature-table .ant-table-thead > tr > th {
+  background-color: #2b4fa3 !important;
+  color: white !important;
+  font-weight: 600 !important;
+  font-size: 14px !important;
+  border-bottom: none !important;
+  padding: 14px 24px !important;
+  border-inline-end: none !important;
+  position: relative;
+}
+
+/* Ensure header cells connect without gaps */
+.styled-signature-table .ant-table-thead > tr > th::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: -1px;
+  width: 1px;
+  background-color: #2b4fa3;
+}
+
+.styled-signature-table .ant-table-thead > tr > th::before {
+  display: none !important;
+}
+
+.styled-signature-table .ant-table {
+  background: white !important;
+}
+
+.styled-signature-table .ant-table-tbody > tr > td {
+  padding: 12px 24px !important;
+  border-bottom: 1px solid #f1f5f9 !important;
+  transition: background 0.2s ease;
+}
+
+.styled-signature-table .ant-table-row:hover > td {
+  background-color: #f8fafc !important;
+}
+
+/* Rounded Header Fix */
+.styled-signature-table .ant-table-container {
+  border-radius: 12px !important;
+}
+
+.styled-signature-table .ant-table-thead > tr:first-child > th:first-child {
+  border-start-start-radius: 12px !important;
+}
+
+.styled-signature-table .ant-table-thead > tr:first-child > th:last-child {
+  border-start-end-radius: 12px !important;
+}
+
+.ant-typography-copy {
+  padding: 4px;
+  border-radius: 4px;
+  transition: background 0.2s;
+}
+
+.ant-typography-copy:hover {
+  background: #f1f5f9;
+}

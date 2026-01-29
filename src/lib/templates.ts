@@ -25,7 +25,7 @@ export const generateSimulationTest = (inputs: SimulationInputs): string => {
   } = inputs;
 
   const dealCode = shouldDealToken
-    ? `        // Deal tokens to sender
+    ? ` // Deal tokens to sender
         deal(${tokenAddress}, ${sender}, ${amount || '0'});
         
         // Approve spender if specified
@@ -43,41 +43,41 @@ export const generateSimulationTest = (inputs: SimulationInputs): string => {
   const safeCalldata = calldata || '';
 
   return `// SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+    pragma solidity ^0.8.13;
 
-import "forge-std/console.sol";
-import "forge-std/Test.sol";
+    import "forge-std/console.sol";
+    import "forge-std/Test.sol";
 
-interface IERC20 {
-    function approve(address spender, uint256 amount) external returns (bool);
-}
-
-contract SimulationTest is Test {
-    function setUp() public {
-      vm.selectFork(vm.createFork("${rpcUrl}"));
+    interface IERC20 {
+        function approve(address spender, uint256 amount) external returns (bool);
     }
 
-    function testSimulation() public {
-${dealCode}
-
-        // Execute Transaction
-        if (${safeSender} != address(0)) {
-            vm.startPrank(${safeSender});
-            console.log("Simulating call from", ${safeSender});
-            
-            string memory callDataStr = "${safeCalldata}";
-            bytes memory callData = vm.parseBytes(callDataStr);
-            
-            (bool success, ) = address(${safeTo}).call{value: ${safeValue}}(callData);
-            
-            if (success) {
-                console.log("Transaction Successful");
-            } else {
-                console.log("Transaction Failed");
-            }
-            
-            vm.stopPrank();
+    contract SimulationTest is Test {
+        function setUp() public {
+          vm.selectFork(vm.createFork("${rpcUrl}"));
         }
-    }
-}`;
+
+        function testSimulation() public {
+            ${dealCode}
+
+            // Execute Transaction
+            if (${safeSender} != address(0)) {
+                vm.startPrank(${safeSender});
+                console.log("Simulating call from", ${safeSender});
+                
+                string memory callDataStr = "${safeCalldata}";
+                bytes memory callData = vm.parseBytes(callDataStr);
+                
+                (bool success, ) = address(${safeTo}).call{value: ${safeValue}}(callData);
+                
+                if (success) {
+                    console.log("Transaction Successful");
+                } else {
+                    console.log("Transaction Failed");
+                }
+                
+                vm.stopPrank();
+            }
+        }
+    }`;
 };

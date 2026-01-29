@@ -1,4 +1,7 @@
-import React, { useState } from 'react';
+import { Input, Checkbox, Row, Col, Typography, Card, Flex } from 'antd';
+
+const { Text } = Typography;
+const { TextArea } = Input;
 
 interface SimulateInputProps {
   sender: string;
@@ -42,109 +45,105 @@ export default function SimulateInput({
   setRpcUrl,
 }: SimulateInputProps) {
   return (
-    <div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="input-group md:col-span-2">
-          <label className="input-label">RPC URL (Required for fork)</label>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="https://eth-mainnet.alchemyapi.io/v2/..."
-            value={rpcUrl}
-            onChange={(e) => setRpcUrl(e.target.value)}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Sender</label>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="0x..."
-            value={sender}
-            onChange={(e) => setSender(e.target.value)}
-          />
-        </div>
-        <div className="input-group">
-          <label className="input-label">Target (To)</label>
-          <input 
-            type="text" 
-            className="input-field" 
-            placeholder="0x..."
-            value={to}
-            onChange={(e) => setTo(e.target.value)}
-          />
-        </div>
-      </div>
+    <Flex vertical gap="middle" style={{ width: '100%' }}>
+      <Card>
+        <Flex vertical gap="large" style={{ width: '100%' }}>
+          <div>
+            <Text>RPC URL</Text>
+            <Input 
+              placeholder="https://rpc.ankr.com/eth/..." 
+              value={rpcUrl}
+              onChange={(e) => setRpcUrl(e.target.value)}
+              style={{ marginTop: 8, fontFamily: 'monospace' }}
+            />
+          </div>
 
-      <div className="input-group flex items-center gap-2">
-        <label className="checkbox-label checkbox-inline">
-          <input
-            type="checkbox"
-            checked={shouldDealToken}
-            onChange={(e) => setShouldDealToken(e.target.checked)}
-          />
-          Approve
-        </label>
-      </div>
-
-      {shouldDealToken && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-slide-down">
-          <div className="input-group">
-            <label className="input-label">Token</label>
-            <div className="">
-              <input 
-                type="text" 
-                className="input-field" 
-                placeholder="0x..."
-                value={tokenAddress}
-                onChange={(e) => setTokenAddress(e.target.value)}
+          <Row gutter={16}>
+            <Col span={12}>
+              <Text>Sender</Text>
+              <Input 
+                placeholder="0x0" 
+                value={sender}
+                onChange={(e) => setSender(e.target.value)}
+                style={{ marginTop: 8, fontFamily: 'monospace' }}
               />
+            </Col>
+            <Col span={12}>
+              <Text>Target</Text>
+              <Input 
+                placeholder="0x0" 
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                style={{ marginTop: 8, fontFamily: 'monospace' }}
+              />
+            </Col>
+          </Row>
+
+          <div>
+            <Checkbox 
+              checked={shouldDealToken}
+              onChange={(e) => setShouldDealToken(e.target.checked)}
+            >
+              Approve
+            </Checkbox>
+          </div>
+
+          {shouldDealToken && (
+            <div style={{ padding: '16px', background: 'rgba(24, 144, 255, 0.05)', backdropFilter: 'blur(10px)', borderRadius: '8px', border: '1px solid rgba(24, 144, 255, 0.1)' }}>
+              <Row gutter={[16, 16]}>
+                <Col span={12}>
+                  <Text>Token</Text>
+                  <Input 
+                    placeholder="0x0" 
+                    value={tokenAddress}
+                    onChange={(e) => setTokenAddress(e.target.value)}
+                    style={{ marginTop: 8, fontFamily: 'monospace' }}
+                  />
+                </Col>
+                <Col span={12}>
+                  <Text>Amount (wei/units)</Text>
+                  <Input 
+                    placeholder="1000000000000000000" 
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    style={{ marginTop: 8, fontFamily: 'monospace' }}
+                  />
+                </Col>
+                <Col span={24}>
+                  <Text>Spender (Approved Address)</Text>
+                  <Input 
+                    placeholder="0x0" 
+                    value={spender}
+                    onChange={(e) => setSpender(e.target.value)}
+                    style={{ marginTop: 8, fontFamily: 'monospace' }}
+                  />
+                </Col>
+              </Row>
             </div>
-          </div>
-          <div className="input-group">
-            <label className="input-label">Amount (wei/units)</label>
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="1000000000000000000"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
+          )}
+
+          <div>
+            <Text>Value (ETH)</Text>
+            <Input 
+              placeholder="0" 
+              value={msgValue}
+              onChange={(e) => setMsgValue(e.target.value)}
+              style={{ marginTop: 8, fontFamily: 'monospace' }}
             />
           </div>
-          <div className="input-group md:col-span-2">
-            <label className="input-label">Spender (Approved Address)</label>
-            <input 
-              type="text" 
-              className="input-field" 
-              placeholder="0x..."
-              value={spender}
-              onChange={(e) => setSpender(e.target.value)}
+
+          <div>
+            <Text>Calldata</Text>
+            <TextArea 
+              rows={4} 
+              placeholder="0x0" 
+              value={calldata}
+              onChange={(e) => setCalldata(e.target.value)}
+              style={{ marginTop: 8, fontFamily: 'monospace' }}
             />
           </div>
-        </div>
-      )}
-
-      <div className="input-group">
-        <label className="input-label">Value (ETH)</label>
-        <input 
-          type="text" 
-          className="input-field" 
-          placeholder="0"
-          value={msgValue}
-          onChange={(e) => setMsgValue(e.target.value)}
-        />
-      </div>
-
-      <div className="input-group">
-        <label className="input-label">Calldata</label>
-        <textarea 
-          className="input-field font-mono text-sm" 
-          rows={4}
-          placeholder="0x..."
-          value={calldata}
-          onChange={(e) => setCalldata(e.target.value)}
-        />
-      </div>
-    </div>
+        </Flex>
+      </Card>
+    </Flex>
   );
 }
