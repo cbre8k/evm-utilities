@@ -2,16 +2,12 @@
 
 import { createContext, useContext, useEffect, useState } from 'react';
 
-export const THEMES = ['light', 'dark', 'retro', 'hacker', 'cyberpunk', 'nord'] as const;
+export const THEMES = ['light', 'dark'] as const;
 export type Theme = (typeof THEMES)[number];
 
 const THEME_BG: Record<Theme, string> = {
   light: '#f4f4f5',
   dark: '#0e0e0e',
-  retro: '#eee8d5',
-  hacker: '#0c100c',
-  cyberpunk: '#0a0118',
-  nord: '#2a303c',
 };
 
 interface ThemeContextType {

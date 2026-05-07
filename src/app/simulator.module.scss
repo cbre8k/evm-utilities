@@ -2,129 +2,352 @@
 @use '../styles/mixins' as *;
 
 .page {
-  height: calc(100vh - $nav-height);
-  padding: $space-5;
+  flex: 1;
   display: flex;
   flex-direction: column;
+  font-family: $font-mono;
+  background-color: var(--bg-secondary);
+  min-height: 0;
+}
+
+// ----------------------------------------
+// Stats Banner
+// ----------------------------------------
+.statsBanner {
+  display: grid;
+  grid-template-columns: minmax(400px, 1fr) minmax(300px, 1fr);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  min-height: 140px;
+}
+
+.statsLeft {
+  padding: $space-4;
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.statsLeftTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: $space-2;
+}
+
+.mainInfo {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+}
+
+.statsHeader {
+  display: flex;
+  align-items: center;
   gap: $space-3;
+  margin: 0;
 }
 
-.header {
-  padding: 0 $space-1;
-}
-
-.title {
-  font-size: $text-lg;
+.username {
+  font-size: 16px;
   font-weight: $font-bold;
   color: var(--text-primary);
-  margin-bottom: 2px;
+  letter-spacing: 0.05em;
 }
 
-.subtitle {
-  font-size: $text-xs;
+.badge {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-size: 10px;
+  padding: 2px 6px;
+  font-weight: $font-bold;
+  border-radius: $radius-md;
+}
+
+.addressBox {
+  font-size: 11px;
   color: var(--text-tertiary);
+  margin-bottom: 0;
+  transition: color 0.2s;
+
+  &:hover {
+    color: var(--text-primary);
+  }
 }
 
+.copiedBadge {
+  color: var(--color-success);
+  font-weight: $font-bold;
+}
+
+.bigStatContainer {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  height: 100%;
+}
+
+.bigStatLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin: 0;
+  line-height: 1;
+}
+
+.bigStatValue {
+  font-family: $font-dot-matrix;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  display: inline-block;
+  min-width: 150px;
+  text-align: left;
+}
+
+.statusSuccess {
+  color: var(--color-success);
+}
+
+.statusDanger {
+  color: var(--color-danger);
+}
+
+.statusBlink {
+  color: var(--color-warning);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-top: 1px solid var(--border-default);
+  margin-top: auto;
+  padding-top: $space-3;
+}
+
+.statCol {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px dashed var(--border-default);
+  padding: 0 $space-2;
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.scLabel {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  margin-bottom: 4px;
+}
+
+.scValue {
+  font-size: 14px;
+  font-family: $font-dot-matrix;
+  color: var(--text-secondary);
+}
+
+.statsRight {
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+// ----------------------------------------
+// Pipeline visualization
+// ----------------------------------------
+.pipelineHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin-bottom: $space-4;
+}
+
+.badgeLine {
+  border: 1px solid var(--border-default);
+  padding: 2px 6px;
+  border-radius: $radius-md;
+}
+
+.pipelineSteps {
+  display: flex;
+  gap: $space-2;
+}
+
+.step {
+  flex: 1;
+  border: 1px solid var(--border-default);
+  background: var(--bg-tertiary);
+  padding: $space-3;
+  display: flex;
+  flex-direction: column;
+  border-radius: $radius-md;
+}
+
+.stepActive {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  border-color: var(--text-primary);
+
+  .stepNum { color: var(--bg-tertiary); }
+  .stepName { color: var(--bg-primary); }
+}
+
+.stepCrash {
+  background: var(--color-danger);
+  color: var(--bg-primary);
+  border-color: var(--color-danger);
+
+  .stepNum { color: var(--bg-primary); opacity: 0.8; }
+  .stepName { color: var(--bg-primary); }
+}
+
+.stepAbort {
+  background: var(--color-warning);
+  color: #000;
+  border-color: var(--color-warning);
+
+  .stepNum { color: rgba(0, 0, 0, 0.5); }
+  .stepName { color: #000; }
+}
+
+.stepNum {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  margin-bottom: $space-2;
+}
+
+.stepName {
+  font-size: 12px;
+  font-weight: $font-bold;
+}
+
+// ----------------------------------------
+// Toolbar
+// ----------------------------------------
 .toolbar {
-  @include flex-between;
-  padding: 0 $space-1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 $space-4;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .tabs {
   display: flex;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-full;
-  padding: 3px;
+  gap: $space-4;
 }
 
 .tab {
-  @include btn-base;
-  height: 28px;
-  padding: 0 $space-4;
-  font-size: $text-xs;
-  font-weight: $font-medium;
-  background: transparent;
+  background: none;
+  border: none;
+  font-family: $font-mono;
+  font-size: 12px;
   color: var(--text-tertiary);
-  border-radius: $radius-full;
-  letter-spacing: 0.01em;
+  cursor: pointer;
+  padding: $space-2 0;
+  font-weight: $font-bold;
+
+  &:hover {
+    color: var(--text-primary);
+  }
 
   &.active {
-    background: var(--accent);
-    color: var(--accent-text);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    color: var(--text-primary);
   }
 }
 
+.runtimeBox {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+}
+
+// ----------------------------------------
+// Workspace
+// ----------------------------------------
 .workspace {
   flex: 1;
   display: grid;
-  grid-template-columns: 360px 1fr;
-  gap: $space-3;
+  grid-template-columns: 400px 1fr;
   min-height: 0;
-
-  @include tablet {
-    grid-template-columns: 1fr;
-    grid-template-rows: 1fr 1fr;
-  }
 }
 
 .inputPanel {
-  @include flex-col;
   background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-xl;
-  padding: $space-5;
+  border-right: 1px solid var(--border-default);
+  padding: $space-4;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   gap: $space-4;
 }
 
 .outputPanel {
   min-height: 0;
+  background: var(--bg-primary);
+  padding: $space-2;
 }
 
+// ----------------------------------------
+// Actions
+// ----------------------------------------
 .actions {
   display: flex;
   gap: $space-2;
   margin-top: auto;
   padding-top: $space-4;
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px dashed var(--border-default);
 }
 
 .runBtn {
-  @include btn-primary;
   flex: 1;
-  height: 40px;
-  font-size: $text-xs;
-  font-weight: $font-semibold;
-  border-radius: $radius-full;
-  gap: $space-2;
-  letter-spacing: 0.02em;
+  height: 48px;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: none;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  border-radius: $radius-md;
+  border: 1px solid var(--border-default);
+
+  &:hover {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+  }
 }
 
 .cancelBtn {
-  @include btn-danger;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border-radius: $radius-full;
-}
-
-.timer {
+  width: 80px;
+  height: 48px;
+  background: var(--bg-primary);
+  color: var(--color-danger);
+  border: 1px solid var(--color-danger);
   font-family: $font-mono;
-  font-size: 11px;
-  color: var(--text-tertiary);
-  background: var(--bg-secondary);
-  padding: $space-1 $space-3;
-  border-radius: $radius-full;
-  border: 1px solid var(--border-subtle);
-}
+  font-size: 12px;
+  font-weight: $font-bold;
+  cursor: pointer;
+  border-radius: $radius-md;
 
-.spin {
-  animation: spin 1.5s linear infinite;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  &:hover {
+    background: var(--color-danger);
+    color: var(--bg-primary);
+  }
 }

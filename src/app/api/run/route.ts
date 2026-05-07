@@ -108,12 +108,10 @@ export async function POST(req: NextRequest) {
 
       let child: any = null;
       let isAborted = false;
-      let timeoutHandle: NodeJS.Timeout | null = null;
 
       // Handle client disconnect explicitly
       req.signal.addEventListener('abort', () => {
         isAborted = true;
-        if (timeoutHandle) clearTimeout(timeoutHandle);
         if (child) {
           try {
             child.kill('SIGTERM'); 
@@ -156,24 +154,32 @@ export async function POST(req: NextRequest) {
         }
 
         // --- 3. PREPARE COMMAND ---
+        const formatField = (f: string) => f === 'txHash' ? 'transaction hash' : f === 'rpcUrl' ? 'rpc url' : f;
+
         if (type === 'TRACE') {
-          if (!inputs.txHash || !inputs.rpcUrl) {
-            send('Error: Missing Tx Hash or RPC URL\n');
+          const required = ['txHash', 'rpcUrl'];
+          const missing = required.filter((field: string) => !inputs[field]);
+
+          if (missing.length > 0) {
+            send(`Error: Missing ${missing.map(formatField).join(' and ')}\n`);
             releaseJob();
             controller.close();
             return;
           }
           // Trace doesn't need a workspace — cast runs standalone
           command = castBin;
-          args = ['run', inputs.txHash, '--rpc-url', inputs.rpcUrl, '--quick', '--color', 'always'];
+          args = ['run', inputs.txHash, '--rpc-url', inputs.rpcUrl];
+          if (inputs.quick) args.push('--quick');
+          args.push('--color', 'always');
           
           send(`> cast ${args.join(' ')}\r\n\r\n`);
 
         } else if (type === 'SIMULATE') {
-          const required = ['sender', 'to', 'calldata'];
+          const required = ['sender', 'target', 'calldata', 'rpcUrl'];
           const missing = required.filter((field: string) => !inputs[field]);
+
           if (missing.length > 0) {
-            send(`Error: Missing required fields: ${missing.join(', ')}\n`);
+            send(`Error: Missing ${missing.map(formatField).join(', ')}\n`);
             releaseJob();
             controller.close();
             return;
@@ -220,16 +226,6 @@ export async function POST(req: NextRequest) {
           if (!isAborted) send(data.toString());
         });
 
-        // --- 5. PROCESS TIMEOUT ---
-        // Trace is RPC-bound and slower; give it more time
-        const timeout = type === 'TRACE' ? PROCESS_TIMEOUT_MS * 2.5 : PROCESS_TIMEOUT_MS;
-        timeoutHandle = setTimeout(() => {
-          if (child && !isAborted) {
-            send('\r\n\x1b[31mProcess timed out. Killing...\x1b[0m\r\n');
-            child.kill('SIGKILL');
-          }
-        }, timeout);
-
         child.on('error', (err: any) => {
           if (isAborted) return;
           send(`\r\nFailed to start subprocess: ${err.message}\r\n`);
@@ -237,7 +233,6 @@ export async function POST(req: NextRequest) {
         });
 
         child.on('close', (code: any) => {
-          if (timeoutHandle) clearTimeout(timeoutHandle);
           if (!isAborted) {
             send(`\r\nProcess exited with code ${code}`);
             releaseJob();

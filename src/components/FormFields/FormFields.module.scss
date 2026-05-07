@@ -3,75 +3,109 @@
 
 .formGroup {
   @include flex-col;
-  gap: $space-5;
+  gap: $space-4;
 }
 
 .field {
   @include flex-col;
-  gap: $space-1;
+  gap: 2px;
+  position: relative;
 }
 
 .label {
-  font-size: 11px;
-  font-weight: $font-semibold;
+  font-size: 10px;
+  font-weight: $font-bold;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
+  font-family: $font-mono;
+  cursor: pointer;
+  display: inline-block;
+  width: fit-content;
+
+  &:has(+ .hint)::after {
+    content: " [?]";
+    opacity: 0.5;
+  }
+}
+
+.hint {
+  font-size: 9px;
+  color: var(--bg-primary);
+  background: var(--text-primary);
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 2px;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(4px);
+  white-space: nowrap;
+}
+
+.label:hover + .hint {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .input {
   width: 100%;
-  height: 38px;
-  padding: $space-2 $space-3;
+  height: 32px;
+  padding: 0 $space-2;
   font-family: $font-mono;
-  font-size: $text-xs;
+  font-size: 12px;
   color: var(--text-primary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-lg;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
   outline: none;
-  transition: border-color $transition-fast, box-shadow $transition-fast;
+  border-radius: $radius-md;
+  transition: border-color $transition-fast;
 
   &::placeholder {
     color: var(--text-tertiary);
   }
 
   &:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-subtle);
+    border-color: var(--text-primary);
+    background: var(--bg-secondary);
   }
 }
 
 .textarea {
   width: 100%;
-  padding: $space-3;
+  padding: $space-2;
   font-family: $font-mono;
-  font-size: $text-xs;
+  font-size: 12px;
   color: var(--text-primary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-lg;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
   outline: none;
-  transition: border-color $transition-fast, box-shadow $transition-fast;
+  border-radius: $radius-md;
+  transition: border-color $transition-fast;
   height: auto;
-  min-height: 88px;
+  min-height: 80px;
   resize: vertical;
-  line-height: 1.6;
+  line-height: 1.4;
 
   &::placeholder {
     color: var(--text-tertiary);
   }
 
   &:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-subtle);
+    border-color: var(--text-primary);
+    background: var(--bg-secondary);
   }
 }
 
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: $space-3;
+  gap: $space-4;
 
   @include mobile {
     grid-template-columns: 1fr;
@@ -79,27 +113,45 @@
 }
 
 .section {
-  padding: $space-4;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-lg;
+  padding: $space-3;
+  background: var(--bg-tertiary);
+  border: 1px dashed var(--border-default);
+  border-radius: $radius-md;
   @include flex-col;
   gap: $space-3;
 }
 
-.checkbox {
-  display: flex;
-  align-items: center;
-  gap: $space-2;
-  cursor: pointer;
-  font-size: $text-xs;
-  color: var(--text-secondary);
+.checkboxWrapper {
+  position: relative;
+  width: fit-content;
 
-  input[type='checkbox'] {
-    width: 14px;
-    height: 14px;
-    accent-color: var(--accent);
+  .checkbox {
+    display: flex;
+    align-items: center;
+    gap: $space-2;
     cursor: pointer;
-    border-radius: 4px;
+    font-size: 11px;
+    font-family: $font-mono;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    font-weight: $font-bold;
+
+    &:has(+ .hint)::after {
+      content: " [?]";
+      opacity: 0.5;
+    }
+
+    input[type='checkbox'] {
+      width: 12px;
+      height: 12px;
+      accent-color: var(--text-primary);
+      cursor: inherit;
+      border-radius: 0;
+    }
+  }
+
+  .checkbox:hover + .hint {
+    opacity: 1;
+    transform: translateY(0);
   }
 }

@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Table, message } from 'antd';
-import { SearchOutlined, CheckCircleFilled, CopyOutlined, StopOutlined } from '@ant-design/icons';
+import { AUTHOR, FOURBYTE_API, GITHUB } from '@/lib/constants';
 import styles from './signature.module.scss';
 
 interface SignatureResult {
@@ -18,6 +18,33 @@ export default function SignatureLookup() {
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SignatureResult[]>([]);
   const [searched, setSearched] = useState(false);
+  const [dbStatus, setDbStatus] = useState<'ONLINE' | 'OFFLINE' | 'LOADING'>('LOADING');
+  const [signatureCount, setSignatureCount] = useState<string>('---');
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await fetch(FOURBYTE_API.STATS);
+        const data = await response.json();
+        if (data.ok && data.result && data.result.count) {
+          setDbStatus('ONLINE');
+          const total = data.result.count.total;
+          if (total >= 1000000) {
+            setSignatureCount(`${(total / 1000000).toFixed(1)}M+`);
+          } else if (total >= 1000) {
+            setSignatureCount(`${(total / 1000).toFixed(1)}K+`);
+          } else {
+            setSignatureCount(total.toString());
+          }
+        } else {
+          setDbStatus('OFFLINE');
+        }
+      } catch (error) {
+        setDbStatus('OFFLINE');
+      }
+    };
+    fetchStats();
+  }, []);
 
   const handleSearch = async () => {
     const query = searchText.trim();
@@ -27,7 +54,7 @@ export default function SignatureLookup() {
     try {
       let url: URL;
       if (query.startsWith('0x')) {
-        url = new URL('https://api.4byte.sourcify.dev/signature-database/v1/lookup?filter=false');
+        url = new URL(`${FOURBYTE_API.LOOKUP}?filter=false`);
         if (query.length === 10) {
           url.searchParams.append('function', query);
         } else if (query.length === 66) {
@@ -38,7 +65,7 @@ export default function SignatureLookup() {
           return;
         }
       } else {
-        url = new URL('https://api.4byte.sourcify.dev/signature-database/v1/search?filter=false');
+        url = new URL(`${FOURBYTE_API.SEARCH}?filter=false`);
         url.searchParams.append('query', query);
       }
       
@@ -90,18 +117,18 @@ export default function SignatureLookup() {
 
   const columns = [
     {
-      title: 'Type',
+      title: 'TYPE',
       dataIndex: 'type',
       key: 'type',
       width: 100,
       render: (type: string) => (
         <span className={`${styles.tag} ${type === 'function' ? styles.fn : styles.event}`}>
-          {type}
+          {type.toUpperCase()}
         </span>
       ),
     },
     {
-      title: 'Signature',
+      title: 'NAME',
       dataIndex: 'name',
       key: 'name',
       render: (name: string) => (
@@ -109,115 +136,156 @@ export default function SignatureLookup() {
       ),
     },
     {
-      title: 'Hash',
+      title: 'HASH',
       dataIndex: 'hash',
       key: 'hash',
       width: 320,
       render: (hash: string, record: SignatureResult) => (
         <div className={styles.hash}>
           {record.hasVerifiedContract ? (
-            <span className={styles.verifiedBadge}>
-              <CheckCircleFilled />
+            <span className={styles.verifiedBadge} title="Verified">
+              [V]
             </span>
           ) : (
-            <span className={styles.unverifiedBadge}>
-              <StopOutlined />
+            <span className={styles.unverifiedBadge} title="Unverified">
+              [X]
             </span>
           )}
           <span>{hash}</span>
-          <CopyOutlined
-            className={styles.copyIcon}
+          <button
+            className={styles.copyBtn}
             onClick={() => {
               navigator.clipboard.writeText(hash);
-              message.success('Copied');
+              for (let i = 0; i < 20; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = 20 + Math.random() * 60;
+                message.success({
+                  content: 'COPIED',
+                  duration: 4 + Math.random() * 2,
+                  className: 'firework-msg',
+                  style: {
+                    opacity: 0,
+                    transform: 'translate(-50%, -50%) scale(0)',
+                    animationDelay: `${Math.random() * 0.15}s`,
+                    animationDuration: `${3 + Math.random() * 2}s`,
+                    '--dx': `${Math.cos(angle) * radius}vmin`,
+                    '--dy': `${Math.sin(angle) * radius}vmin`,
+                    '--rot': `${(Math.random() - 0.5) * 360}deg`,
+                    '--rot-end': `${(Math.random() - 0.5) * 720}deg`,
+                  } as any
+                });
+              }
             }}
-          />
+          >
+            COPY
+          </button>
         </div>
       ),
     },
   ];
 
   return (
-    <div className={`${styles.page} ${!searched ? styles.pageIdle : ''}`}>
-      <div className={styles.searchWrapper}>
-        <div className={styles.header}>
-          <h1 className={styles.title}>Selector</h1>
-          <p className={styles.subtitle}>Look up EVM function and event signatures.</p>
+    <div className={styles.page}>
+      <div className={styles.statsBanner}>
+        <div className={styles.statsLeft}>
+          <div className={styles.statsLeftTop}>
+            <div className={styles.mainInfo}>
+              <div className={styles.statsHeader}>
+                <span className={styles.username} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
+                <span className={styles.badge}>SELECTOR</span>
+              </div>
+              <div className={styles.addressBox}>SIGNATURE LOOKUP TOOL</div>
+            </div>
+            
+            <div className={styles.bigStatContainer}>
+              <span className={styles.bigStatLabel}>■ STATUS:</span>
+              <span className={styles.bigStatValue}>
+                {dbStatus === 'LOADING' ? (
+                  <span className={styles.statusBlink}>LOADING</span>
+                ) : dbStatus === 'ONLINE' ? (
+                  <span className={styles.statusSuccess}>ONLINE</span>
+                ) : (
+                  <span className={styles.statusDanger}>OFFLINE</span>
+                )}
+              </span>
+            </div>
+          </div>
+
+          <div className={styles.statsGrid}>
+            <div className={styles.statCol}>
+              <div className={styles.scLabel}>DATASTREAM</div>
+              <div className={styles.scValue}>SOURCIFY</div>
+            </div>
+            <div className={styles.statCol}>
+              <div className={styles.scLabel}>SIGNATURES</div>
+              <div className={styles.scValue}>{signatureCount} SIGNATURES</div>
+            </div>
+          </div>
         </div>
-        <div className={styles.searchCard}>
-          <SearchOutlined className={styles.searchIcon} />
-          <input
-            className={styles.searchInput}
-            placeholder="Search by function name or hex selector..."
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          />
-          <button
-            className={styles.searchBtn}
-            onClick={handleSearch}
-            disabled={loading}
-          >
-            {loading ? (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={styles.spin}>
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                  </svg>
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                </>
-              )}
-          </button>
+        
+        <div className={styles.statsRight}>
+          <div className={styles.pipelineHeader}>
+            <span>■ SEARCH MODULE</span>
+            <span className={styles.badgeLine}>AWAITING QUERY</span>
+          </div>
+          
+          <div className={styles.searchBox}>
+            <input
+              className={styles.searchInput}
+              placeholder="ENTER HEX OR FUNCTION NAME..."
+              value={searchText}
+              onChange={(e) => setSearchText(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+            />
+            <button
+              className={styles.searchBtn}
+              onClick={handleSearch}
+              disabled={loading}
+            >
+              {loading ? 'SEARCHING' : 'EXECUTE'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {searched && (
-        <div className={styles.results}>
-          {!loading && (
-            <p className={styles.resultCount}>
-              {results.length} signature{results.length !== 1 ? 's' : ''} found
-            </p>
-          )}
-
-          <div className={styles.tableWrapper}>
-            {loading ? (
-              <table className={styles.skeletonTable}>
-                <thead>
-                  <tr>
-                    <th style={{ width: 50 }}>Type</th>
-                    <th style={{ width: 400 }}>Signature</th>
-                    <th style={{ width: 400 }}>Hash</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 2 }).map((_, i) => (
-                    <tr key={i}>
-                      <td><div className={styles.skeletonLine} style={{ width: 50 }} /></td>
-                      <td><div className={styles.skeletonLine} style={{ width: 400 }} /></td>
-                      <td><div className={styles.skeletonLine} style={{ width: 400 }} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : results.length > 0 ? (
-              <Table
-                dataSource={results}
-                columns={columns}
-                rowKey={(record) => `${record.hash}-${record.name}`}
-                pagination={results.length > 50 ? { pageSize: 50, showSizeChanger: false, size: 'small' } : false}
-                size="middle"
-              />
-            ) : (
-              <div className={styles.empty}>No signatures found</div>
-            )}
+      <div className={styles.workspace}>
+        {searched && (
+          <div className={styles.resultsPanel}>
+            <div className={styles.resultsHeader}>
+              <span>QUERY RESULTS</span>
+              <span className={loading ? styles.statusBlink : styles.statusSuccess}>
+                {loading ? 'PROCESSING' : `FOUND: ${results.length}`}
+              </span>
+            </div>
+            <div className={styles.tableWrapper}>
+              {loading ? (
+                <div className={styles.loadingState}>
+                  <div className={styles.skeletonLine} />
+                  <div className={styles.skeletonLine} />
+                  <div className={styles.skeletonLine} />
+                </div>
+              ) : results.length > 0 ? (
+                <Table
+                  dataSource={results}
+                  columns={columns}
+                  rowKey={(record) => `${record.hash}-${record.name}`}
+                  pagination={results.length > 50 ? { pageSize: 50, showSizeChanger: false, size: 'small' } : false}
+                  size="small"
+                  className={styles.terminalTable}
+                />
+              ) : (
+                <div className={styles.empty}>NO SIGNATURES FOUND FOR QUERY: {searchText}</div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+        {!searched && (
+          <div className={styles.emptyWorkspace}>
+            <div>SYSTEM IDLE</div>
+            <div className={styles.subtext}>AWAITING QUERY INPUT</div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
