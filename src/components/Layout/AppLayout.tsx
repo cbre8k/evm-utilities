@@ -97,6 +97,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </header>
 
       <main className={styles.content}>{children}</main>
+
+      <div className={styles.mobileFallback}>
+        <img src="/please.png" alt="Please use Desktop" className={styles.mobileImage} />
+      </div>
     </div>
   );
 }

@@ -220,3 +220,43 @@
   padding: $space-4;
   min-height: 0;
 }
+
+/* =========================
+   MOBILE FALLBACK OVERLAY
+   ========================= */
+
+.mobileFallback {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.75); // Darken the background
+  backdrop-filter: blur(8px); // Blur everything behind the overlay
+  z-index: 9999;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobileImage {
+  max-width: 90vw;
+  max-height: 90vh;
+  object-fit: contain;
+  margin: auto;
+  display: block;
+  filter: drop-shadow(0 0 20px rgba(0, 0, 0, 0.5));
+}
+
+@media (max-width: 1135px) {
+  .header,
+  .content {
+    filter: blur(12px) !important;
+    pointer-events: none !important;
+    user-select: none !important;
+  }
+  
+  .mobileFallback {
+    display: flex !important;
+  }
+}
