@@ -4,11 +4,12 @@ import { useState } from 'react';
 import BigNumber from 'bignumber.js';
 import { message } from 'antd';
 import styles from './converter.module.scss';
+import { AUTHOR, GITHUB } from '@/lib/constants';
 
 const UNITS = [
-  { name: 'Wei', factor: 0 },
-  { name: 'Gwei', factor: 9 },
-  { name: 'Ether', factor: 18 },
+  { name: 'WEI', factor: 0 },
+  { name: 'GWEI', factor: 9 },
+  { name: 'ETHER', factor: 18 },
 ];
 
 const PANIC_CODES: Record<number, string> = {
@@ -69,7 +70,6 @@ function hexToString(hex: string): string {
     }
   }
 
-  // Fallback: raw hex to string
   return decodeHexBytes(clean);
 }
 
@@ -78,7 +78,7 @@ function decodeHexBytes(hex: string): string {
   for (let i = 0; i < hex.length; i += 2) {
     const byte = parseInt(hex.substring(i, i + 2), 16);
     if (isNaN(byte)) return '';
-    if (byte === 0) continue; // skip null padding
+    if (byte === 0) continue;
     bytes.push(byte);
   }
   try {
@@ -122,45 +122,88 @@ export default function Converter() {
   const copy = (text: string) => {
     if (text) {
       navigator.clipboard.writeText(text);
-      message.success('Copied');
+      for (let i = 0; i < 20; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const radius = 20 + Math.random() * 60;
+        message.success({
+          content: 'COPIED',
+          duration: 4 + Math.random() * 2,
+          className: 'firework-msg',
+          style: {
+            opacity: 0,
+            transform: 'translate(-50%, -50%) scale(0)',
+            animationDelay: `${Math.random() * 0.15}s`,
+            animationDuration: `${3 + Math.random() * 2}s`,
+            '--dx': `${Math.cos(angle) * radius}vmin`,
+            '--dy': `${Math.sin(angle) * radius}vmin`,
+            '--rot': `${(Math.random() - 0.5) * 360}deg`,
+            '--rot-end': `${(Math.random() - 0.5) * 720}deg`,
+          } as any
+        });
+      }
     }
   };
 
-  const CopyIcon = () => (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
-    </svg>
-  );
-
   return (
     <div className={styles.page}>
-      <div className={styles.container}>
-        <div className={styles.header}>
-          <h1 className={styles.title}>Converter</h1>
-          <p className={styles.subtitle}>Convert between Wei, Gwei, Ether and decode hex bytes.</p>
+      
+      <div className={styles.statsBanner}>
+        <div className={styles.statsLeft}>
+          <div className={styles.statsLeftTop}>
+            <div className={styles.mainInfo}>
+              <div className={styles.statsHeader}>
+                <span className={styles.username} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
+                <span className={styles.badge}>CONVERTER</span>
+              </div>
+              <div className={styles.addressBox}>EVM UTILITIES SUITE</div>
+            </div>
+            <div className={styles.divider}></div>
+            
+            <div className={styles.bigStatContainer}>
+              <span className={styles.bigStatLabel}>■ MODULE:</span>
+              <span className={styles.bigStatValue}>
+                <span className={styles.statusSuccess}>{activeTab === 'units' ? 'UNITS' : 'BYTES'}</span>
+              </span>
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className={styles.toolbar}>
         <div className={styles.tabs}>
           <button
             className={`${styles.tab} ${activeTab === 'units' ? styles.active : ''}`}
             onClick={() => setActiveTab('units')}
           >
-            Wei ⇄ Ether
+            [ UNIT CONVERTER ]
           </button>
           <button
             className={`${styles.tab} ${activeTab === 'bytes' ? styles.active : ''}`}
             onClick={() => setActiveTab('bytes')}
           >
-            Bytes → String
+            [ BYTE DECODER ]
           </button>
         </div>
+      </div>
 
-        <div className={styles.card}>
+      <div className={styles.workspace}>
+        <div className={styles.converterCard}>
           {activeTab === 'units' ? (
             <div className={styles.fields}>
+              <div className={`${styles.corner} ${styles.topLeft}`}></div>
+              <div className={`${styles.corner} ${styles.topRight}`}></div>
+              <div className={`${styles.corner} ${styles.bottomLeft}`}></div>
+              <div className={`${styles.corner} ${styles.bottomRight}`}></div>
               {UNITS.map((unit) => (
                 <div key={unit.name} className={styles.field}>
                   <label className={styles.label}>{unit.name}</label>
+                  <span className={styles.hint}>
+                    {
+                      unit.name === 'WEI' ? '1e0' : 
+                      unit.name === 'GWEI' ? '1e9' : 
+                      '1e18'
+                    }
+                  </span>
                   <div className={styles.inputRow}>
                     <input
                       className={styles.input}
@@ -169,7 +212,7 @@ export default function Converter() {
                       placeholder={`0`}
                     />
                     <button className={styles.copyBtn} onClick={() => copy(calculateValue(unit.factor))} title="Copy">
-                      <CopyIcon />
+                      COPY
                     </button>
                   </div>
                 </div>
@@ -177,8 +220,13 @@ export default function Converter() {
             </div>
           ) : (
             <div className={styles.fields}>
+              <div className={`${styles.corner} ${styles.topLeft}`}></div>
+              <div className={`${styles.corner} ${styles.topRight}`}></div>
+              <div className={`${styles.corner} ${styles.bottomLeft}`}></div>
+              <div className={`${styles.corner} ${styles.bottomRight}`}></div>
               <div className={styles.field}>
-                <label className={styles.label}>Hex Bytes</label>
+                <label className={styles.label}>HEX BYTES</label>
+                <span className={styles.hint}>Raw hex data, revert strings, or panic codes.<br/>For custom errors, use the Selector tool instead</span>
                 <textarea
                   className={styles.textarea}
                   value={bytesInput}
@@ -186,19 +234,18 @@ export default function Converter() {
                     setBytesInput(e.target.value);
                     setStringOutput(hexToString(e.target.value.trim()));
                   }}
-                  placeholder="0x4572726f723a20696e73756666696369656e742062616c616e6365"
-                  rows={3}
+                  placeholder="0x4e487b710000000000000000000000000000000000000000000000000000000000000011"
+                  rows={4}
                 />
               </div>
 
-              <div className={styles.arrow}>
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 5v14M5 12l7 7 7-7" />
-                </svg>
+              <div className={styles.arrowBox}>
+                <span>↓ DECODES TO ↓</span>
               </div>
 
               <div className={styles.field}>
-                <label className={styles.label}>Decoded String</label>
+                <label className={styles.label}>ASCII / UTF-8 STRING</label>
+                <span className={styles.hint}>Decoded human-readable text</span>
                 <div className={styles.inputRow}>
                   <input
                     className={styles.input}
@@ -207,11 +254,8 @@ export default function Converter() {
                       setStringOutput(e.target.value);
                       setBytesInput(stringToHex(e.target.value));
                     }}
-                    placeholder="Human readable text"
+                    placeholder="Panic(0x11): 'Arithmetic overflow/underflow'"
                   />
-                  <button className={styles.copyBtn} onClick={() => copy(stringOutput)} title="Copy">
-                    <CopyIcon />
-                  </button>
                 </div>
               </div>
             </div>

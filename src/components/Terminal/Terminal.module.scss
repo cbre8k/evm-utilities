@@ -4,7 +4,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  border-radius: $radius-xl;
+  border-radius: $radius-md;
   overflow: hidden;
   border: 1px solid var(--terminal-border);
   background: var(--terminal-bg);
@@ -13,26 +13,28 @@
 .header {
   display: flex;
   align-items: center;
-  gap: $space-2;
-  padding: $space-3 $space-4;
+  padding: $space-2 $space-4;
   background: var(--terminal-header);
   border-bottom: 1px solid var(--terminal-border);
 }
 
-.dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
+.controls {
+  display: flex;
+  gap: 4px;
+}
 
-  &.red { background: #ff5f57; }
-  &.yellow { background: #febc2e; }
-  &.green { background: #28c840; }
+.square {
+  width: 8px;
+  height: 8px;
+  background: var(--terminal-title);
+  opacity: 0.5;
 }
 
 .title {
   flex: 1;
-  text-align: center;
-  font-size: 11px;
+  text-align: right;
+  font-size: 10px;
+  letter-spacing: 0.1em;
   color: var(--terminal-title);
   font-family: $font-mono;
 }

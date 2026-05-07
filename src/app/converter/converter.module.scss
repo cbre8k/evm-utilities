@@ -1,94 +1,282 @@
 @use '../../styles/variables' as *;
-@use '../../styles/mixins' as *;
 
 .page {
-  min-height: calc(100vh - $nav-height);
-  padding: $space-8;
+  flex: 1;
   display: flex;
-  align-items: flex-start;
+  flex-direction: column;
+  font-family: $font-mono;
+  background-color: var(--bg-secondary);
+}
+
+// ----------------------------------------
+// Stats Banner (Reused style)
+// ----------------------------------------
+.statsBanner {
+  display: flex;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  min-height: 80px;
+}
+
+.statsLeft {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   justify-content: center;
-  padding-top: 10vh;
 }
 
-.container {
-  width: 100%;
-  max-width: 520px;
+.statsLeftTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100%;
 }
 
-.header {
-  text-align: center;
-  margin-bottom: $space-5;
+.mainInfo {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+  padding: 0 $space-5;
+  flex: 1;
 }
 
-.title {
-  font-size: $text-lg;
+.divider {
+  align-self: stretch;
+  border-left: 1px solid var(--border-default);
+  margin: 0;
+  width: 0;
+}
+
+.statsHeader {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  margin: 0;
+}
+
+.username {
+  font-size: 16px;
   font-weight: $font-bold;
   color: var(--text-primary);
-  margin-bottom: 2px;
+  letter-spacing: 0.05em;
 }
 
-.subtitle {
-  font-size: $text-xs;
+.badge {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-size: 10px;
+  padding: 2px 6px;
+  font-weight: $font-bold;
+  border-radius: $radius-md;
+}
+
+.addressBox {
+  font-size: 11px;
   color: var(--text-tertiary);
+  margin-bottom: 0;
+  letter-spacing: 0.1em;
+}
+
+.bigStatContainer {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  height: 100%;
+  padding: 0 $space-5;
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.bigStatLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin: 0;
+  line-height: 1;
+}
+
+.bigStatValue {
+  font-family: $font-dot-matrix;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  display: inline-block;
+  min-width: 150px;
+  text-align: left;
+}
+
+.statusSuccess {
+  color: var(--color-success);
+}
+
+// Removed bigStatSub
+
+.statsRight {
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.pipelineHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin-bottom: $space-4;
+}
+
+.badgeLine {
+  border: 1px solid var(--border-default);
+  padding: 2px 6px;
+  border-radius: $radius-md;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 $space-4;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
 }
 
 .tabs {
   display: flex;
-  gap: 2px;
-  margin-bottom: $space-5;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-full;
-  padding: 3px;
+  gap: $space-4;
 }
 
 .tab {
-  flex: 1;
-  padding: $space-2 $space-4;
-  font-size: $text-xs;
-  font-weight: $font-medium;
-  color: var(--text-tertiary);
   background: none;
   border: none;
-  border-radius: $radius-full;
+  font-family: $font-mono;
+  font-size: 12px;
+  color: var(--text-tertiary);
   cursor: pointer;
-  transition: all $transition-fast;
-  text-align: center;
+  padding: $space-2 0;
+  font-weight: $font-bold;
+  transition: all 0.2s;
 
   &:hover {
     color: var(--text-primary);
   }
 
   &.active {
-    color: var(--accent-text);
-    background: var(--accent);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+    color: var(--text-primary);
   }
 }
 
-.card {
+// ----------------------------------------
+// Workspace
+// ----------------------------------------
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.converterCard {
+  flex: 1;
   background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-xl;
-  padding: $space-6;
+  padding: $space-5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--text-primary);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.topLeft { 
+  top: -4px; 
+  left: -4px; 
+  border-width: 2px 0 0 2px;
+}
+.topRight { 
+  top: -4px; 
+  right: -4px; 
+  border-width: 2px 2px 0 0;
+}
+.bottomLeft { 
+  bottom: -4px; 
+  left: -4px; 
+  border-width: 0 0 2px 2px;
+}
+.bottomRight { 
+  bottom: -4px; 
+  right: -4px; 
+  border-width: 0 2px 2px 0;
 }
 
 .fields {
-  @include flex-col;
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
   gap: $space-4;
+  position: relative;
+  padding: $space-10;
 }
 
 .field {
-  @include flex-col;
-  gap: $space-1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  position: relative;
 }
 
 .label {
-  font-size: 11px;
-  font-weight: $font-semibold;
+  font-size: 10px;
+  font-weight: $font-bold;
   color: var(--text-tertiary);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.1em;
+  font-family: $font-mono;
+  cursor: pointer;
+  display: inline-block;
+  width: fit-content;
+
+  &:has(+ .hint)::after {
+    content: " [?]";
+    opacity: 0.5;
+  }
+}
+
+.hint {
+  font-size: 9px;
+  color: var(--bg-primary);
+  background: var(--text-primary);
+  padding: 2px 6px;
+  border-radius: $radius-sm;
+  font-family: $font-mono;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 2px;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  transform: translateY(4px);
+  white-space: pre-line;
+  max-width: 250px;
+  line-height: 1.2;
+}
+
+.label:hover + .hint {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .inputRow {
@@ -99,25 +287,19 @@
 
 .input {
   flex: 1;
-  width: 100%;
-  height: 38px;
-  padding: $space-2 $space-3;
+  height: 40px;
+  padding: 0 $space-3;
   font-family: $font-mono;
-  font-size: $text-xs;
+  font-size: 14px;
   color: var(--text-primary);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-lg;
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
   outline: none;
-  transition: border-color $transition-fast, box-shadow $transition-fast;
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
 
   &:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-subtle);
+    border-color: var(--text-primary);
+    background: var(--bg-primary);
   }
 }
 
@@ -125,50 +307,44 @@
   width: 100%;
   padding: $space-3;
   font-family: $font-mono;
-  font-size: $text-xs;
+  font-size: 12px;
   color: var(--text-primary);
   background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-lg;
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
   outline: none;
-  transition: border-color $transition-fast, box-shadow $transition-fast;
-  height: auto;
-  min-height: 88px;
   resize: vertical;
-  line-height: 1.6;
-
-  &::placeholder {
-    color: var(--text-tertiary);
-  }
 
   &:focus {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-subtle);
+    border-color: var(--text-primary);
+    background: var(--bg-primary);
   }
 }
 
 .copyBtn {
-  @include flex-center;
-  width: 34px;
-  height: 34px;
-  padding: 0;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-lg;
-  color: var(--text-tertiary);
+  height: 40px;
+  padding: 0 $space-3;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-default);
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: $font-bold;
   cursor: pointer;
-  transition: all $transition-fast;
-  flex-shrink: 0;
+  border-radius: $radius-md;
 
   &:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-subtle);
+    background: var(--text-primary);
+    color: var(--bg-primary);
   }
 }
 
-.arrow {
-  @include flex-center;
-  padding: $space-1 0;
+.arrowBox {
+  display: flex;
+  justify-content: center;
+  padding: $space-2 0;
+  font-size: 10px;
+  font-weight: $font-bold;
   color: var(--text-tertiary);
+  letter-spacing: 0.1em;
 }

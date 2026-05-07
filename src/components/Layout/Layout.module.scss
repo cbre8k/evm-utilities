@@ -2,203 +2,176 @@
 @use '../../styles/mixins' as *;
 
 .layout {
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+  background-color: var(--bg-secondary);
 }
 
-.nav {
+.header {
   position: sticky;
   top: 0;
   z-index: 100;
-  height: $nav-height;
+  height: 48px;
   background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-default);
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
-  padding: 0 $space-5;
-
-  @include mobile {
-    padding: 0 $space-3;
-  }
+  font-family: $font-mono;
 }
 
-.logo {
-  font-size: $text-base;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  letter-spacing: -0.03em;
-  font-family: $font-mono;
-  flex-shrink: 0;
+.headerLeft {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border-default);
+  padding-right: $space-4;
+}
 
-  span {
-    color: var(--accent);
-    font-weight: $font-normal;
-  }
+.logoBox {
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.logoImage {
+  width: 32px;
+  height: 32px;
+  object-fit: contain;
+}
+
+.brandInfo {
+  margin-left: $space-3;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.brandName {
+  font-size: 12px;
+  font-weight: $font-bold;
+  letter-spacing: 0.05em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.brandSub {
+  font-size: 8px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
 }
 
 .navLinks {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
   display: flex;
-  align-items: center;
-  gap: 2px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-full;
-  padding: 3px;
-
-  @include mobile {
-    display: none;
-  }
-}
-
-.navRight {
-  display: flex;
-  align-items: center;
-  gap: $space-3;
-  flex-shrink: 0;
+  align-items: stretch;
+  flex: 1;
 }
 
 .navLink {
-  padding: $space-2 $space-5;
-  font-size: $text-xs;
-  font-weight: $font-medium;
-  color: var(--text-tertiary);
-  border-radius: $radius-full;
-  transition: all $transition-fast;
-  text-decoration: none;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-
-  &:hover {
-    color: var(--text-primary);
-  }
-
-  &.active {
-    color: var(--accent-text);
-    background: var(--accent);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
-  }
-}
-
-.menuBtn {
-  @include flex-center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-default);
-  border-radius: $radius-full;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all $transition-fast;
-  display: none;
-
-  @include mobile {
-    display: flex;
-  }
-
-  &:hover {
-    color: var(--text-primary);
-    background: var(--bg-tertiary);
-  }
-}
-
-.mobileMenu {
-  display: none;
-
-  @include mobile {
-    display: flex;
-    flex-direction: column;
-    position: sticky;
-    top: $nav-height;
-    z-index: 99;
-    background: var(--bg-primary);
-    border-bottom: 1px solid var(--border-subtle);
-    padding: $space-2 $space-3;
-    gap: $space-1;
-  }
-}
-
-.mobileLink {
-  padding: $space-3 $space-4;
-  font-size: $text-sm;
-  font-weight: $font-medium;
-  color: var(--text-secondary);
-  border-radius: $radius-lg;
-  text-decoration: none;
-  transition: all $transition-fast;
-
-  &:hover {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-  }
-
-  &.active {
-    color: var(--accent);
-    background: var(--accent-subtle);
-  }
-}
-
-.themeWrapper {
-  position: relative;
-}
-
-.themeToggle {
-  @include flex-center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--border-default);
-  border-radius: $radius-full;
-  background: var(--bg-secondary);
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: all $transition-fast;
-
-  &:hover {
-    color: var(--text-primary);
-    border-color: var(--accent);
-    background: var(--accent-subtle);
-  }
-}
-
-.themeIcon {
+  padding: 0 $space-4;
   display: flex;
   align-items: center;
-  justify-content: center;
-  line-height: 1;
+  font-size: 12px;
+  font-weight: $font-bold;
+  color: var(--text-secondary);
+  border-right: 1px solid var(--border-default);
+  transition: background $transition-fast;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+
+  &:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+
+  &.active {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+  }
 }
 
-.themeDropdown {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  min-width: 140px;
-  padding: 4px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-lg;
-  box-shadow: var(--surface-shadow);
-  z-index: 100;
+.headerStats {
+  display: flex;
+  align-items: stretch;
+}
+
+.statGroup {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  justify-content: center;
+  padding: 0 $space-4;
+  border-left: 1px solid var(--border-default);
 }
 
-.themeOption {
+.statLabel {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  margin-bottom: 2px;
+}
+
+.statValue {
+  font-size: 11px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+}
+
+.customDropdown {
+  position: relative;
+  min-width: 80px;
+}
+
+.dropdownSelected {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  font-weight: $font-bold;
+  padding: 2px 12px;
+  cursor: pointer;
+  border-radius: $radius-sm;
+  transition: all $transition-fast;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: $space-2;
-  padding: $space-2 $space-3;
-  font-size: 12px;
-  font-weight: $font-medium;
+
+  &:hover {
+    border-color: var(--text-primary);
+    background: var(--bg-secondary);
+  }
+
+  &::after {
+    content: '▼';
+    font-size: 8px;
+    opacity: 0.5;
+  }
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: fit-content;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-sm;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+}
+
+.dropdownOption {
+  padding: 6px 12px;
+  font-size: 11px;
   color: var(--text-secondary);
-  background: transparent;
-  border: none;
-  border-radius: $radius-md;
   cursor: pointer;
+  border-radius: 2px;
   transition: all $transition-fast;
 
   &:hover {
@@ -207,19 +180,43 @@
   }
 
   &.active {
-    background: var(--accent-subtle);
-    color: var(--accent);
-    font-weight: $font-semibold;
+    background: var(--text-primary);
+    color: var(--bg-primary);
   }
 }
 
-.themeOptionIcon {
+.statValueSuccess {
+  @extend .statValue;
+  color: var(--color-success);
+}
+
+.themeToggleBox {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 20px;
+  padding: 0 $space-2;
+  border-left: 1px solid var(--border-default);
+}
+
+.themeBtn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 10px;
+  font-weight: $font-bold;
+  padding: 4px 8px;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+  }
 }
 
 .content {
   flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: $space-4;
+  min-height: 0;
 }

@@ -1,8 +1,10 @@
 import type { Metadata } from 'next';
 import { Inter, JetBrains_Mono } from 'next/font/google';
+import localFont from 'next/font/local';
 import AppLayout from '@/components/Layout';
 import AntdRegistry from '@/components/AntdRegistry';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { NetworkProvider } from '@/contexts/NetworkContext';
 import '@/styles/global.scss';
 
 const inter = Inter({
@@ -15,6 +17,11 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-mono',
 });
 
+const dotGothic = localFont({
+  src: '../../public/fonts/dotfont.ttf',
+  variable: '--font-dot-matrix',
+});
+
 export const metadata: Metadata = {
   title: 'EVM Utils',
   description: 'EVM Transaction Simulator & Developer Tools',
@@ -22,7 +29,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${dotGothic.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -32,9 +39,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <ThemeProvider>
-          <AntdRegistry>
-            <AppLayout>{children}</AppLayout>
-          </AntdRegistry>
+          <NetworkProvider>
+            <AntdRegistry>
+              <AppLayout>{children}</AppLayout>
+            </AntdRegistry>
+          </NetworkProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -2,128 +2,321 @@
 @use '../../styles/mixins' as *;
 
 .page {
-  min-height: calc(100vh - $nav-height);
-  padding: $space-8;
-  @include flex-col;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-family: $font-mono;
+  background-color: var(--bg-secondary);
+}
+
+// ----------------------------------------
+// Stats Banner (Reused from simulator)
+// ----------------------------------------
+.statsBanner {
+  display: grid;
+  grid-template-columns: minmax(400px, 1fr) minmax(300px, 1fr);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  min-height: 140px;
+}
+
+.statsLeft {
+  padding: $space-4;
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.statsLeftTop {
+  display: flex;
+  justify-content: space-between;
   align-items: center;
-  transition: padding-top $transition-slow;
+  margin-bottom: $space-2;
 }
 
-.pageIdle {
-  padding-top: 20vh;
+.mainInfo {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
 }
 
-.searchWrapper {
-  width: 100%;
-  max-width: 560px;
-  margin-bottom: $space-8;
-}
-
-.header {
-  text-align: center;
-  margin-bottom: $space-5;
-}
-
-.title {
-  font-size: $text-lg;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  margin-bottom: 2px;
-}
-
-.subtitle {
-  font-size: $text-xs;
-  color: var(--text-tertiary);
-}
-
-.searchCard {
+.statsHeader {
   display: flex;
   align-items: center;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-full;
-  padding: $space-1;
-  padding-left: $space-5;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: border-color $transition-fast, box-shadow $transition-fast;
+  gap: $space-3;
+  margin: 0;
+}
 
-  &:focus-within {
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px var(--accent-subtle);
+.username {
+  font-size: 16px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
+}
+
+.badge {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-size: 10px;
+  padding: 2px 6px;
+  font-weight: $font-bold;
+  border-radius: $radius-md;
+}
+
+.addressBox {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  margin-bottom: $space-4;
+  letter-spacing: 0.1em;
+}
+
+.bigStatContainer {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  height: 100%;
+}
+
+.bigStatLabel {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin: 0;
+  line-height: 1;
+}
+
+.bigStatValue {
+  font-family: $font-dot-matrix;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  display: inline-block;
+  min-width: 150px;
+  text-align: left;
+}
+
+.statusSuccess {
+  color: var(--color-success);
+}
+
+.statusDanger {
+  color: var(--color-danger);
+}
+
+.statusBlink {
+  color: var(--color-warning);
+  animation: blink 1s step-end infinite;
+}
+
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+// Removed bigStatSub
+
+.statsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  border-top: 1px solid var(--border-default);
+  margin-top: auto;
+  padding-top: $space-3;
+}
+
+.statCol {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px dashed var(--border-default);
+  padding: 0 $space-2;
+
+  &:last-child {
+    border-right: none;
   }
 }
 
-.searchIcon {
+.scLabel {
+  font-size: 9px;
   color: var(--text-tertiary);
-  font-size: 15px;
-  flex-shrink: 0;
+  margin-bottom: 4px;
+}
+
+.scValue {
+  font-size: 14px;
+  font-family: $font-dot-matrix;
+  color: var(--text-secondary);
+}
+
+.statsRight {
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.pipelineHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin-bottom: $space-4;
+}
+
+.badgeLine {
+  border: 1px solid var(--border-default);
+  padding: 2px 6px;
+  border-radius: $radius-md;
+}
+
+.searchBox {
+  display: flex;
+  margin-top: auto;
+  gap: $space-2;
 }
 
 .searchInput {
   flex: 1;
-  height: 40px;
-  border: none;
-  outline: none;
-  font-size: $text-xs;
+  height: 48px;
+  padding: 0 $space-4;
   font-family: $font-mono;
+  font-size: 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
   color: var(--text-primary);
-  background: transparent;
-  padding: 0 $space-3;
+  border-radius: $radius-md;
+  outline: none;
 
-  &::placeholder {
-    color: var(--text-tertiary);
+  &:focus {
+    border-color: var(--text-primary);
   }
 }
 
 .searchBtn {
-  @include btn-primary;
-  height: 36px;
-  border-radius: $radius-full;
-  padding: 0 $space-5;
-  font-size: $text-xs;
-  font-weight: $font-semibold;
-  flex-shrink: 0;
+  height: 48px;
+  padding: 0 $space-4;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: none;
+  font-family: $font-mono;
+  font-size: 12px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  border-radius: $radius-md;
+  border: 1px solid var(--border-default);
+
+  &:hover:not(:disabled) {
+    background: var(--text-primary);
+    color: var(--bg-primary);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 }
 
-.results {
-  width: 100%;
-  max-width: $content-max-width;
+// ----------------------------------------
+// Workspace
+// ----------------------------------------
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
-.resultCount {
-  font-size: $text-sm;
+.emptyWorkspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-primary);
+  color: var(--text-tertiary);
+  font-size: 24px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+
+  .subtext {
+    font-size: 12px;
+    margin-top: $space-2;
+    font-weight: normal;
+  }
+}
+
+.resultsPanel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+}
+
+.resultsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 $space-4;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 10px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
   color: var(--text-secondary);
-  margin-bottom: $space-4;
 }
 
 .tableWrapper {
-  @include surface;
-  overflow: hidden;
+  flex: 1;
+  padding: $space-2;
+  overflow: auto;
+}
+
+// ----------------------------------------
+// Table & Tag overrides
+// ----------------------------------------
+.terminalTable {
+  :global(.ant-table) {
+    font-family: $font-mono !important;
+    background: transparent !important;
+  }
+  :global(.ant-table-thead) > tr > th {
+    background: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+    font-size: 10px !important;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border-default) !important;
+  }
+  :global(.ant-table-tbody) > tr > td {
+    border-bottom: 1px dashed var(--border-default) !important;
+    font-size: 12px !important;
+  }
 }
 
 .tag {
-  display: inline-flex;
-  align-items: center;
-  padding: $space-1 $space-2;
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: $font-bold;
   border-radius: $radius-sm;
-  font-size: $text-xs;
-  font-weight: $font-medium;
-  text-transform: capitalize;
+  letter-spacing: 0.05em;
 
   &.fn {
-    color: var(--accent);
-    background: var(--accent-subtle);
+    background: var(--info-subtle);
+    color: var(--info);
+    border: 1px solid var(--info);
   }
 
   &.event {
-    color: $info;
-    background: $info-subtle;
+    background: var(--warning-subtle);
+    color: var(--warning);
+    border: 1px solid var(--warning);
   }
 }
 
 .mono {
-  font-family: $font-mono;
-  font-size: $text-sm;
   color: var(--text-primary);
 }
 
@@ -131,82 +324,59 @@
   display: flex;
   align-items: center;
   gap: $space-2;
-  font-family: $font-mono;
-  font-size: $text-xs;
   color: var(--text-secondary);
 }
 
 .verifiedBadge {
-  @include flex-center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: $success-subtle;
-  color: $success;
-  font-size: 11px;
+  color: var(--color-success);
+  font-size: 12px;
 }
 
 .unverifiedBadge {
-  @include flex-center;
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--bg-tertiary);
   color: var(--text-tertiary);
-  font-size: 11px;
+  font-size: 12px;
 }
 
-.copyIcon {
+.copyBtn {
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  background-color: var(--bg-tertiary);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: $font-bold;
+  padding: 2px 6px;
   cursor: pointer;
-  color: var(--text-tertiary);
-  transition: color $transition-fast;
+  border-radius: $radius-sm;
 
   &:hover {
-    color: var(--accent);
+    color: var(--bg-primary);
+    background-color: var(--text-primary);
   }
 }
 
-.skeleton {
-  padding: $space-8;
-}
-
-.skeletonTable {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-
-  th {
-    text-align: left;
-    padding: $space-3 $space-4;
-    font-size: $text-sm;
-    font-weight: $font-medium;
-    color: var(--text-primary);
-    background: var(--bg-secondary);
-    border-bottom: 1px solid var(--border-default);
-  }
-
-  td {
-    padding: $space-4 $space-4;
-    border-bottom: 1px solid var(--border-subtle);
-  }
+.loadingState {
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
 }
 
 .skeletonLine {
-  height: 14px;
-  background: linear-gradient(90deg, var(--bg-tertiary) 25%, var(--border-default) 50%, var(--bg-tertiary) 75%);
-  background-size: 200% 100%;
-  animation: shimmer 1.5s infinite;
-  border-radius: $radius-sm;
+  height: 24px;
+  background: var(--bg-tertiary);
+  animation: pulse 1.5s infinite;
 }
 
-@keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.2; }
+  100% { opacity: 0.6; }
 }
 
 .empty {
-  padding: $space-12;
+  padding: $space-10;
   text-align: center;
   color: var(--text-tertiary);
-  font-size: $text-sm;
+  font-size: 12px;
+  letter-spacing: 0.1em;
 }

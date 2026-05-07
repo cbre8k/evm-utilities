@@ -1,21 +1,37 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import { AUTHOR, GITHUB } from '@/lib/constants';
+import { generateSimulationTest } from '@/lib/templates';
+import { useNetwork } from '@/contexts/NetworkContext';
 import { TraceFields, SimulateFields } from '@/components/FormFields';
 import Terminal, { TerminalHandle } from '@/components/Terminal';
-import { generateSimulationTest } from '@/lib/templates';
 import styles from './simulator.module.scss';
+import { message } from 'antd';
 
 type Tab = 'TRACE' | 'SIMULATE';
+type PipelineState = 'PREPARING' | 'EXECUTING' | 'RESULTING' | 'CRASHING' | 'ABORTING';
 
 export default function Home() {
   const [activeTab, setActiveTab] = useState<Tab>('TRACE');
+  const [pipelineState, setPipelineState] = useState<PipelineState>('PREPARING');
   const [isRunning, setIsRunning] = useState(false);
+  const [copied, setCopied] = useState(false);
   const terminalRef = useRef<TerminalHandle>(null);
 
+  const { 
+    selectedNetwork, 
+    rpcUrl, 
+    setRpcUrl, 
+    latency, 
+    chainId, 
+    forkHeight, 
+    gasPrice 
+  } = useNetwork();
+
   // Trace State
-  const [rpcUrl, setRpcUrl] = useState('');
   const [txHash, setTxHash] = useState('');
+  const [quick, setQuick] = useState(false);
 
   // Simulate State
   const [sender, setSender] = useState('');
@@ -33,6 +49,8 @@ export default function Home() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Effect for rpcUrl removed as it now comes directly from context
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -53,6 +71,7 @@ export default function Home() {
   };
 
   useEffect(() => {
+    setPipelineState('PREPARING');
     terminalRef.current?.clear();
     terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
   }, [activeTab]);
@@ -70,6 +89,7 @@ export default function Home() {
   const handleRun = async () => {
     if (isRunning) return;
     setIsRunning(true);
+    setPipelineState('EXECUTING');
     terminalRef.current?.clear();
     terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
 
@@ -83,7 +103,7 @@ export default function Home() {
         body: JSON.stringify({
           type: activeTab,
           inputs: {
-            rpcUrl, txHash, sender, shouldDealToken,
+            rpcUrl, txHash, quick, sender, shouldDealToken,
             tokenAddress, spender, amount, calldata, to, msgValue, scriptContent,
           },
         }),
@@ -94,57 +114,196 @@ export default function Home() {
       if (!reader) return;
 
       const decoder = new TextDecoder();
+      let buffer = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        terminalRef.current?.write(decoder.decode(value));
+        const text = decoder.decode(value);
+        terminalRef.current?.write(text);
+
+        buffer += text;
+        if (buffer.length > 2000) buffer = buffer.slice(-2000);
+        
+        if (buffer.includes('Error:') || buffer.includes('Compiler run failed') || buffer.includes('System Error:') || buffer.includes('Failing tests:')) {
+          setPipelineState('CRASHING');
+        } else if (buffer.includes('Suite result: ok') || buffer.includes('Transaction successfully executed')) {
+          if (pipelineState !== 'CRASHING') setPipelineState('RESULTING');
+        }
       }
+      
+      setPipelineState(prev => prev === 'CRASHING' ? 'CRASHING' : 'RESULTING');
     } catch (error: any) {
       if (error.name === 'AbortError') {
+        setPipelineState('ABORTING');
         terminalRef.current?.write('\x1b[31mCancelled.\x1b[0m\n');
       } else {
+        setPipelineState('CRASHING');
         terminalRef.current?.write(`\r\nError: ${error}\r\n`);
       }
     } finally {
       setIsRunning(false);
+      setPipelineState(prev => {
+        if (prev !== 'CRASHING' && prev !== 'RESULTING' && prev !== 'ABORTING') {
+          return 'PREPARING';
+        }
+        return prev;
+      });
       abortControllerRef.current = null;
     }
   };
 
   const handleCancel = () => {
+    setPipelineState('ABORTING');
     abortControllerRef.current?.abort();
   };
 
   return (
     <div className={styles.page}>
-      <div className={styles.header}>
-        <h1 className={styles.title}>EVM Simulator</h1>
-        <p className={styles.subtitle}>Trace transactions or simulate custom calls with Foundry.</p>
+      
+      {/* Mirofish-style Top Stats Banner */}
+      <div className={styles.statsBanner}>
+        <div className={styles.statsLeft}>
+          <div className={styles.statsLeftTop}>
+            <div className={styles.mainInfo}>
+              <div className={styles.statsHeader}>
+                <span className={styles.username} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
+                <span className={styles.badge}>{selectedNetwork.name}</span>
+              </div>
+              <div 
+                className={styles.addressBox}
+                onClick={() => {
+                  navigator.clipboard.writeText('0x0000000000000000000000000000000000000000');
+                  for (let i = 0; i < 20; i++) {
+                    message.success({
+                      content: 'COPIED',
+                      duration: 4 + Math.random() * 2,
+                      className: 'firework-msg',
+                      style: {
+                        opacity: 0,
+                        transform: 'translate(-50%, -50%) scale(0)',
+                        animationDelay: `${Math.random() * 0.12}s`,
+                        '--dx': `${(Math.random() - 0.5) * 100}vw`,
+                        '--dy': `${(Math.random() - 0.5) * 100}vh`,
+                        '--rot': `${(Math.random() - 0.5) * 360}deg`,
+                        '--rot-end': `${(Math.random() - 0.5) * 720}deg`,
+                      } as any
+                    });
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
+                0x0000000000000000000000000000000000000000
+              </div>
+            </div>
+
+            <div className={styles.bigStatContainer}>
+              <span className={styles.bigStatLabel}>■ STATUS:</span>
+              <div className={styles.bigStatValue}>
+                {isRunning ? (
+                  pipelineState === 'ABORTING' ? (
+                    <span className={styles.statusWarning}>CANCELING</span>
+                  ) : (
+                    <span className={styles.statusBlink}>EXECUTING</span>
+                  )
+                ) : pipelineState === 'CRASHING' ? (
+                  <span className={styles.statusDanger}>FAILED</span>
+                ) : pipelineState === 'RESULTING' ? (
+                  <span className={styles.statusSuccess}>SUCCESS</span>
+                ) : pipelineState === 'ABORTING' ? (
+                  <span className={styles.statusWarning}>CANCELLED</span>
+                ) : (
+                  <span className={styles.statusSuccess}>READY</span>
+                )}
+              </div>
+            </div>
+          </div>
+          
+          <div className={styles.statsGrid}>
+            <div className={styles.statCol}>
+              <div className={styles.scLabel}>LATENCY</div>
+              <div className={styles.scValue}>{latency} Ms</div>
+            </div>
+            <div className={styles.statCol}>
+              <div className={styles.scLabel}>CHAIN ID</div>
+              <div className={styles.scValue}>{chainId}</div>
+            </div>
+            <div className={styles.statCol}>
+              <div className={styles.scLabel}>BLOCK HEIGHT</div>
+              <div className={styles.scValue}>{forkHeight}</div>
+            </div>
+            <div className={styles.statCol}>
+              <div className={styles.scLabel}>GAS PRICE</div>
+              <div className={styles.scValue}>{gasPrice} Gwei</div>
+            </div>
+          </div>
+        </div>
+        
+        <div className={styles.statsRight}>
+          <div className={styles.pipelineHeader}>
+            <span>■ EXECUTION PIPELINE</span>
+            <span className={styles.badgeLine}>{activeTab} &middot; STAGE</span>
+          </div>
+          
+          <div className={styles.pipelineSteps}>
+            <div className={`${styles.step} ${pipelineState === 'PREPARING' ? styles.stepActive : ''}`}>
+              <span className={styles.stepNum}>01</span>
+              <span className={styles.stepName}>Preparing</span>
+            </div>
+            <div className={`${styles.step} ${pipelineState === 'EXECUTING' ? styles.stepActive : ''}`}>
+              <span className={styles.stepNum}>02</span>
+              <span className={styles.stepName}>Executing</span>
+            </div>
+            <div className={`${styles.step} ${pipelineState === 'RESULTING' ? styles.stepActive : (pipelineState === 'CRASHING' ? styles.stepCrash : (pipelineState === 'ABORTING' ? styles.stepAbort : ''))}`}>
+              <span className={styles.stepNum}>03</span>
+              <span className={styles.stepName}>{pipelineState === 'CRASHING' ? 'Crashing' : pipelineState === 'ABORTING' ? 'Aborting' : 'Resulting'}</span>
+            </div>
+          </div>
+        </div>
       </div>
+
       <div className={styles.toolbar}>
         <div className={styles.tabs}>
           <button
             className={`${styles.tab} ${activeTab === 'TRACE' ? styles.active : ''}`}
             onClick={() => setActiveTab('TRACE')}
           >
-            Trace
+            [ TRACE ]
           </button>
           <button
             className={`${styles.tab} ${activeTab === 'SIMULATE' ? styles.active : ''}`}
             onClick={() => setActiveTab('SIMULATE')}
           >
-            Simulate
+            [ SIMULATE ]
           </button>
         </div>
-        {isRunning && <span className={styles.timer}>{formatTime(elapsedTime)}</span>}
+        <div className={styles.runtimeBox}>
+          RUNTIME: {isRunning ? formatTime(elapsedTime) : '0.0s'}
+        </div>
       </div>
 
       <div className={styles.workspace}>
-        <div className={styles.inputPanel}>
+        <div 
+          className={styles.inputPanel}
+          onFocus={() => {
+            if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
+              setPipelineState('PREPARING');
+              terminalRef.current?.clear();
+              terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
+            }
+          }}
+          onClick={() => {
+            if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
+              setPipelineState('PREPARING');
+              terminalRef.current?.clear();
+              terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
+            }
+          }}
+        >
           {activeTab === 'TRACE' ? (
             <TraceFields
               rpcUrl={rpcUrl} setRpcUrl={setRpcUrl}
               txHash={txHash} setTxHash={setTxHash}
+              quick={quick} setQuick={setQuick}
             />
           ) : (
             <SimulateFields
@@ -168,25 +327,11 @@ export default function Home() {
               onClick={handleRun}
               disabled={isRunning}
             >
-              {isRunning ? (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={styles.spin}>
-                    <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
-                  </svg>
-                </>
-              ) : (
-                <>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                    <polygon points="5 3 19 12 5 21 5 3" />
-                  </svg>
-                </>
-              )}
+              {isRunning ? 'EXECUTING' : 'EXECUTE SEQUENCE'}
             </button>
             {isRunning && (
               <button className={styles.cancelBtn} onClick={handleCancel} title="Cancel">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <rect x="3" y="3" width="18" height="18" rx="2" />
-                </svg>
+                ABORT
               </button>
             )}
           </div>
