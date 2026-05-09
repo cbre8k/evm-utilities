@@ -401,25 +401,6 @@
 
 // ── Call trace LIST ──────────────────────────────────────────
 
-.traceListHeader {
-  display: grid;
-  grid-template-columns: 84px 80px auto;
-  padding: 6px 12px;
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.1em;
-  font-weight: $font-bold;
-  border-bottom: 1px solid var(--border-default);
-  background: var(--bg-secondary);
-  position: sticky;
-  top: 0;
-  z-index: 10;
-}
-
-.traceHeaderOpcode { }
-.traceHeaderGas    { }
-.traceHeaderDesc   { }
-
 .traceList {
   font-size: 12px;
   font-family: $font-mono;
@@ -451,16 +432,14 @@
 .traceListRow {
   --trace-accent: var(--border-default);
   --trace-depth: 0;
-  display: grid;
-  grid-template-columns: 84px 80px auto;
-  gap: 0;
+  display: flex;
+  align-items: stretch;
   padding: 0;
   border-bottom: 1px solid var(--border-subtle);
-  align-items: stretch;
   min-height: 0;
   min-width: 0;
   white-space: nowrap;
-  transition: background 120ms ease, box-shadow 120ms ease;
+  transition: background 120ms ease;
 
   &:hover {
     background: rgba(255, 255, 255, 0.025);
@@ -525,55 +504,39 @@
 .traceListOp {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 8px 4px;
-  border-right: 1px solid var(--border-subtle);
+  gap: 6px;
+  padding: 6px 8px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-primary, #1a1a2e);
 }
 
 .opcBadge {
   font-size: 9px;
   font-weight: $font-bold;
-  padding: 3px 6px;
+  padding: 2px 6px;
   border-radius: 4px;
   letter-spacing: 0.03em;
   white-space: nowrap;
   font-family: $font-mono;
-  min-width: 58px;
+  min-width: 50px;
   text-align: center;
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
-.traceListGas {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  min-width: 0;
-  padding: 8px 8px;
-  border-right: 1px solid var(--border-subtle);
-}
-
-.traceGasPct {
-  color: var(--text-secondary);
+.gasBadge {
   font-size: 9px;
-  opacity: 0.7;
-}
-
-.gasBarMini {
-  width: 100%;
-  height: 2px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  padding: 2px 5px;
+  border-radius: 3px;
   background: var(--bg-tertiary);
-  border-radius: $radius-full;
-  overflow: hidden;
-  margin-top: 1px;
-}
-
-.gasBarMiniFill {
-  height: 100%;
-  border-radius: $radius-full;
-  min-width: 1px;
+  border: 1px solid var(--border-subtle);
+  font-family: $font-mono;
+  min-width: 50px;
+  text-align: center;
 }
 
 .traceListDesc {
@@ -584,6 +547,7 @@
   min-width: 0;
   position: relative;
   padding: 6px 10px 6px 0;
+  flex: 1;
 }
 
 // ── CSS depth guide lines ──────────────────────────────────────

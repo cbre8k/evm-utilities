@@ -23,7 +23,7 @@ import {
   getChainId,
   getTransactionReceipt,
 } from '../services/rpcService';
-import { decodeCalldata, decodeOutput } from '../services/selectorService';
+import { decodeCalldata, decodeOutput, lookupEventNames } from '../services/selectorService';
 import { getRuntimeDebugInfo, getVerifiedContractName } from '../services/sourcifyService';
 import { config } from '../config';
 import type { TraceJobMessage } from '../types';
@@ -89,6 +89,19 @@ function collectTraceAddresses(node: any, out = new Set<string>()): string[] {
   }
   for (const child of node?.children ?? []) collectTraceAddresses(child, out);
   return [...out];
+}
+
+/** Set contract_name on every trace node from the resolved address labels. */
+function setContractNames(
+  node: any,
+  labels: Record<string, string>,
+  tokenLabels: Record<string, string>,
+): void {
+  if (node?.to) {
+    const key = node.to.toLowerCase();
+    node.contract_name = labels[key] ?? tokenLabels[key] ?? undefined;
+  }
+  for (const child of node?.children ?? []) setContractNames(child, labels, tokenLabels);
 }
 
 async function buildAddressLabelMap(
@@ -482,6 +495,23 @@ export async function buildTraceResultPayload(
     erc1155Transfers,
   } = parseAllLogs(receipt);
 
+  // Enrich inline trace logs with event names from decoded receipt logs
+  const eventNameByTopic = new Map<string, string>();
+  for (const log of allLogs) {
+    if (log.eventName && log.topics?.[0]) {
+      eventNameByTopic.set(log.topics[0].toLowerCase(), log.eventName);
+    }
+  }
+  await enrichTreeLogs(normalizedTree, eventNameByTopic);
+
+  // Apply resolved names back to allLogs for frontend consumption
+  for (const log of allLogs) {
+    if (!log.eventName && log.topics?.[0]) {
+      const name = eventNameByTopic.get(log.topics[0].toLowerCase());
+      if (name) log.eventName = name;
+    }
+  }
+
   const nativeTransfers = extractNativeTransfers(normalizedTree);
   const stateDiffs = buildStateDiffs(prestateResult);
   const gasTree = buildGasTree(normalizedTree, parseInt(txOverview.gasUsed, 16));
@@ -500,6 +530,8 @@ export async function buildTraceResultPayload(
     collectTraceAddresses(normalizedTree),
     tokenLabels,
   );
+
+  setContractNames(normalizedTree, addressLabels, tokenLabels);
 
   await annotateTree(normalizedTree, chainId);
 
@@ -583,6 +615,23 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
       erc1155Transfers,
     } = parseAllLogs(receipt);
 
+    // Enrich inline trace logs with event names from decoded receipt logs
+    const eventNameByTopic2 = new Map<string, string>();
+    for (const log of allLogs) {
+      if (log.eventName && log.topics?.[0]) {
+        eventNameByTopic2.set(log.topics[0].toLowerCase(), log.eventName);
+      }
+    }
+    await enrichTreeLogs(normalizedTree, eventNameByTopic2);
+
+    // Apply resolved names back to allLogs for frontend consumption
+    for (const log of allLogs) {
+      if (!log.eventName && log.topics?.[0]) {
+        const name = eventNameByTopic2.get(log.topics[0].toLowerCase());
+        if (name) log.eventName = name;
+      }
+    }
+
     const nativeTransfers  = extractNativeTransfers(normalizedTree);
     const stateDiffs       = buildStateDiffs(prestateResult);
     const gasTree          = buildGasTree(normalizedTree, parseInt(txOverview.gasUsed, 16));
@@ -601,6 +650,8 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
       collectTraceAddresses(normalizedTree),
       tokenLabels,
     );
+
+    setContractNames(normalizedTree, addressLabels, tokenLabels);
 
     // ── 4. Annotate tree nodes with decoded function names ────
     await annotateTree(normalizedTree, chainId);
@@ -739,6 +790,85 @@ function collectSelectors(node: any, seen = new Set<string>()): string[] {
 }
 
 /**
+ * Enrich inline trace logs with event names.
+ * 1. Apply names from receipt logs (already decoded Transfer, Approval, etc.)
+ * 2. Collect unknown topic0s and batch-lookup via 4byte / OpenChain APIs
+ * 3. Apply the results back to the logs
+ */
+async function enrichTreeLogs(
+  node: any,
+  eventNameByTopic: Map<string, string>,
+): Promise<void> {
+  // First pass: apply known names and collect unknowns
+  const unknownTopics = new Set<string>();
+  collectUnknownTopics(node, eventNameByTopic, unknownTopics);
+
+  // Batch lookup unknowns via 4byte / OpenChain
+  if (unknownTopics.size > 0) {
+    const looked = await lookupEventNames([...unknownTopics]);
+    for (const [topic, name] of looked) {
+      eventNameByTopic.set(topic, name);
+    }
+  }
+
+  // Second pass: apply all resolved names
+  applyEventNames(node, eventNameByTopic);
+}
+
+function collectUnknownTopics(
+  node: any,
+  known: Map<string, string>,
+  unknowns: Set<string>,
+): void {
+  const logs = node?.logs as any[] | undefined;
+  if (logs?.length) {
+    for (const log of logs) {
+      if (log.name) continue;
+      const topic0 = log.topics?.[0]?.toLowerCase();
+      if (topic0 && !known.has(topic0)) {
+        unknowns.add(topic0);
+      }
+    }
+  }
+  for (const child of node?.children ?? []) {
+    collectUnknownTopics(child, known, unknowns);
+  }
+}
+
+function applyEventNames(
+  node: any,
+  nameByTopic: Map<string, string>,
+): void {
+  const logs = node?.logs as any[] | undefined;
+  if (logs?.length) {
+    for (const log of logs) {
+      if (log.name) continue;
+      const topic0 = log.topics?.[0]?.toLowerCase();
+      if (topic0 && nameByTopic.has(topic0)) {
+        log.name = nameByTopic.get(topic0);
+      }
+    }
+  }
+  for (const child of node?.children ?? []) {
+    applyEventNames(child, nameByTopic);
+  }
+}
+
+/** Check if any log in the tree is missing a name */
+function hasUnnamedLogs(node: any): boolean {
+  const logs = node?.logs as any[] | undefined;
+  if (logs?.length) {
+    for (const log of logs) {
+      if (!log.name && log.topics?.[0]) return true;
+    }
+  }
+  for (const child of node?.children ?? []) {
+    if (hasUnnamedLogs(child)) return true;
+  }
+  return false;
+}
+
+/**
  * Walk the call tree and annotate each node with decodedFunction + decodedArgs
  * by looking up its 4-byte selector and ABI-decoding the calldata in place.
  * Must be called BEFORE the result payload is built / cached.
@@ -753,6 +883,14 @@ async function annotateTree(node: any, chainId: number): Promise<boolean> {
       node.decodedFunction = decoded.functionName;
       node.decodedArgs     = decoded.args;
       changed ||= previousFunction !== node.decodedFunction || previousArgs !== JSON.stringify(node.decodedArgs ?? []);
+    }
+    // Also decode output if available and not yet decoded
+    if (node.output && node.output !== '0x' && !node.decoded_output?.length) {
+      const decodedOut = await decodeOutput(node.input, node.output, node.to, chainId);
+      if (decodedOut?.values?.length) {
+        node.decoded_output = decodedOut.values;
+        changed = true;
+      }
     }
   }
   for (const child of node?.children ?? []) {
@@ -809,6 +947,21 @@ async function ensureDecodedArtifacts(payload: any, chainId: number, rpcUrl: str
   if (nextPayload?.normalizedTree) {
     const treeChanged = await annotateTree(nextPayload.normalizedTree, chainId);
     changed = treeChanged || changed;
+
+    // Enrich event names from 4byte/OpenChain if any logs are unnamed
+    if (hasUnnamedLogs(nextPayload.normalizedTree)) {
+      const knownNames = new Map<string, string>();
+      // Seed from allLogs (receipt-decoded event names)
+      if (Array.isArray(nextPayload.allLogs)) {
+        for (const log of nextPayload.allLogs) {
+          if (log.eventName && log.topics?.[0]) {
+            knownNames.set(log.topics[0].toLowerCase(), log.eventName);
+          }
+        }
+      }
+      await enrichTreeLogs(nextPayload.normalizedTree, knownNames);
+      changed = true;
+    }
   }
 
   if ((!nextPayload.tokenLabels || Object.keys(nextPayload.tokenLabels).length === 0) && Array.isArray(nextPayload.erc20Transfers) && nextPayload.erc20Transfers.length > 0) {
@@ -825,6 +978,9 @@ async function ensureDecodedArtifacts(payload: any, chainId: number, rpcUrl: str
       collectTraceAddresses(nextPayload.normalizedTree),
       nextPayload.tokenLabels ?? {},
     );
+    if (Object.keys(nextPayload.addressLabels).length > 0) {
+      setContractNames(nextPayload.normalizedTree, nextPayload.addressLabels, nextPayload.tokenLabels ?? {});
+    }
     changed = Object.keys(nextPayload.addressLabels).length > 0 || changed;
   }
 

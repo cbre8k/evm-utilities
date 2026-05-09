@@ -107,5 +107,7 @@ export interface FilteredStructLog {
   storageKey?: string;
   storagePre?: string;
   storagePost?: string;
+  /** topic0..topicN extracted from EVM stack for LOG0..LOG4 opcodes */
+  logTopics?: string[];
   error?: string;
 }

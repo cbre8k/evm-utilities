@@ -57,15 +57,23 @@ export function nodeContractName(
   tokenLabels: Record<string, string>,
   tokenAddresses: Set<string>,
 ) {
-  return node.contract_name
+  // Prefer address-label lookup for node.to (especially important for DELEGATECALL
+  // where contract_name may reflect the proxy rather than the implementation)
+  const toLabel = node.to
+    ? (addressLabels[node.to.toLowerCase()] || tokenLabels[node.to.toLowerCase()])
+    : undefined;
+  return toLabel
+    || node.contract_name
     || (node.to ? short(node.to, addressLabels, tokenLabels, tokenAddresses) : undefined)
     || 'NEW CONTRACT';
 }
 
 export function nodeFunctionName(node: TraceNode) {
-  return node.function_name
-    || node.decodedFunction?.split('(')[0]
-    || (node.input?.length >= 10 ? node.input.slice(0, 10) : '');
+  if (node.function_name) return node.function_name;
+  if (node.decodedFunction) return node.decodedFunction.split('(')[0];
+  if (node.input && node.input.length >= 10) return node.input.slice(0, 10);
+  // Empty calldata → fallback/receive
+  return 'fallback';
 }
 
 export function decodedArgs(node: TraceNode) {
@@ -102,14 +110,55 @@ export function decodeReturn(output: string): string {
   return shortVal(output);
 }
 
+/**
+ * Decode raw ABI-encoded output hex into readable values.
+ * Returns array of decoded strings (one per 32-byte word).
+ * Handles: bool, uint256, address, bytes32.
+ */
+export function decodeRawOutput(output: string): string[] {
+  if (!output || output === '0x' || output.length < 66) return [];
+  const data = output.startsWith('0x') ? output.slice(2) : output;
+  const wordCount = Math.floor(data.length / 64);
+  if (wordCount === 0) return [];
+
+  const results: string[] = [];
+  for (let i = 0; i < wordCount && i < 8; i++) {
+    const word = data.slice(i * 64, (i + 1) * 64);
+    results.push(decodeWord(word));
+  }
+  return results;
+}
+
+function decodeWord(word: string): string {
+  // All zeros = 0 or false
+  if (word === '0'.repeat(64)) return '0';
+  // Bool: single 1 in last byte
+  if (word === '0'.repeat(63) + '1') return 'true';
+  // Try as number first
+  try {
+    const num = BigInt('0x' + word);
+    const str = num.toString();
+    // If decimal repr is reasonable length, show as number
+    if (str.length <= 20) return str;
+    // If first 24 chars are zero (fits in 20 bytes), likely address
+    if (word.slice(0, 24) === '0'.repeat(24)) {
+      return '0x' + word.slice(24);
+    }
+    // Very large — show shortened hex
+    return `0x${word.slice(0, 8)}…${word.slice(-6)}`;
+  } catch {
+    return `0x${word.slice(0, 8)}…${word.slice(-6)}`;
+  }
+}
+
 export function opcodeShortLabel(op: string): string {
   return SHORT_OPCODE_LABELS[op] ?? op;
 }
 
 export function decodeEventName(topics: string[]): string {
-  if (!topics[0]) return 'Unknown';
-  const prefix = topics[0].slice(0, 10);
-  return EVENT_SIGNATURES[prefix] ?? `0x${topics[0].slice(2, 10)}`;
+  if (!topics[0]) return '';
+  const sig = topics[0].startsWith('0x') ? topics[0].slice(0, 10) : `0x${topics[0].slice(0, 8)}`;
+  return EVENT_SIGNATURES[sig] ?? sig;
 }
 
 /**

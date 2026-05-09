@@ -11,6 +11,7 @@ import { TraceTree } from './callTraceTree';
 interface Props {
   root: TraceNode;
   structLog?: FilteredStructLog[];
+  allLogs?: Array<{ address: string; topics: string[]; data: string; eventName?: string }>;
   addressLabels?: Record<string, string>;
   tokenLabels?: Record<string, string>;
   tokenAddresses?: string[];
@@ -22,6 +23,7 @@ interface Props {
 export default function CallTraceTab({
   root,
   structLog,
+  allLogs,
   addressLabels = {},
   tokenLabels = {},
   tokenAddresses = [],
@@ -35,9 +37,9 @@ export default function CallTraceTab({
 
   const allEntries = useMemo(
     () => (structLog && structLog.length > 0)
-      ? buildFromStructLog(structLog, root)
+      ? buildFromStructLog(structLog, root, allLogs)
       : buildFlatEntries(root, stateDiffs),
-    [root, stateDiffs, structLog],
+    [root, stateDiffs, structLog, allLogs],
   );
   const treeItems = useMemo(() => buildTraceTree(allEntries), [allEntries]);
   const callCount = useMemo(

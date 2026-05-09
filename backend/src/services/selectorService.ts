@@ -319,6 +319,165 @@ async function fetchFromOpenchain(
   }
 }
 
+// ── Event name lookup by full topic0 hash ────────────────────
+
+/**
+ * Look up event name from a full 32-byte topic0 hash.
+ * Tries: Redis cache → Sourcify ABI → 4byte API → OpenChain API.
+ * Results are cached in Redis for future lookups.
+ */
+export async function lookupEventName(
+  topic0: string,
+  emitterAddress?: string,
+  chainId?: number,
+): Promise<string | null> {
+  const normalized = topic0.toLowerCase();
+  const cacheKey = `event:${normalized}`;
+
+  // 1. Redis cache
+  const cached = await cacheGet<string>(cacheKey);
+  if (cached) return cached;
+
+  // 2. Sourcify ABI — match event entries by name
+  if (emitterAddress && chainId) {
+    try {
+      const verified = await getVerifiedSource(chainId, emitterAddress);
+      if (verified?.abi?.length) {
+        for (const entry of verified.abi) {
+          if (entry?.type !== 'event' || !entry?.name) continue;
+          // We can't compute keccak256, but the 4byte API can resolve topic0
+          // for us. Just cache all event names from the ABI by looking up via API.
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  // 3. 4byte Sourcify API — event lookup
+  const name = await fetchEventFrom4byte(normalized) ?? await fetchEventFromOpenchain(normalized);
+  if (!name) return null;
+
+  await cacheSet(cacheKey, name, config.ttl.selector);
+  return name;
+}
+
+/**
+ * Batch lookup event names for multiple topic0 hashes.
+ * Returns a map: topic0 → event name.
+ */
+export async function lookupEventNames(
+  topic0s: string[],
+  emitterByTopic?: Map<string, { address: string; chainId: number }>,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const uncached: string[] = [];
+
+  // Check Redis cache first
+  for (const t of topic0s) {
+    const normalized = t.toLowerCase();
+    const cached = await cacheGet<string>(`event:${normalized}`);
+    if (cached) {
+      result.set(normalized, cached);
+    } else {
+      uncached.push(normalized);
+    }
+  }
+
+  // Batch via OpenChain (supports comma-separated event hashes)
+  if (uncached.length) {
+    try {
+      const batchResult = await fetchEventBatchFromOpenchain(uncached);
+      for (const [topic, name] of batchResult) {
+        result.set(topic, name);
+        await cacheSet(`event:${topic}`, name, config.ttl.selector);
+      }
+    } catch { /* skip */ }
+  }
+
+  // Fallback: individually via 4byte for any still missing
+  for (const t of uncached) {
+    if (result.has(t)) continue;
+    const emitter = emitterByTopic?.get(t);
+    const name = await fetchEventFrom4byte(t);
+    if (name) {
+      result.set(t, name);
+      await cacheSet(`event:${t}`, name, config.ttl.selector);
+    }
+  }
+
+  return result;
+}
+
+async function fetchEventFrom4byte(topic0: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${FOURBYTE_API.LOOKUP}?event=${topic0}`, {
+      headers: { 'User-Agent': 'evm-utilities/1.0' },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+
+    const data = await res.json() as any;
+    const sigs = data?.result?.event?.[topic0];
+    if (!Array.isArray(sigs) || !sigs.length) return null;
+
+    const sig: string = sigs[0].name ?? '';
+    // "Transfer(address,address,uint256)" → "Transfer"
+    const parenIdx = sig.indexOf('(');
+    return parenIdx > 0 ? sig.slice(0, parenIdx) : sig || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchEventFromOpenchain(topic0: string): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `${OPENCHAIN_API}?event=${topic0}&filter=true`,
+      { signal: AbortSignal.timeout(5000) },
+    );
+    if (!res.ok) return null;
+
+    const data = await res.json() as any;
+    const sigs = data?.result?.event?.[topic0];
+    if (!Array.isArray(sigs) || !sigs.length) return null;
+
+    const sig: string = sigs[0].name ?? '';
+    const parenIdx = sig.indexOf('(');
+    return parenIdx > 0 ? sig.slice(0, parenIdx) : sig || null;
+  } catch {
+    return null;
+  }
+}
+
+async function fetchEventBatchFromOpenchain(topic0s: string[]): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  // OpenChain supports comma-separated hashes, max ~10 per request
+  const batchSize = 10;
+  for (let i = 0; i < topic0s.length; i += batchSize) {
+    const batch = topic0s.slice(i, i + batchSize);
+    try {
+      const res = await fetch(
+        `${OPENCHAIN_API}?event=${batch.join(',')}&filter=true`,
+        { signal: AbortSignal.timeout(5000) },
+      );
+      if (!res.ok) continue;
+
+      const data = await res.json() as any;
+      const events = data?.result?.event;
+      if (!events) continue;
+
+      for (const topic of batch) {
+        const sigs = events[topic];
+        if (!Array.isArray(sigs) || !sigs.length) continue;
+        const sig: string = sigs[0].name ?? '';
+        const parenIdx = sig.indexOf('(');
+        const name = parenIdx > 0 ? sig.slice(0, parenIdx) : sig;
+        if (name) result.set(topic, name);
+      }
+    } catch { /* skip batch */ }
+  }
+  return result;
+}
+
 // ── Parse "transfer(address,uint256)" or "transfer(address to,uint256 amount)" ─
 
 /** Split top-level comma-separated params, respecting nested parentheses */

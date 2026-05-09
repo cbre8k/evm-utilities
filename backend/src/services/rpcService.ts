@@ -18,6 +18,21 @@ const SIG = {
   APPROVAL:       '0x8c5be1e5ebec7d5bd14f71427d1e84f3dd0314c0f7b2291e5b200ac8c7c3b925',
 } as const;
 
+/** Well-known event signatures → human-readable names */
+const EVENT_NAME_BY_SIG: Record<string, string> = {
+  [SIG.TRANSFER]:       'Transfer',
+  [SIG.TRANSFER_SINGLE]:'TransferSingle',
+  [SIG.TRANSFER_BATCH]: 'TransferBatch',
+  [SIG.APPROVAL]:       'Approval',
+  '0xe1fffcc4923d04b559f4d29a8bfc6cda04eb5b0d3c460751c2402c5c5cc9109c': 'Deposit',
+  '0x7fcf532c15f0a6db0bd6d0e038bea71d30d808c7d98cb3bf7268a95bf5081b65': 'Withdrawal',
+  '0xd78ad95fa46c994b6551d0da85fc275fe613ce37657fb8d5e3d130840159d822': 'Swap',
+  '0x1c411e9a96e071241c2f21f7726b17ae89e3cab4c78be50e062b03a9fffbbad1': 'Sync',
+  '0x0d3648bd0f6ba80134a33ba9275ac585d9d315f0ad8355cddefde31afa28d0e9': 'PairCreated',
+  '0x3d0ce9bfc3ed7d6862dbb28b2dea94561fe714a1b4d019aa8af39730d1ad7c3d': 'SafeReceived',
+  '0x442e715f626346e8c54381002da614f62bee8d27386535b2521ec8540898556e': 'SafeMultiSigTransaction',
+};
+
 // ── Generic JSON-RPC ─────────────────────────────────────────
 
 async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {
@@ -168,6 +183,35 @@ export async function getPrestateTrace(rpcUrl: string, txHash: string): Promise<
 }
 
 
+/** Normalize a storage map key: strip 0x prefix and lowercase. */
+function normalizeMapKey(k: string): string {
+  const s = k.startsWith('0x') ? k.slice(2) : k;
+  return s.toLowerCase().replace(/^0+/, '') || '0';
+}
+
+/** Look up a value in the storage map, handling various key formats across nodes. */
+function findStorageVal(
+  storage: Record<string, string>,
+  key: string,
+  keyStripped: string,
+): string | undefined {
+  // Fast path: try direct matches first
+  if (storage[key] !== undefined) return String(storage[key]);
+  if (storage[`0x${key}`] !== undefined) return String(storage[`0x${key}`]);
+  if (storage[keyStripped] !== undefined) return String(storage[keyStripped]);
+  if (storage[key.padStart(64, '0')] !== undefined) return String(storage[key.padStart(64, '0')]);
+  // Slow path: normalize all map keys and compare
+  for (const [k, v] of Object.entries(storage)) {
+    if (normalizeMapKey(k) === keyStripped) return String(v);
+  }
+  return undefined;
+}
+
+/** Normalize a storage value to 0x-prefixed 64-char hex. */
+function normalizeStorageVal(val: string): string {
+  const v = val.startsWith('0x') ? val.slice(2) : val;
+  return `0x${v.padStart(64, '0')}`;
+}
 
 /**
  * Fetch the full structlog trace and filter to interesting opcodes only.
@@ -210,18 +254,59 @@ export async function getFilteredStructLog(
         error:   e.error,
       };
 
-      // For SLOAD/SSTORE, extract slot + value from storage map
-      if ((e.op === 'SLOAD' || e.op === 'SSTORE') && e.storage) {
-        const slots = Object.entries(e.storage as Record<string, string>);
-        if (slots.length > 0) {
-          const [key, val] = slots[slots.length - 1]; // last written slot
-          entry.storageKey  = key;
-          entry.storagePost = val;
-          // Look ahead for the pre-value in the previous SLOAD for this slot
-          if (e.op === 'SSTORE' && i > 0) {
-            const prev = logs[i - 1];
-            if (prev?.storage?.[key] !== undefined) {
-              entry.storagePre = prev.storage[key];
+      // For LOG0..LOG4, extract topic hashes from the EVM stack.
+      // Stack layout: [..., offset, size, topic0, topic1, ...topicN]
+      // topicCount = opcode number (LOG0=0, LOG1=1, etc.)
+      if (e.op.startsWith('LOG') && Array.isArray(e.stack)) {
+        const topicCount = parseInt(e.op.slice(3), 10);
+        if (topicCount > 0 && e.stack.length >= 2 + topicCount) {
+          const topics: string[] = [];
+          for (let t = 0; t < topicCount; t++) {
+            // Topics are below offset+size on the stack (stack grows upward)
+            // stack[-1] = offset, stack[-2] = size, stack[-3] = topic0, etc.
+            const raw = String(e.stack[e.stack.length - 3 - t]);
+            const hex = raw.startsWith('0x') ? raw.slice(2) : raw;
+            topics.push(`0x${hex.padStart(64, '0')}`);
+          }
+          entry.logTopics = topics;
+        }
+      }
+
+      // For SLOAD/SSTORE, extract slot + value from the EVM stack.
+      // Geth structlog shows state BEFORE opcode execution:
+      //   SLOAD:  stack = [..., slot]  →  after exec, next step stack = [..., loadedValue]
+      //   SSTORE: stack = [..., slot, newValue]  →  both consumed
+      if ((e.op === 'SLOAD' || e.op === 'SSTORE') && Array.isArray(e.stack) && e.stack.length > 0) {
+        const rawKey = String(e.stack[e.stack.length - 1]);
+        const key = rawKey.startsWith('0x') ? rawKey.slice(2).toLowerCase() : rawKey.toLowerCase();
+        entry.storageKey = `0x${key.padStart(64, '0')}`;
+
+        if (e.op === 'SLOAD') {
+          // After SLOAD executes, the loaded value is on top of the next step's stack
+          const next = (i + 1 < logs.length) ? logs[i + 1] : null;
+          if (next && Array.isArray(next.stack) && next.stack.length > 0) {
+            const rawVal = String(next.stack[next.stack.length - 1]);
+            const val = rawVal.startsWith('0x') ? rawVal.slice(2) : rawVal;
+            entry.storagePost = `0x${val.padStart(64, '0')}`;
+          }
+        } else {
+          // SSTORE: new value is second from top on the current stack
+          if (e.stack.length > 1) {
+            const rawNewVal = String(e.stack[e.stack.length - 2]);
+            const newVal = rawNewVal.startsWith('0x') ? rawNewVal.slice(2) : rawNewVal;
+            entry.storagePost = `0x${newVal.padStart(64, '0')}`;
+          }
+          // Old value: scan backwards through raw structlog at the same depth
+          // to find the most recent storage map containing this slot
+          const keyStripped = key.replace(/^0+/, '') || '0';
+          for (let j = i; j >= Math.max(0, i - 200); j--) {
+            const step = logs[j];
+            if (step.depth !== e.depth) continue;
+            if (!step.storage) continue;
+            const oldVal = findStorageVal(step.storage as Record<string, string>, key, keyStripped);
+            if (oldVal !== undefined) {
+              entry.storagePre = normalizeStorageVal(oldVal);
+              break;
             }
           }
         }
@@ -284,6 +369,7 @@ export function normalizeCallTree(raw: any, parentId?: string, depth = 0): Trace
     address: (l.address ?? '').toLowerCase(),
     topics: l.topics ?? [],
     data: l.data ?? '0x',
+    name: l.topics?.[0] ? (EVENT_NAME_BY_SIG[l.topics[0].toLowerCase()] ?? undefined) : undefined,
   }));
 
   return {

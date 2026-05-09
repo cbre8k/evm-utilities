@@ -11,6 +11,14 @@ export type CallEntry = {
   node: TraceNode;
   depth: number;
   gasUsed: number;
+  /** Display sender — e.g. logic address for child CALL inside DELEGATECALL */
+  visibleFrom?: string;
+  /** Display receiver — the contract being called */
+  visibleTo?: string;
+  /** Where SLOAD/SSTORE happen — proxy address for DELEGATECALL */
+  storageAddress?: string;
+  /** Whether this frame is a DELEGATECALL/CALLCODE */
+  isDelegateCall?: boolean;
 };
 
 export type StorageEntry = {
@@ -68,6 +76,7 @@ export type TraceStep = {
   id: string;
   depth: number;
   entry: NonCallEntry;
+  contractName?: string;
 };
 
 export type TraceFrame = {
@@ -91,6 +100,7 @@ export type JumpFrame = {
   contractName?: string;
   items: TraceItem[];
   gasUsed: number;
+  returnStack?: string[];
 };
 
 export type TraceItem = TraceFrame | JumpFrame | TraceStep;

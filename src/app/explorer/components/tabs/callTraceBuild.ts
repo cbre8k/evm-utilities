@@ -24,43 +24,125 @@ function collectTraceLogs(root: TraceNode): TraceLog[] {
   return logs;
 }
 
-function frameStorageAddress(frame: TraceNode): string {
-  return (frame.to ?? frame.from).toLowerCase();
+/**
+ * Build a log queue in execution order.
+ *
+ * Receipt logs (from the tx receipt) are always in correct execution order.
+ * Tree logs (from callTracer) have decoded names/inputs but collectTraceLogs
+ * returns them in pre-order (wrong for interleaved parent/child emissions).
+ *
+ * Strategy: use receipt logs as the primary queue (correct order), and enrich
+ * each one with decoded name/inputs from the tree logs by matching topic0.
+ * Fall back to tree logs only when receipt logs are unavailable.
+ */
+function buildLogQueue(
+  root: TraceNode,
+  receiptLogs?: Array<{ address: string; topics: string[]; data: string; eventName?: string }>,
+): TraceLog[] {
+  const treeLogs = collectTraceLogs(root);
+
+  // If no receipt logs, fall back to tree logs (may have wrong order but at
+  // least has decoded names)
+  if (!receiptLogs || receiptLogs.length === 0) return treeLogs;
+
+  // Build a lookup from tree logs: per (address + topic0) → queue of decoded info.
+  // Within a given (address, topic0) pair, logs appear in the same relative order
+  // in both sources, so we consume them in FIFO order.
+  const key = (addr: string, t0: string) => `${addr}:${t0}`;
+  const decodedMap = new Map<string, TraceLog[]>();
+  for (const tl of treeLogs) {
+    const k = key((tl.address ?? '').toLowerCase(), tl.topics?.[0] ?? '');
+    if (!decodedMap.has(k)) decodedMap.set(k, []);
+    decodedMap.get(k)!.push(tl);
+  }
+  const decodedIdx = new Map<string, number>();
+
+  return receiptLogs.map(rl => {
+    const k = key((rl.address ?? '').toLowerCase(), rl.topics?.[0] ?? '');
+    const idx = decodedIdx.get(k) ?? 0;
+    const candidates = decodedMap.get(k);
+    const match = candidates?.[idx];
+    if (match) decodedIdx.set(k, idx + 1);
+    return {
+      address: rl.address,
+      topics: rl.topics,
+      data: rl.data,
+      name: rl.eventName ?? match?.name,
+      inputs: match?.inputs,
+    };
+  });
 }
 
 /**
  * Build from structlog (preferred) — real ordering, real gas costs per op.
- * Entries are already in chronological order; depth tells us the call frame.
+ *
+ * Uses OpenTracer-style context stacks to track execution state:
+ * - Each call type (CALL, STATICCALL, DELEGATECALL, CALLCODE, CREATE) pushes
+ *   a new context with the correct storage and code addresses.
+ * - Depth decreases in structlog (RETURN/STOP/REVERT) auto-pop the stack.
+ * - DELEGATECALL/CALLCODE inherit the caller's storage address (proxy pattern).
+ * - JUMP-in/out track internal depth per call frame for function nesting.
  */
 export function buildFromStructLog(
   structLog: FilteredStructLog[],
   root: TraceNode,
+  receiptLogs?: Array<{ address: string; topics: string[]; data: string; eventName?: string }>,
 ): FlatEntry[] {
-  const out: FlatEntry[] = [{ kind: 'call', node: root, depth: 0, gasUsed: parseGas(root.gasUsed) }];
+  const rootFrom = (root.from ?? '').toLowerCase();
+  const rootTo = (root.to ?? root.from ?? '').toLowerCase();
+  const out: FlatEntry[] = [{
+    kind: 'call', node: root, depth: 0, gasUsed: parseGas(root.gasUsed),
+    visibleFrom: rootFrom,
+    visibleTo: rootTo,
+    storageAddress: rootTo,
+    isDelegateCall: false,
+  }];
 
   const callQueue = collectDescendantCalls(root);
   let callIdx = 0;
 
-  const logQueue = collectTraceLogs(root);
+  const logQueue = buildLogQueue(root, receiptLogs);
   let logIdx = 0;
 
-  const activeFrames: TraceNode[] = [root];
-  const internalDepthByFrame = new Map<number, number>();
+  // --- OpenTracer-inspired context stacks ---
+  // Each entry represents one call frame's execution context.
+  // Push on CALL_OPS, pop when structlog depth decreases (RETURN/STOP/REVERT).
+  const rootAddr = (root.to ?? root.from ?? '').toLowerCase();
+  const contextStack: Array<{
+    node: TraceNode;
+    isDelegateCall: boolean;
+    storageAddress: string;   // Where SLOAD/SSTORE actually happen (proxy for D:CALL)
+    codeAddress: string;      // Where code is executing (implementation for D:CALL)
+    visibleAddress: string;   // Address shown as "sender" for child calls (spec: visibleReceiver of parent)
+  }> = [{
+    node: root,
+    isDelegateCall: false,
+    storageAddress: rootAddr,
+    codeAddress: rootAddr,
+    visibleAddress: rootAddr,
+  }];
 
   for (const e of structLog) {
-    const frameDepth = Math.max(0, e.depth - 1);
-    const baseRowDepth = Math.max(1, e.depth);
-    const internalDepth = internalDepthByFrame.get(frameDepth) ?? 0;
-    const rowDepth = baseRowDepth + internalDepth;
-    activeFrames.length = frameDepth + 1;
-    const currentFrame = activeFrames[frameDepth] ?? root;
+    // Pop contexts when depth decreases — equivalent to OpenTracer's
+    // RETURN/STOP/REVERT/SELFDESTRUCT stack pops.
+    // Always keep at least the root context.
+    while (contextStack.length > 1 && contextStack.length > e.depth) {
+      contextStack.pop();
+    }
+
+    const ctx = contextStack[contextStack.length - 1];
+    // Use raw structlog depth — JumpFrame nesting is handled by JUMP-in/out
+    // markers in buildTraceTree, not by depth values.
+    const rowDepth = e.depth;
 
     if (e.op === 'SLOAD' || e.op === 'SSTORE') {
+      // Storage ops happen at the storage context address.
+      // For DELEGATECALL/CALLCODE this is the caller (proxy), not the implementation.
       out.push({
         kind: 'storage',
         depth: rowDepth,
         opcode: e.op,
-        address: frameStorageAddress(currentFrame),
+        address: ctx.storageAddress,
         slot: e.storageKey ?? '0x',
         before: e.storagePre  ?? '0x',
         after:  e.storagePost ?? '0x',
@@ -68,12 +150,14 @@ export function buildFromStructLog(
       });
     } else if (e.op.startsWith('LOG')) {
       const log = logQueue[logIdx++];
+      // Events in EVM use the storage context address (proxy for DELEGATECALL)
+      // Fall back to structlog topics (extracted from EVM stack) when receipt/tree logs unavailable (e.g. reverted txs)
       out.push({
         kind: 'event',
         depth: rowDepth,
         opcode: e.op,
-        address: (log?.address ?? currentFrame.to ?? currentFrame.from).toLowerCase(),
-        topics: log?.topics ?? [],
+        address: (log?.address ?? ctx.storageAddress).toLowerCase(),
+        topics: log?.topics ?? e.logTopics ?? [],
         data: log?.data ?? '0x',
         gasCost: e.gasCost,
         name: log?.name,
@@ -82,8 +166,47 @@ export function buildFromStructLog(
     } else if (CALL_OPS.has(e.op)) {
       const node = callQueue[callIdx++] ?? null;
       if (node) {
-        out.push({ kind: 'call', node, depth: rowDepth, gasUsed: parseGas(node.gasUsed) });
-        activeFrames[rowDepth] = node;
+        const isDcall = node.type === 'DELEGATECALL' || node.type === 'CALLCODE';
+        const nodeAddr = (node.to ?? node.from ?? '').toLowerCase();
+
+        // Compute visible addresses per the Tenderly spec:
+        // - DELEGATECALL: visibleFrom = storageAddress (proxy), visibleTo = codeAddress (logic)
+        // - CALL inside DELEGATECALL: visibleFrom = parent's codeAddress (logic), visibleTo = target
+        // - Regular CALL: visibleFrom = parent's visibleAddress, visibleTo = target
+        let visibleFrom: string;
+        let visibleTo: string;
+
+        if (isDcall) {
+          // [proxy => logic] — proxy is the storage context, logic is the implementation
+          visibleFrom = ctx.storageAddress;
+          visibleTo = nodeAddr;
+        } else {
+          // [parent's visible address => target]
+          // For child CALL inside DELEGATECALL, ctx.visibleAddress = codeAddress (logic)
+          // For regular CALL, ctx.visibleAddress = the contract address
+          visibleFrom = ctx.visibleAddress;
+          visibleTo = nodeAddr;
+        }
+
+        out.push({
+          kind: 'call', node, depth: rowDepth, gasUsed: parseGas(node.gasUsed),
+          visibleFrom,
+          visibleTo,
+          storageAddress: isDcall ? ctx.storageAddress : nodeAddr,
+          isDelegateCall: isDcall,
+        });
+
+        // Push new context — like OpenTracer's stack push on CALL/DELEGATECALL/STATICCALL
+        contextStack.push({
+          node,
+          isDelegateCall: isDcall,
+          // DELEGATECALL/CALLCODE: storage stays at caller's address (OpenTracer pattern)
+          storageAddress: isDcall ? ctx.storageAddress : nodeAddr,
+          codeAddress: nodeAddr,
+          // For DELEGATECALL: child calls should show codeAddress (logic) as sender
+          // For regular CALL: child calls should show the target address
+          visibleAddress: isDcall ? nodeAddr : nodeAddr,
+        });
       }
     } else if (HIDDEN_OPCODE_ROWS.has(e.op)) {
       continue;
@@ -94,7 +217,7 @@ export function buildFromStructLog(
         op: e.op,
         pc: e.pc,
         gasCost: e.gasCost,
-        address: frameStorageAddress(currentFrame),
+        address: ctx.codeAddress,
         error: e.error,
         jumpTo: e.jumpTo,
         jumpCondition: e.jumpCondition,
@@ -112,11 +235,7 @@ export function buildFromStructLog(
         file: e.sourceFile,
       });
 
-      if (e.op === 'JUMP' && e.sourceJump === 'i') {
-        internalDepthByFrame.set(frameDepth, internalDepth + 1);
-      } else if (e.op === 'JUMP' && e.sourceJump === 'o') {
-        internalDepthByFrame.set(frameDepth, Math.max(0, internalDepth - 1));
-      }
+
     }
   }
   return out;
@@ -173,11 +292,17 @@ export function buildFlatEntries(
 
 export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
   const roots: TraceItem[] = [];
-  const stack: Array<{ depth: number; items: TraceItem[]; contractName?: string }> = [{ depth: -1, items: roots }];
+  const stack: Array<{ depth: number; items: TraceItem[]; contractName?: string; isJump?: boolean }> = [{ depth: -1, items: roots }];
 
   entries.forEach((entry, index) => {
-    while (stack.length > 1 && stack[stack.length - 1].depth >= entry.depth) {
-      stack.pop();
+    // Pop frames when we return to a shallower depth.
+    // Jump frames at the same depth must NOT be auto-popped —
+    // they are exited explicitly (JUMP-out) or by a depth decrease.
+    while (stack.length > 1) {
+      const top = stack[stack.length - 1];
+      if (top.depth > entry.depth) { stack.pop(); continue; }
+      if (top.depth === entry.depth && !top.isJump) { stack.pop(); continue; }
+      break;
     }
     const parent = stack[stack.length - 1];
 
@@ -197,8 +322,12 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
       };
 
       parent.items.push(frame);
-      // For DELEGATECALL, the child node's contract_name is the implementation
-      const frameName = entry.node.contract_name;
+      // For DELEGATECALL/CALLCODE, children execute the implementation's code
+      // but from the proxy's context. Tenderly shows the proxy name for internal
+      // functions, so inherit the parent's contractName (proxy) instead of the
+      // implementation's contract_name.
+      const isDcall = entry.isDelegateCall;
+      const frameName = isDcall ? parent.contractName : entry.node.contract_name;
       stack.push({ depth: entry.depth, items: frame.items, contractName: frameName });
       return;
     }
@@ -220,14 +349,31 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
         gasUsed: entry.gasCost,
       };
       parent.items.push(jumpFrame);
-      stack.push({ depth: entry.depth, items: jumpFrame.items, contractName: parent.contractName });
+      stack.push({ depth: entry.depth, items: jumpFrame.items, contractName: parent.contractName, isJump: true });
       return;
     }
 
-    // JUMP-out → skip (the depth pop handles leaving the frame)
+    // JUMP-out → explicitly pop the enclosing jump frame and capture return stack
     if (entry.kind === 'opcode' && entry.sourceJump === 'o') {
+      if (stack.length > 1 && stack[stack.length - 1].isJump) {
+        // Find the JumpFrame to attach return data
+        const jumpStackEntry = stack[stack.length - 1];
+        const parentItems = jumpStackEntry.items;
+        // The jump frame itself is in the parent-of-parent's items
+        const grandparent = stack[stack.length - 2];
+        const jumpFrame = grandparent.items.findLast(
+          (it: TraceItem) => it.kind === 'jump-frame'
+        ) as JumpFrame | undefined;
+        if (jumpFrame && entry.jumpStack) {
+          jumpFrame.returnStack = entry.jumpStack;
+        }
+        stack.pop();
+      }
       return;
     }
+
+    // Skip REVERT opcodes — the synthetic revert row in TraceTree handles them
+    if (entry.kind === 'opcode' && entry.op === 'REVERT') return;
 
     if (entry.kind !== 'opcode' || entry.error || VISIBLE_OPCODE_ROWS.has(entry.op)) {
       parent.items.push({
@@ -235,12 +381,18 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
         id: `${entry.kind}-${index}`,
         depth: entry.depth,
         entry,
+        contractName: parent.contractName,
       });
     }
   });
 
   // Compute cumulative gas for jump frames
   computeJumpGas(roots);
+
+  // Absorb first JumpFrame inside DELEGATECALL/CALLCODE frames:
+  // the first JUMP after a DELEGATECALL is just the entry into the logic
+  // contract's dispatched function — hide it and lift its children.
+  absorbDelegateJumps(roots);
 
   return roots;
 }
@@ -263,6 +415,33 @@ function computeJumpGas(items: TraceItem[]): number {
     }
   }
   return total;
+}
+
+/**
+ * For DELEGATECALL / CALLCODE frames, the first JumpFrame is typically
+ * the function selector dispatch — unwrap it so the actual function
+ * JumpFrames appear directly as children of the D:CALL frame.
+ *
+ * contractName updates are NOT needed here: buildTraceTree already
+ * propagates the implementation name from the DELEGATECALL frame's
+ * contract_name through the stack, matching OpenTracer's approach.
+ */
+function absorbDelegateJumps(items: TraceItem[]): void {
+  for (const item of items) {
+    if (item.kind === 'frame') {
+      const node = item.entry.node;
+      if (node.type === 'DELEGATECALL' || node.type === 'CALLCODE') {
+        // Unwrap the first JumpFrame (function entry dispatch)
+        if (item.items.length > 0 && item.items[0].kind === 'jump-frame') {
+          const jump = item.items[0];
+          item.items.splice(0, 1, ...jump.items);
+        }
+      }
+      absorbDelegateJumps(item.items);
+    } else if (item.kind === 'jump-frame') {
+      absorbDelegateJumps(item.items);
+    }
+  }
 }
 
 export function findFrame(items: TraceItem[], id: string): TraceFrame | null {

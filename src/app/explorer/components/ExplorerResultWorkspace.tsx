@@ -44,6 +44,7 @@ export default function ExplorerResultWorkspace({
             rawOutput={result.normalizedTree?.output}
             root={result.normalizedTree}
             structLog={result.structLog}
+            allLogs={result.allLogs}
             addressLabels={result.addressLabels}
             tokenLabels={result.tokenLabels}
             stateDiffs={result.stateDiffs ?? []}

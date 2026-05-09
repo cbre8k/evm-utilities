@@ -32,6 +32,7 @@ interface Props {
   rawOutput?: string;
   root?: TraceNode;
   structLog?: FilteredStructLog[];
+  allLogs?: Array<{ address: string; topics: string[]; data: string; eventName?: string }>;
   addressLabels?: Record<string, string>;
   tokenLabels?: Record<string, string>;
   stateDiffs?: AddressStateDiff[];
@@ -80,7 +81,7 @@ function hasMeaningfulDecodedOutput(decodedOutput: DecodedOutput | undefined) {
 export default function SummaryTab({
   txOverview, decodedCalldata, decodedOutput, nativeTransfers,
   erc20Transfers, erc721Transfers, erc1155Transfers,
-  rawOutput, root, structLog, addressLabels, tokenLabels, stateDiffs, chainId = 1,
+  rawOutput, root, structLog, allLogs, addressLabels, tokenLabels, stateDiffs, chainId = 1,
 }: Props) {
   const [inputTab, setInputTab] = useState<IoTab>('raw');
   const [outputTab, setOutputTab] = useState<IoTab>('raw');
@@ -294,6 +295,7 @@ export default function SummaryTab({
         <CallTraceTab
           root={root}
           structLog={structLog}
+          allLogs={allLogs}
           addressLabels={addressLabels}
           tokenLabels={tokenLabels}
           tokenAddresses={erc20Transfers.map((transfer) => transfer.tokenAddress)}
