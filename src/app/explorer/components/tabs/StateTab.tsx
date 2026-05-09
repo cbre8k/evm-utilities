@@ -1,11 +1,12 @@
 import type { AddressStateDiff } from '@/types/explorer';
+import { Badge } from '@/components/ui';
 import styles from '../../explorer.module.scss';
 
 interface Props { diffs: AddressStateDiff[] }
 
 function weiToEth(v?: string) {
   if (!v) return '—';
-  try { return `${(Number(BigInt(v)) / 1e18).toFixed(8)} ETH`; } catch { return v; }
+  try { return `${BigInt(v).toString()} wei`; } catch { return v; }
 }
 
 function delta(before?: string, after?: string) {
@@ -13,8 +14,24 @@ function delta(before?: string, after?: string) {
   try {
     const diff = BigInt(after) - BigInt(before);
     if (diff === 0n) return null;
-    return { label: `${diff > 0n ? '+' : ''}${(Number(diff) / 1e18).toFixed(8)} ETH`, positive: diff > 0n };
+    const sign = diff > 0n ? '+' : '';
+    return { label: `${sign}${(Number(diff) / 1e18).toFixed(8)} ETH`, positive: diff > 0n };
   } catch { return null; }
+}
+
+function formatSlot(slot: string): string {
+  if (slot.startsWith('0x')) {
+    return '0x' + slot.slice(2).padStart(64, '0');
+  }
+  return slot;
+}
+
+function formatValue(val: string): string {
+  if (!val) return '0x' + '0'.repeat(64);
+  if (val.startsWith('0x')) {
+    return '0x' + val.slice(2).padStart(64, '0');
+  }
+  return val;
 }
 
 export default function StateTab({ diffs }: Props) {
@@ -36,56 +53,46 @@ export default function StateTab({ diffs }: Props) {
       {diffs.map(diff => {
         const balDelta = delta(diff.balanceBefore, diff.balanceAfter);
         return (
-          <div key={diff.address} className={styles.section}>
-            <div className={styles.sectionHeader}>
+          <div key={diff.address} className={styles.stateCard}>
+            <div className={styles.stateCardHeader}>
               <span className={styles.mono}>{diff.address}</span>
-              {diff.codeChanged && <span className={styles.panelBadge} style={{ background: '#fef3c7', color: '#92400e' }}>CODE DEPLOYED</span>}
+              {diff.codeChanged && <Badge fontSize={9}>CODE DEPLOYED</Badge>}
             </div>
-            <div className={styles.sectionBody} style={{ padding: 0 }}>
-              {(diff.balanceBefore || diff.balanceAfter) && (
-                <div className={styles.stateSection}>
-                  <div className={styles.stateSectionTitle}>ETH BALANCE</div>
-                  <div className={styles.stateRow}><span className={styles.muted}>BEFORE</span><span className={styles.mono}>{weiToEth(diff.balanceBefore)}</span></div>
-                  <div className={styles.stateRow}><span className={styles.muted}>AFTER</span><span className={styles.mono}>{weiToEth(diff.balanceAfter)}</span></div>
-                  {balDelta && (
-                    <div className={styles.stateRow}>
-                      <span className={styles.muted}>DELTA</span>
-                      <span className={styles.mono} style={{ color: balDelta.positive ? '#10b981' : '#ef4444' }}>{balDelta.label}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-              {diff.nonceBefore !== diff.nonceAfter && diff.nonceBefore !== undefined && (
-                <div className={styles.stateSection}>
-                  <div className={styles.stateSectionTitle}>NONCE</div>
-                  <div className={styles.stateRow}><span className={styles.muted}>BEFORE</span><span>{diff.nonceBefore}</span></div>
-                  <div className={styles.stateRow}><span className={styles.muted}>AFTER</span><span>{diff.nonceAfter}</span></div>
-                </div>
-              )}
-              {diff.storageChanges.length > 0 && (
-                <div className={styles.stateSection}>
-                  <div className={styles.stateSectionTitle}>STORAGE ({diff.storageChanges.length} slots)</div>
-                  <table className={styles.table}>
-                    <thead>
-                      <tr>
-                        <th className={styles.th}>SLOT</th>
-                        <th className={styles.th}>BEFORE</th>
-                        <th className={styles.th}>AFTER</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {diff.storageChanges.map((s, i) => (
-                        <tr key={i}>
-                          <td className={`${styles.td} ${styles.mono} ${styles.muted}`}>{s.slot.slice(0, 14)}…</td>
-                          <td className={`${styles.td} ${styles.mono}`} style={{ color: '#ef4444' }}>{s.before}</td>
-                          <td className={`${styles.td} ${styles.mono}`} style={{ color: '#10b981' }}>{s.after}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+
+            {balDelta && (
+              <div className={styles.stateInlineRow}>
+                <span className={styles.stateLabel}>BALANCE</span>
+                <span className={styles.mono}>{weiToEth(diff.balanceBefore)}</span>
+                <span className={styles.stateArrow}>→</span>
+                <span className={styles.mono}>{weiToEth(diff.balanceAfter)}</span>
+                <span className={styles.mono} style={{ color: balDelta.positive ? '#10b981' : '#ef4444' }}>
+                  ({balDelta.label})
+                </span>
+              </div>
+            )}
+
+            {diff.nonceBefore != null && diff.nonceAfter != null && diff.nonceBefore !== diff.nonceAfter && (
+              <div className={styles.stateInlineRow}>
+                <span className={styles.stateLabel}>NONCE</span>
+                <span className={styles.mono}>{diff.nonceBefore ?? '—'}</span>
+                <span className={styles.stateArrow}>→</span>
+                <span className={styles.mono}>{diff.nonceAfter ?? '—'}</span>
+              </div>
+            )}
+
+            {diff.storageChanges.length > 0 && (
+              <div className={styles.stateStorageBlock}>
+                <div className={styles.stateLabel}>STORAGE <Badge fontSize={9}>{diff.storageChanges.length}</Badge></div>
+                {diff.storageChanges.map((s, i) => (
+                  <div key={i} className={styles.stateStorageRow}>
+                    <span className={`${styles.mono} ${styles.muted}`}>[{formatSlot(s.slot)}]</span>
+                    <span className={styles.mono} style={{ color: '#ef4444' }}>{formatValue(s.before)}</span>
+                    <span className={styles.stateArrow}>→</span>
+                    <span className={styles.mono} style={{ color: '#10b981' }}>{formatValue(s.after)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
       })}

@@ -71,6 +71,8 @@ export default function ExplorerResultWorkspace({
             exposureChanges={result.exposure_changes ?? []}
             balanceChanges={result.balance_changes ?? []}
             tokenLabels={result.tokenLabels ?? {}}
+            addressLabels={result.addressLabels ?? {}}
+            txSender={result.txOverview?.from}
           />
         )}
 
