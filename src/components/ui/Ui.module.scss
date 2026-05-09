@@ -1,0 +1,541 @@
+@use '../../styles/variables' as *;
+
+.textVars {
+  color: var(--ui-color, var(--text-primary));
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 11px);
+}
+
+.button {
+  align-items: center;
+  background: var(--ui-bg, var(--bg-primary));
+  border: 1px solid var(--ui-border, var(--border-default));
+  color: var(--ui-color, var(--text-primary));
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 11px);
+  font-weight: $font-bold;
+  gap: 6px;
+  height: var(--ui-height, 30px);
+  justify-content: center;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  min-width: 0;
+  padding: 0 var(--ui-pad-x, 12px);
+  transition: background $transition-fast, border-color $transition-fast, color $transition-fast, opacity $transition-fast;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    background: var(--ui-hover-bg, var(--text-primary));
+    border-color: var(--ui-hover-border, var(--text-secondary));
+    color: var(--ui-hover-color, var(--bg-primary));
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.4;
+  }
+}
+
+.buttonPrimary {
+  --ui-bg: var(--text-primary);
+  --ui-border: var(--text-primary);
+  --ui-color: var(--bg-primary);
+  --ui-hover-bg: var(--bg-inverse);
+  --ui-hover-border: var(--bg-inverse);
+  --ui-hover-color: var(--text-inverse);
+}
+
+.buttonDanger {
+  --ui-border: var(--color-danger);
+  --ui-color: var(--color-danger);
+}
+
+.buttonWarning {
+  --ui-border: var(--color-warning);
+  --ui-color: var(--color-warning);
+}
+
+.buttonSuccess {
+  --ui-bg: var(--color-success);
+  --ui-border: var(--color-success);
+  --ui-color: #fff;
+}
+
+.buttonGhost {
+  --ui-bg: transparent;
+}
+
+.buttonCopied {
+  animation: uiCopiedPulse 0.35s ease-out;
+}
+
+.copyButton {
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+  
+  height: var(--ui-height, 20px);
+  width: var(--ui-width, 20px);
+  border-radius: var(--ui-radius, $radius-sm);
+  
+
+  &:hover {
+    transform: translateY(-1px);
+    filter: brightness(1.05);
+  }
+
+  &:active {
+    transform: translateY(1px) scale(0.98);
+  }
+}
+
+.copyButtonCopied {
+  animation: copiedPop 360ms ease;
+}
+
+.copyButtonInner {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.copyIcon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+}
+
+.copySparkle {
+  transform-origin: center;
+  animation: sparklePop 700ms ease both;
+}
+
+@keyframes copiedPop {
+  0% {
+    transform: scale(1);
+  }
+
+  40% {
+    transform: scale(1.08);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes sparklePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) rotate(-25deg);
+  }
+
+  40% {
+    opacity: 1;
+    transform: scale(1.25) rotate(8deg);
+  }
+
+  100% {
+    opacity: 0.85;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes uiCopiedPulse {
+  0% { transform: scale(0.96); }
+  70% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.labelWrapper {
+  cursor: pointer;
+  display: inline-block;
+  position: relative;
+  width: fit-content;
+}
+
+.labelHintMarker {
+  opacity: 0.5;
+}
+
+.labelHint {
+  background: var(--text-primary);
+  border-radius: $radius-sm;
+  bottom: 100%;
+  color: var(--bg-primary);
+  font-family: $font-mono;
+  font-size: 9px;
+  left: 0;
+  margin-bottom: 2px;
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  z-index: 10;
+  padding: 2px 6px;
+}
+
+.labelWrapper:hover .labelHint {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.labelRow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.label {
+  color: var(--ui-color, var(--text-primary));
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 9px);
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.hint {
+  color: var(--ui-color, var(--text-tertiary));
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 9px);
+  line-height: 1.4;
+}
+
+.inputFrame {
+  align-items: center;
+  background: var(--ui-bg, var(--bg-secondary));
+  border: 1px solid var(--ui-border, var(--border-default));
+  display: flex;
+  min-height: var(--ui-height, 32px);
+  min-width: 0;
+  padding: 0 8px;
+  transition: border-color $transition-fast;
+
+  &:focus-within {
+    border-color: var(--ui-focus-border, var(--text-primary));
+  }
+}
+
+.textareaFrame {
+  align-items: stretch;
+  min-height: 0;
+  padding: 0;
+}
+
+.input {
+  background: transparent;
+  border: none;
+  color: var(--ui-color, var(--text-primary));
+  flex: 1;
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 12px);
+  min-width: 0;
+  outline: none;
+  padding: 0;
+  width: 100%;
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+.textarea {
+  background: transparent;
+  border: none;
+  color: var(--ui-color, var(--text-primary));
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 12px);
+  line-height: 1.4;
+  min-height: 80px;
+  outline: none;
+  padding: 8px;
+  resize: vertical;
+  width: 100%;
+
+  &::placeholder {
+    color: var(--text-tertiary);
+  }
+}
+
+.tabBar {
+  align-items: center;
+  display: flex;
+  gap: var(--ui-gap, 16px);
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  &::-webkit-scrollbar {
+    height: 2px;
+  }
+}
+
+.tab {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  display: inline-flex;
+  flex-shrink: 0;
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 11px);
+  font-weight: $font-bold;
+  gap: 6px;
+  letter-spacing: 0.04em;
+  padding: 6px 0;
+  transition: color $transition-fast;
+  white-space: nowrap;
+
+  &:hover:not(:disabled) {
+    color: var(--text-primary);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
+}
+
+.tabActive {
+  color: var(--text-primary);
+}
+
+.badge {
+  background: var(--text-primary);
+  color: var(--bg-primary);
+  font-size: 9px;
+  padding: 2px 6px;
+  font-weight: $font-bold;
+  border-radius: $radius-md;
+}
+
+.badgeSuccess {
+  --ui-bg: rgba(16, 185, 129, 0.12);
+  --ui-border: var(--color-success);
+  --ui-color: var(--color-success);
+}
+
+.badgeWarning {
+  --ui-bg: rgba(245, 158, 11, 0.12);
+  --ui-border: var(--color-warning);
+  --ui-color: var(--color-warning);
+}
+
+.badgeDanger {
+  --ui-bg: rgba(239, 68, 68, 0.12);
+  --ui-border: var(--color-danger);
+  --ui-color: var(--color-danger);
+}
+
+.dropBox {
+  position: relative;
+}
+
+.select {
+  appearance: none;
+  background: var(--ui-bg, var(--text-primary));
+  border: 1px solid var(--ui-border, var(--border-default));
+  color: var(--ui-color, var(--bg-primary));
+  cursor: pointer;
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 12px);
+  height: var(--ui-height, 32px);
+  min-width: 0;
+  outline: none;
+  padding: 0 30px 0 10px;
+  transition: background $transition-fast, border-color $transition-fast;
+  width: 100%;
+
+  &:hover {
+    background: var(--ui-bg-hover, var(--text-secondary));
+    border-color: var(--text-primary);
+  }
+
+  &:focus,
+  &:active {
+    background: var(--ui-bg-active, var(--bg-primary));
+    border-color: var(--text-primary);
+    color: var(--ui-color-active, var(--text-primary));
+  }
+}
+
+.dropArrow {
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+  font-size: 10px;
+  pointer-events: none;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.status {
+  align-items: center;
+  color: var(--ui-color, var(--text-secondary));
+  display: inline-flex;
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 9px);
+  gap: 8px;
+  letter-spacing: 0.08em;
+  min-width: 0;
+}
+
+.statusDot {
+  background: var(--ui-dot, var(--bg-tertiary));
+  flex-shrink: 0;
+  height: 6px;
+  width: 6px;
+}
+
+.statusLoading .statusDot {
+  --ui-dot: var(--color-warning);
+  animation: uiBlink 0.8s step-end infinite;
+}
+
+.statusSuccess .statusDot { --ui-dot: var(--color-success); }
+.statusError .statusDot { --ui-dot: var(--color-danger); }
+.statusInfo .statusDot { --ui-dot: var(--color-info); }
+
+@keyframes uiBlink {
+  50% { opacity: 0; }
+}
+
+.topStatsBar {
+  align-items: stretch;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  display: grid;
+  grid-template-columns: var(--ui-columns, repeat(auto-fit, minmax(150px, 1fr)));
+  min-width: 0;
+}
+
+.statItem {
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+  min-width: 0;
+  padding: var(--ui-pad-y, 10px) var(--ui-pad-x, 14px);
+
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.statLabel {
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.statValue {
+  color: var(--text-primary);
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 12px);
+  font-weight: $font-bold;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+// ── Checkbox ─────────────────────────────────────────────────────────────────
+
+.checkboxWrapper {
+  position: relative;
+  width: fit-content;
+
+  // Label with hint renders .labelWrapper > .label — make both flex so checkbox + text stay on one line
+  .labelWrapper {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    overflow: visible;
+    text-overflow: unset;
+    white-space: normal;
+  }
+}
+
+.checkbox {
+  align-items: center;
+  color: var(--ui-color, var(--text-secondary));
+  cursor: pointer;
+  display: inline-flex;
+  font-family: var(--ui-font, #{$font-mono});
+  font-size: var(--ui-size, 10px);
+  gap: 6px;
+  letter-spacing: 0.05em;
+  user-select: none;
+
+  input[type='checkbox'] {
+    accent-color: var(--text-primary);
+    border-radius: 0;
+    cursor: inherit;
+    flex-shrink: 0;
+    height: 12px;
+    width: 12px;
+  }
+}
+
+.checkboxHinted::after {
+  content: ' [?]';
+  opacity: 0.5;
+}
+
+.checkboxHint {
+  background: var(--text-primary);
+  border-radius: $radius-sm;
+  bottom: 100%;
+  color: var(--bg-primary);
+  font-family: $font-mono;
+  font-size: 9px;
+  left: 0;
+  margin-bottom: 2px;
+  opacity: 0;
+  padding: 2px 6px;
+  pointer-events: none;
+  position: absolute;
+  transform: translateY(4px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.checkboxWrapper:hover .checkboxHint {
+  opacity: 1;
+  transform: translateY(0);
+}

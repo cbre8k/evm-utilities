@@ -1,0 +1,153 @@
+@use '../../../styles/variables' as *;
+
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-family: $font-mono;
+  background: var(--bg-secondary);
+  min-height: 0;
+}
+
+.readonlyBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 $space-4;
+  background: var(--bg-inverse);
+  color: var(--text-inverse);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.bannerLeft {
+  display: flex;
+  align-items: center;
+  gap: $space-4;
+}
+
+.bannerHash {
+  opacity: 0.5;
+}
+
+.bannerDate {
+  opacity: 0.5;
+}
+
+.bannerViews {
+  opacity: 0.5;
+}
+
+.copyBtn {
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  color: var(--text-inverse);
+  font-family: $font-mono;
+  font-size: 10px;
+  padding: 3px 10px;
+  cursor: pointer;
+  border-radius: $radius-md;
+  letter-spacing: 0.08em;
+  transition: background $transition-fast;
+
+  &:hover { background: rgba(255,255,255,0.2); }
+  &.copied { background: rgba(16, 185, 129, 0.4); }
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  gap: $space-4;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+
+.notFound {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: $space-3;
+  color: var(--color-danger);
+  font-size: 14px;
+  letter-spacing: 0.08em;
+}
+
+.simulateOutput {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  padding: $space-4;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  color: var(--text-primary);
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.simulateInputs {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  overflow: hidden;
+}
+
+.inputRow {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  border-bottom: 1px dashed var(--border-subtle);
+  font-size: 12px;
+
+  &:last-child { border-bottom: none; }
+}
+
+.inputKey {
+  padding: $space-2 $space-4;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border-default);
+}
+
+.inputVal {
+  padding: $space-2 $space-4;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+
+.successBadge {
+  display: inline-block;
+  background: var(--color-success);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: $radius-md;
+  font-weight: bold;
+}
+
+.failedBadge {
+  display: inline-block;
+  background: var(--color-danger);
+  color: #fff;
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: $radius-md;
+  font-weight: bold;
+}

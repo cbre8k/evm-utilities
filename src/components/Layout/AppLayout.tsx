@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { NETWORKS, APP_VERSION } from '@/lib/constants';
+import { Button } from '@/components/ui';
 import styles from './Layout.module.scss';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Simulator' },
+  { href: '/explorer', label: 'Explorer' },
   { href: '/selector', label: 'Selector' },
   { href: '/converter', label: 'Converter' },
 ];
@@ -36,7 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <div className={styles.logoBox}>
-            <img src="/logo.png" alt="EVM Logo" className={styles.logoImage} />
+            <Image src="/logo.png" alt="EVM Logo" width={32} height={32} className={styles.logoImage} />
           </div>
           <div className={styles.brandInfo}>
             <div className={styles.brandSub}>{APP_VERSION}</div>
@@ -61,7 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className={styles.statLabel}>NETWORK</span>
             <div className={styles.customDropdown} ref={dropdownRef}>
               <div 
-                className={styles.dropdownSelected}
+                className={`${styles.dropdownSelected} ${isOpen ? styles.dropdownSelectedOpen : ''}`}
                 onClick={() => setIsOpen(!isOpen)}
               >
                 {selectedNetwork.name}
@@ -89,9 +92,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <span className={styles.statValueSuccess}>ONLINE</span>
           </div>
           <div className={styles.themeToggleBox}>
-            <button className={styles.themeBtn} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            <Button className={styles.themeBtn} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? 'LIGHT' : 'DARK'}
-            </button>
+            </Button>
           </div>
         </div>
       </header>
@@ -99,7 +102,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className={styles.content}>{children}</main>
 
       <div className={styles.mobileFallback}>
-        <img src="/please.png" alt="Please use Desktop" className={styles.mobileImage} />
+        <Image src="/please.png" alt="Please use Desktop" width={960} height={720} className={styles.mobileImage} />
       </div>
     </div>
   );

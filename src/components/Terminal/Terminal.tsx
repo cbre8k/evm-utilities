@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import type { FitAddon } from '@xterm/addon-fit';
+import type { Terminal as XTermTerminal } from '@xterm/xterm';
 import { useTheme } from '@/components/ThemeProvider';
 import '@xterm/xterm/css/xterm.css';
 import styles from './Terminal.module.scss';
@@ -19,10 +21,10 @@ function getTerminalColors(): { bg: string; fg: string; selection: string } {
   };
 }
 
-const Terminal = forwardRef<TerminalHandle, {}>((_, ref) => {
+const Terminal = forwardRef<TerminalHandle, object>((_, ref) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<any>(null);
-  const fitAddonRef = useRef<any>(null);
+  const xtermRef = useRef<XTermTerminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
   const { theme } = useTheme();
 
   useImperativeHandle(ref, () => ({
@@ -102,14 +104,14 @@ const Terminal = forwardRef<TerminalHandle, {}>((_, ref) => {
     // Small delay to let CSS variables update
     requestAnimationFrame(() => {
       const colors = getTerminalColors();
-      xtermRef.current?.options && Object.assign(xtermRef.current.options, {
-        theme: {
-          background: colors.bg,
-          foreground: colors.fg,
-          cursor: 'transparent',
-          selectionBackground: colors.selection,
-        },
-      });
+      const terminal = xtermRef.current;
+      if (!terminal) return;
+      terminal.options.theme = {
+        background: colors.bg,
+        foreground: colors.fg,
+        cursor: 'transparent',
+        selectionBackground: colors.selection,
+      };
     });
   }, [theme]);
 

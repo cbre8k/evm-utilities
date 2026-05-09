@@ -2,9 +2,16 @@
 
 import { useState } from 'react';
 import BigNumber from 'bignumber.js';
-import { message } from 'antd';
 import styles from './converter.module.scss';
 import { AUTHOR, GITHUB } from '@/lib/constants';
+import { Badge, CopyButton, Input, Label, Status, TabBar, Textarea, type TabBarItem, TopStatsBar } from '@/components/ui';
+
+type Tab = 'units' | 'bytes';
+
+const CONVERTER_TABS: TabBarItem<Tab>[] = [
+  { id: 'units', label: '[ UNIT CONVERTER ]' },
+  { id: 'bytes', label: '[ BYTE DECODER ]' },
+];
 
 const UNITS = [
   { name: 'WEI', factor: 0 },
@@ -94,8 +101,6 @@ function stringToHex(str: string): string {
   return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-type Tab = 'units' | 'bytes';
-
 export default function Converter() {
   const [activeTab, setActiveTab] = useState<Tab>('units');
   const [weiValue, setWeiValue] = useState<string>('1000000000');
@@ -119,71 +124,36 @@ export default function Converter() {
     } catch { return ''; }
   };
 
-  const copy = (text: string) => {
-    if (text) {
-      navigator.clipboard.writeText(text);
-      for (let i = 0; i < 20; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = 20 + Math.random() * 60;
-        message.success({
-          content: 'COPIED',
-          duration: 4 + Math.random() * 2,
-          className: 'firework-msg',
-          style: {
-            opacity: 0,
-            transform: 'translate(-50%, -50%) scale(0)',
-            animationDelay: `${Math.random() * 0.15}s`,
-            animationDuration: `${3 + Math.random() * 2}s`,
-            '--dx': `${Math.cos(angle) * radius}vmin`,
-            '--dy': `${Math.sin(angle) * radius}vmin`,
-            '--rot': `${(Math.random() - 0.5) * 360}deg`,
-            '--rot-end': `${(Math.random() - 0.5) * 720}deg`,
-          } as any
-        });
-      }
-    }
-  };
-
   return (
     <div className={styles.page}>
-      
       <div className={styles.statsBanner}>
         <div className={styles.statsLeft}>
           <div className={styles.statsLeftTop}>
             <div className={styles.mainInfo}>
               <div className={styles.statsHeader}>
                 <span className={styles.username} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
-                <span className={styles.badge}>CONVERTER</span>
+                <Badge fontSize={9}>CONVERTER</Badge>
               </div>
               <div className={styles.addressBox}>EVM UTILITIES SUITE</div>
             </div>
-            <div className={styles.divider}></div>
-            
-            <div className={styles.bigStatContainer}>
-              <span className={styles.bigStatLabel}>■ MODULE:</span>
-              <span className={styles.bigStatValue}>
-                <span className={styles.statusSuccess}>{activeTab === 'units' ? 'UNITS' : 'BYTES'}</span>
-              </span>
-            </div>
+            <TopStatsBar
+              className={styles.headerStats}
+              columns="1fr"
+              items={[
+                {
+                  label: 'MODULE',
+                  value: <Status tone="success" fontSize={12}>{activeTab === 'units' ? 'UNITS' : 'BYTES'}</Status>,
+                },
+              ]}
+              padX={16}
+              padY={8}
+            />
           </div>
         </div>
       </div>
 
       <div className={styles.toolbar}>
-        <div className={styles.tabs}>
-          <button
-            className={`${styles.tab} ${activeTab === 'units' ? styles.active : ''}`}
-            onClick={() => setActiveTab('units')}
-          >
-            [ UNIT CONVERTER ]
-          </button>
-          <button
-            className={`${styles.tab} ${activeTab === 'bytes' ? styles.active : ''}`}
-            onClick={() => setActiveTab('bytes')}
-          >
-            [ BYTE DECODER ]
-          </button>
-        </div>
+        <TabBar activeTab={activeTab} items={CONVERTER_TABS} onChange={setActiveTab} fontSize={12} />
       </div>
 
       <div className={styles.workspace}>
@@ -196,24 +166,16 @@ export default function Converter() {
               <div className={`${styles.corner} ${styles.bottomRight}`}></div>
               {UNITS.map((unit) => (
                 <div key={unit.name} className={styles.field}>
-                  <label className={styles.label}>{unit.name}</label>
-                  <span className={styles.hint}>
-                    {
-                      unit.name === 'WEI' ? '1e0' : 
-                      unit.name === 'GWEI' ? '1e9' : 
-                      '1e18'
-                    }
-                  </span>
+                  <Label hint={unit.name === 'WEI' ? '1e0' : unit.name === 'GWEI' ? '1e9' : '1e18'}>{unit.name}</Label>
                   <div className={styles.inputRow}>
-                    <input
+                    <Input
                       className={styles.input}
+                      fontSize={12}
                       value={calculateValue(unit.factor)}
                       onChange={(e) => handleInputChange(e.target.value, unit.factor)}
-                      placeholder={`0`}
+                      placeholder="0"
                     />
-                    <button className={styles.copyBtn} onClick={() => copy(calculateValue(unit.factor))} title="Copy">
-                      COPY
-                    </button>
+                    <CopyButton text={calculateValue(unit.factor)} />
                   </div>
                 </div>
               ))}
@@ -224,31 +186,30 @@ export default function Converter() {
               <div className={`${styles.corner} ${styles.topRight}`}></div>
               <div className={`${styles.corner} ${styles.bottomLeft}`}></div>
               <div className={`${styles.corner} ${styles.bottomRight}`}></div>
-              <div className={styles.field}>
-                <label className={styles.label}>HEX BYTES</label>
-                <span className={styles.hint}>Raw hex data, revert strings, or panic codes.<br/>For custom errors, use the Selector tool instead</span>
-                <textarea
-                  className={styles.textarea}
-                  value={bytesInput}
-                  onChange={(e) => {
-                    setBytesInput(e.target.value);
-                    setStringOutput(hexToString(e.target.value.trim()));
-                  }}
-                  placeholder="0x4e487b710000000000000000000000000000000000000000000000000000000000000011"
-                  rows={4}
-                />
-              </div>
+              <Textarea
+                className={styles.textarea}
+                fontSize={12}
+                hint="Raw hex data, revert strings, or panic codes. For custom errors, use the Selector tool instead"
+                label="HEX BYTES"
+                placeholder="0x4e487b710000000000000000000000000000000000000000000000000000000000000011"
+                rows={4}
+                value={bytesInput}
+                onChange={(e) => {
+                  setBytesInput(e.target.value);
+                  setStringOutput(hexToString(e.target.value.trim()));
+                }}
+              />
 
               <div className={styles.arrowBox}>
                 <span>↓ DECODES TO ↓</span>
               </div>
 
               <div className={styles.field}>
-                <label className={styles.label}>ASCII / UTF-8 STRING</label>
-                <span className={styles.hint}>Decoded human-readable text</span>
+                <Label hint='Decoded human-readable text'>ASCII / UTF-8 STRING</Label>
                 <div className={styles.inputRow}>
-                  <input
+                  <Input
                     className={styles.input}
+                    fontSize={12}
                     value={stringOutput}
                     onChange={(e) => {
                       setStringOutput(e.target.value);

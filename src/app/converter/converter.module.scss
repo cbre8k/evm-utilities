@@ -15,7 +15,7 @@
   display: flex;
   border-bottom: 1px solid var(--border-default);
   background: var(--bg-primary);
-  min-height: 80px;
+  min-height: 88px;
 }
 
 .statsLeft {
@@ -36,15 +36,8 @@
   display: flex;
   flex-direction: column;
   gap: $space-1;
-  padding: 0 $space-5;
+  padding: 0 $space-4;
   flex: 1;
-}
-
-.divider {
-  align-self: stretch;
-  border-left: 1px solid var(--border-default);
-  margin: 0;
-  width: 0;
 }
 
 .statsHeader {
@@ -55,63 +48,29 @@
 }
 
 .username {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: $font-bold;
   color: var(--text-primary);
   letter-spacing: 0.05em;
 }
 
-.badge {
-  background: var(--text-primary);
-  color: var(--bg-primary);
-  font-size: 10px;
-  padding: 2px 6px;
-  font-weight: $font-bold;
-  border-radius: $radius-md;
-}
-
 .addressBox {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-tertiary);
   margin-bottom: 0;
   letter-spacing: 0.1em;
 }
 
-.bigStatContainer {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  gap: $space-2;
-  height: 100%;
-  padding: 0 $space-5;
+.headerStats {
+  align-self: stretch;
+  border-bottom: none;
+  border-left: 1px solid var(--border-default);
   flex: 1;
-  justify-content: flex-end;
 }
 
-.bigStatLabel {
-  font-size: 10px;
-  color: var(--text-secondary);
-  letter-spacing: 0.1em;
-  margin: 0;
-  line-height: 1;
+.statsGridBar {
+  border-top: 1px solid var(--border-default);
 }
-
-.bigStatValue {
-  font-family: $font-dot-matrix;
-  font-size: 20px;
-  line-height: 1;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  display: inline-block;
-  min-width: 150px;
-  text-align: left;
-}
-
-.statusSuccess {
-  color: var(--color-success);
-}
-
-// Removed bigStatSub
 
 .statsRight {
   padding: $space-4;
@@ -124,50 +83,19 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
   letter-spacing: 0.1em;
   margin-bottom: $space-4;
-}
-
-.badgeLine {
-  border: 1px solid var(--border-default);
-  padding: 2px 6px;
-  border-radius: $radius-md;
 }
 
 .toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: $space-2 $space-4;
+  padding: $space-1 $space-4;
   background: var(--bg-primary);
   border-bottom: 1px solid var(--border-default);
-}
-
-.tabs {
-  display: flex;
-  gap: $space-4;
-}
-
-.tab {
-  background: none;
-  border: none;
-  font-family: $font-mono;
-  font-size: 12px;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  padding: $space-2 0;
-  font-weight: $font-bold;
-  transition: all 0.2s;
-
-  &:hover {
-    color: var(--text-primary);
-  }
-
-  &.active {
-    color: var(--text-primary);
-  }
 }
 
 // ----------------------------------------
@@ -182,7 +110,7 @@
 .converterCard {
   flex: 1;
   background: var(--bg-primary);
-  padding: $space-5;
+  padding: $space-4;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -226,117 +154,28 @@
   flex-direction: column;
   gap: $space-4;
   position: relative;
-  padding: $space-10;
+  padding: $space-4;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
   position: relative;
 }
 
-.label {
-  font-size: 10px;
-  font-weight: $font-bold;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  font-family: $font-mono;
-  cursor: pointer;
-  display: inline-block;
-  width: fit-content;
-
-  &:has(+ .hint)::after {
-    content: " [?]";
-    opacity: 0.5;
-  }
-}
-
-.hint {
-  font-size: 9px;
-  color: var(--bg-primary);
-  background: var(--text-primary);
-  padding: 2px 6px;
-  border-radius: $radius-sm;
-  font-family: $font-mono;
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 2px;
-  z-index: 10;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease, transform 0.2s ease;
-  transform: translateY(4px);
-  white-space: pre-line;
-  max-width: 250px;
-  line-height: 1.2;
-}
-
-.label:hover + .hint {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.inputRow {
+.arrowBox {
   display: flex;
   align-items: center;
   gap: $space-2;
 }
 
 .input {
-  flex: 1;
-  height: 40px;
-  padding: 0 $space-3;
-  font-family: $font-mono;
-  font-size: 14px;
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  outline: none;
-
-  &:focus {
-    border-color: var(--text-primary);
-    background: var(--bg-primary);
-  }
+  font-size: 13px;
 }
 
 .textarea {
-  width: 100%;
-  padding: $space-3;
-  font-family: $font-mono;
-  font-size: 12px;
-  color: var(--text-primary);
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  outline: none;
-  resize: vertical;
-
-  &:focus {
-    border-color: var(--text-primary);
-    background: var(--bg-primary);
-  }
-}
-
-.copyBtn {
-  height: 40px;
-  padding: 0 $space-3;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: 1px solid var(--border-default);
-  font-family: $font-mono;
-  font-size: 10px;
-  font-weight: $font-bold;
-  cursor: pointer;
-  border-radius: $radius-md;
-
-  &:hover {
-    background: var(--text-primary);
-    color: var(--bg-primary);
-  }
+  min-height: 96px;
 }
 
 .arrowBox {
@@ -347,4 +186,22 @@
   font-weight: $font-bold;
   color: var(--text-tertiary);
   letter-spacing: 0.1em;
+}
+
+.inputRow {
+  align-items: flex-end;
+  display: flex;
+  gap: $space-2;
+  min-width: 0;
+
+  > label {
+    --ui-height: 32px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  > button {
+    --ui-height: 32px;
+    flex-shrink: 0;
+  }
 }

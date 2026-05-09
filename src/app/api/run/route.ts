@@ -178,12 +178,12 @@ export async function POST(req: NextRequest) {
           const required = ['sender', 'target', 'calldata', 'rpcUrl'];
           const missing = required.filter((field: string) => !inputs[field]);
 
-          if (missing.length > 0) {
-            send(`Error: Missing ${missing.map(formatField).join(', ')}\n`);
-            releaseJob();
-            controller.close();
-            return;
-          }
+          // if (missing.length > 0) {
+          //   send(`Error: Missing ${missing.map(formatField).join(', ')}\n`);
+          //   releaseJob();
+          //   controller.close();
+          //   return;
+          // }
           
           // Lightweight workspace: symlink lib/, copy only config + test file
           const sessionId = Math.random().toString(36).substring(7);

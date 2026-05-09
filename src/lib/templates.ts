@@ -58,8 +58,10 @@ export const generateSimulationTest = (inputs: SimulationInputs): string => {
     contract SimulationTest is Test {
         function setUp() public {
           vm.selectFork(vm.createFork("${rpcUrl}"));
+        
           if (${safeBlockNumber} != 0) {
-            vm.rollFork(${safeBlockNumber});
+            console.log("Forking from block", uint256(${safeBlockNumber}));
+            vm.rollFork(uint256(${safeBlockNumber}));
           }
         }
 

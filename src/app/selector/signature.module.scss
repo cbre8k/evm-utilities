@@ -17,11 +17,11 @@
   grid-template-columns: minmax(400px, 1fr) minmax(300px, 1fr);
   border-bottom: 1px solid var(--border-default);
   background: var(--bg-primary);
-  min-height: 140px;
+  min-height: 112px;
 }
 
 .statsLeft {
-  padding: $space-4;
+  padding: $space-3 $space-4;
   border-right: 1px solid var(--border-default);
   display: flex;
   flex-direction: column;
@@ -49,25 +49,16 @@
 }
 
 .username {
-  font-size: 16px;
+  font-size: 13px;
   font-weight: $font-bold;
   color: var(--text-primary);
   letter-spacing: 0.05em;
 }
 
-.badge {
-  background: var(--text-primary);
-  color: var(--bg-primary);
-  font-size: 10px;
-  padding: 2px 6px;
-  font-weight: $font-bold;
-  border-radius: $radius-md;
-}
-
 .addressBox {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-tertiary);
-  margin-bottom: $space-4;
+  margin-bottom: $space-2;
   letter-spacing: 0.1em;
 }
 
@@ -80,7 +71,7 @@
 }
 
 .bigStatLabel {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
   letter-spacing: 0.1em;
   margin: 0;
@@ -88,8 +79,7 @@
 }
 
 .bigStatValue {
-  font-family: $font-dot-matrix;
-  font-size: 20px;
+  font-size: 12px;
   line-height: 1;
   font-weight: $font-bold;
   color: var(--text-primary);
@@ -98,58 +88,13 @@
   text-align: left;
 }
 
-.statusSuccess {
-  color: var(--color-success);
-}
-
-.statusDanger {
-  color: var(--color-danger);
-}
-
-.statusBlink {
-  color: var(--color-warning);
-  animation: blink 1s step-end infinite;
-}
-
-@keyframes blink {
-  50% { opacity: 0; }
-}
-
-// Removed bigStatSub
-
-.statsGrid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.statsGridBar {
   border-top: 1px solid var(--border-default);
   margin-top: auto;
-  padding-top: $space-3;
-}
-
-.statCol {
-  display: flex;
-  flex-direction: column;
-  border-right: 1px dashed var(--border-default);
-  padding: 0 $space-2;
-
-  &:last-child {
-    border-right: none;
-  }
-}
-
-.scLabel {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  margin-bottom: 4px;
-}
-
-.scValue {
-  font-size: 14px;
-  font-family: $font-dot-matrix;
-  color: var(--text-secondary);
 }
 
 .statsRight {
-  padding: $space-4;
+  padding: $space-3 $space-4;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -159,64 +104,30 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
   letter-spacing: 0.1em;
-  margin-bottom: $space-4;
-}
-
-.badgeLine {
-  border: 1px solid var(--border-default);
-  padding: 2px 6px;
-  border-radius: $radius-md;
+  margin-bottom: $space-3;
 }
 
 .searchBox {
   display: flex;
-  margin-top: auto;
   gap: $space-2;
+  align-items: flex-end;
+  min-width: 0;
 }
 
-.searchInput {
+.searchInputWrapper {
+  --ui-height: 32px;
+  display: flex;
   flex: 1;
-  height: 48px;
-  padding: 0 $space-4;
-  font-family: $font-mono;
-  font-size: 12px;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-  border-radius: $radius-md;
-  outline: none;
-
-  &:focus {
-    border-color: var(--text-primary);
-  }
+  min-width: 0;
 }
 
-.searchBtn {
-  height: 48px;
-  padding: 0 $space-4;
-  background: var(--bg-tertiary);
-  color: var(--text-primary);
-  border: none;
-  font-family: $font-mono;
-  font-size: 12px;
-  font-weight: $font-bold;
-  letter-spacing: 0.1em;
-  cursor: pointer;
-  border-radius: $radius-md;
-  border: 1px solid var(--border-default);
-
-  &:hover:not(:disabled) {
-    background: var(--text-primary);
-    color: var(--bg-primary);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
+.searchButton {
+  --ui-height: 32px;
+  flex-shrink: 0;
+  min-width: 88px;
 }
 
 // ----------------------------------------
@@ -236,7 +147,7 @@
   justify-content: center;
   background: var(--bg-primary);
   color: var(--text-tertiary);
-  font-size: 24px;
+  font-size: 13px;
   font-weight: $font-bold;
   letter-spacing: 0.1em;
 
@@ -262,10 +173,14 @@
   padding: $space-2 $space-4;
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-default);
-  font-size: 10px;
+  font-size: 9px;
   font-weight: $font-bold;
   letter-spacing: 0.1em;
   color: var(--text-secondary);
+}
+
+:global(.ant-pagination) {
+  font-size: 12px;
 }
 
 .tableWrapper {
@@ -285,7 +200,7 @@
   :global(.ant-table-thead) > tr > th {
     background: var(--bg-secondary) !important;
     color: var(--text-secondary) !important;
-    font-size: 10px !important;
+    font-size: 9px !important;
     letter-spacing: 0.1em;
     border-bottom: 1px solid var(--border-default) !important;
   }
@@ -298,7 +213,7 @@
 .tag {
   display: inline-block;
   padding: 2px 6px;
-  font-size: 10px;
+  font-size: 9px;
   font-weight: $font-bold;
   border-radius: $radius-sm;
   letter-spacing: 0.05em;
@@ -335,23 +250,6 @@
 .unverifiedBadge {
   color: var(--text-tertiary);
   font-size: 12px;
-}
-
-.copyBtn {
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-  background-color: var(--bg-tertiary);
-  font-family: $font-mono;
-  font-size: 9px;
-  font-weight: $font-bold;
-  padding: 2px 6px;
-  cursor: pointer;
-  border-radius: $radius-sm;
-
-  &:hover {
-    color: var(--bg-primary);
-    background-color: var(--text-primary);
-  }
 }
 
 .loadingState {
