@@ -1,8 +1,9 @@
 "use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
 // ============================================================
 // workers/index.ts — starts all workers in one process
 // ============================================================
-Object.defineProperty(exports, "__esModule", { value: true });
+require("module-alias/register");
 const mongo_1 = require("../db/mongo");
 const redis_1 = require("../db/redis");
 const rabbitmq_1 = require("../db/rabbitmq");

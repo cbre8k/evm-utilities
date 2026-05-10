@@ -1,6 +1,7 @@
 // ============================================================
 // index.ts — Express app entry point
 // ============================================================
+import 'module-alias/register'; // resolve @shared/* path alias at runtime
 import 'dotenv/config'; // must be first — loads .env before any other import
 
 import express from 'express';

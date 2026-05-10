@@ -39,6 +39,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // ============================================================
 // index.ts — Express app entry point
 // ============================================================
+require("module-alias/register"); // resolve @shared/* path alias at runtime
 require("dotenv/config"); // must be first — loads .env before any other import
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));

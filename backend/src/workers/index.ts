@@ -1,6 +1,7 @@
 // ============================================================
 // workers/index.ts — starts all workers in one process
 // ============================================================
+import 'module-alias/register';
 
 import { connectMongo } from '../db/mongo';
 import { getRedis } from '../db/redis';
