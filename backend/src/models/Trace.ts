@@ -56,7 +56,7 @@ const TraceSchema = new Schema<ITrace>({
   txOverview: { type: Schema.Types.Mixed, required: true },
   rawCallTree: { type: Schema.Types.Mixed, required: true },
   normalizedTree: { type: Schema.Types.Mixed, required: true },
-  tokenTransfers: { type: [Schema.Types.Mixed], default: [] },
+  tokenTransfers: { type: Schema.Types.Mixed, default: [] },
   decodedCalldata: { type: Schema.Types.Mixed },
   decodedOutput: { type: Schema.Types.Mixed },
   structLog: { type: Schema.Types.Mixed, default: [] },

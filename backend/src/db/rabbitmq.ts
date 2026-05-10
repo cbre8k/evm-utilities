@@ -1,8 +1,7 @@
 // ============================================================
 // db/rabbitmq.ts — amqplib connection + channel factory
 // ============================================================
-
-import amqplib, { Connection, Channel, ConsumeMessage } from 'amqplib';
+import amqplib, { type ChannelModel, type Channel, type ConsumeMessage } from 'amqplib';
 import { config } from '../config';
 
 // ── Queue names (single source of truth) ─────────────────────
@@ -14,16 +13,16 @@ export const QUEUES = {
 
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
-let connection: Connection | null = null;
+let connection: ChannelModel | null = null;
 let publishChannel: Channel | null = null;
 
-export async function connectRabbitMQ(): Promise<Connection> {
+export async function connectRabbitMQ(): Promise<ChannelModel> {
   if (connection) return connection;
 
   connection = await amqplib.connect(config.rabbitmq.url);
   console.log('[rabbitmq] connected to', config.rabbitmq.url);
 
-  connection.on('error', (err) => {
+  connection.on('error', (err: Error) => {
     console.error('[rabbitmq] connection error:', err.message);
     connection = null;
     publishChannel = null;
