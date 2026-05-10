@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
 
 export async function GET(
   request: Request,
@@ -10,7 +10,7 @@ export async function GET(
     const { chainId, address } = await params;
     
     // Proxy to the backend sourcify service
-    const res = await fetch(`${BACKEND_URL}/sourcify/${chainId}/${address}`, {
+    const res = await fetch(`${BACKENDURL}/sourcify/${chainId}/${address}`, {
       next: { revalidate: 3600 } // Cache for 1 hour
     });
 

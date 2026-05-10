@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server';
 
 export const dynamic = 'force-dynamic';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
 
 export async function GET(
   req: NextRequest,
@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const { jobId } = await params;
 
-  const backendRes = await fetch(`${BACKEND_URL}/jobs/${jobId}/stream`, {
+  const backendRes = await fetch(`${BACKENDURL}/jobs/${jobId}/stream`, {
     headers: { Accept: 'text/event-stream' },
     signal: req.signal,
   });

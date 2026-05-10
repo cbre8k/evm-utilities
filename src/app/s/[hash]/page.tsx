@@ -2,11 +2,11 @@ import type { Metadata } from 'next';
 import SharePageClient from '@/app/s/[hash]/SharePageClient';
 import type { ShareData } from '@/types/share';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
 
 async function fetchShare(hash: string): Promise<ShareData | null> {
   try {
-    const res = await fetch(`${BACKEND_URL}/share/${hash}`, {
+    const res = await fetch(`${BACKENDURL}/share/${hash}`, {
       next: { revalidate: 0 },
     });
     if (!res.ok) return null;

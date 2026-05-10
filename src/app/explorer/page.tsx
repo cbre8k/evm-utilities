@@ -1,11 +1,11 @@
 import ExplorerClient from './ExplorerClient';
 import type { TraceResult } from '@/types/explorer';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:4000';
+const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
 
 async function fetchTraceResult(shareHash: string): Promise<TraceResult | null> {
   try {
-    const res = await fetch(`${BACKEND_URL}/explorer/share/${shareHash}`, {
+    const res = await fetch(`${BACKENDURL}/explorer/share/${shareHash}`, {
       next: { revalidate: 0 },
     });
     if (!res.ok) return null;
