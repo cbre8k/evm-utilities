@@ -38,13 +38,13 @@ function locateBinaries() {
   const homeDir = process.env.HOME || '/root';
   const userBin = path.join(homeDir, '.foundry/bin');
 
-  // Also check common install locations
+  // Check foundry install locations first, then project bin (which may have macOS binaries)
   const candidates = [
-    projectBin,
     userBin,
     '/root/.foundry/bin',
     '/opt/render/.foundry/bin',
     '/usr/local/bin',
+    projectBin,
   ];
 
   let forgeBin = '';
