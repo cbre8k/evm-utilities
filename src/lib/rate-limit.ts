@@ -1,27 +1,28 @@
-// Upstash Redis-based rate limiter & concurrency guard
-// Works in Vercel serverless (REST-based, no persistent connections)
-
-import { Redis } from '@upstash/redis';
-import { Ratelimit } from '@upstash/ratelimit';
+// Simple in-memory rate limiter & concurrency guard
+// For multi-instance prod, replace with Redis-based solution
 
 const MAX_CONCURRENT = parseInt(process.env.MAX_CONCURRENT_JOBS || '5', 10);
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = parseInt(process.env.RATE_LIMIT_PER_MIN || '10', 10);
 const PROCESS_TIMEOUT_MS = parseInt(process.env.PROCESS_TIMEOUT_MS || '120000', 10); // 2 min
 
-// ── Upstash Redis client ────────────────────────────────────
-const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL!,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN!,
-});
+let activeJobs = 0;
 
-// ── Sliding-window rate limiter ─────────────────────────────
-const ratelimit = new Ratelimit({
-  redis,
-  limiter: Ratelimit.slidingWindow(MAX_REQUESTS_PER_WINDOW, '1 m'),
-  prefix: 'ratelimit:run',
-});
+// Sliding window per IP
+const requestLog = new Map<string, number[]>();
 
-const CONCURRENCY_KEY = 'evm-utils:active-jobs';
+// Cleanup stale entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, timestamps] of requestLog.entries()) {
+    const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+    if (valid.length === 0) {
+      requestLog.delete(ip);
+    } else {
+      requestLog.set(ip, valid);
+    }
+  }
+}, 5 * 60_000);
 
 export function getClientIp(headerForwardedFor: string | null, headerRealIp: string | null): string {
   if (headerForwardedFor) {
@@ -30,33 +31,34 @@ export function getClientIp(headerForwardedFor: string | null, headerRealIp: str
   return headerRealIp || 'unknown';
 }
 
-export async function checkRateLimit(ip: string): Promise<{ allowed: boolean; remaining: number; retryAfterMs: number }> {
-  const { success, remaining, reset } = await ratelimit.limit(ip);
-  return {
-    allowed: success,
-    remaining,
-    retryAfterMs: success ? 0 : Math.max(0, reset - Date.now()),
-  };
+export function checkRateLimit(ip: string): { allowed: boolean; remaining: number; retryAfterMs: number } {
+  const now = Date.now();
+  const timestamps = requestLog.get(ip) || [];
+  const valid = timestamps.filter(t => now - t < RATE_LIMIT_WINDOW_MS);
+
+  if (valid.length >= MAX_REQUESTS_PER_WINDOW) {
+    const oldestInWindow = valid[0];
+    const retryAfterMs = RATE_LIMIT_WINDOW_MS - (now - oldestInWindow);
+    return { allowed: false, remaining: 0, retryAfterMs };
+  }
+
+  valid.push(now);
+  requestLog.set(ip, valid);
+  return { allowed: true, remaining: MAX_REQUESTS_PER_WINDOW - valid.length, retryAfterMs: 0 };
 }
 
-export async function acquireJob(): Promise<boolean> {
-  const current = await redis.incr(CONCURRENCY_KEY);
-  if (current > MAX_CONCURRENT) {
-    await redis.decr(CONCURRENCY_KEY);
-    return false;
-  }
-  // Auto-expire the key as a safety net (2× timeout)
-  await redis.expire(CONCURRENCY_KEY, Math.ceil((PROCESS_TIMEOUT_MS * 2) / 1000));
+export function acquireJob(): boolean {
+  if (activeJobs >= MAX_CONCURRENT) return false;
+  activeJobs++;
   return true;
 }
 
-export async function releaseJob(): Promise<void> {
-  const val = await redis.decr(CONCURRENCY_KEY);
-  if (val < 0) await redis.set(CONCURRENCY_KEY, 0);
+export function releaseJob(): void {
+  activeJobs = Math.max(0, activeJobs - 1);
 }
 
-export async function getActiveJobs(): Promise<number> {
-  return (await redis.get<number>(CONCURRENCY_KEY)) ?? 0;
+export function getActiveJobs(): number {
+  return activeJobs;
 }
 
-export { redis, MAX_CONCURRENT, MAX_REQUESTS_PER_WINDOW, PROCESS_TIMEOUT_MS };
+export { MAX_CONCURRENT, RATE_LIMIT_WINDOW_MS, MAX_REQUESTS_PER_WINDOW, PROCESS_TIMEOUT_MS };
