@@ -16,7 +16,21 @@ const PROCESS_TIMEOUT_MS = config.jobs.processTimeoutMs;
 let activeJobs = 0;
 
 // ── Foundry paths ────────────────────────────────────────────
-const projectRoot = path.resolve(__dirname, '..', '..', '..');
+// Walk up from __dirname until we find the repo root (has package.json + foundry/)
+function findProjectRoot(): string {
+  let dir = __dirname;
+  for (let i = 0; i < 10; i++) {
+    if (fs.existsSync(path.join(dir, 'foundry')) && fs.existsSync(path.join(dir, 'package.json'))) {
+      return dir;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  // Fallback: assume CWD is project root
+  return process.cwd();
+}
+const projectRoot = findProjectRoot();
 const sourceFoundryDir = path.join(projectRoot, 'foundry');
 
 function locateBinaries() {
@@ -24,15 +38,31 @@ function locateBinaries() {
   const homeDir = process.env.HOME || '/root';
   const userBin = path.join(homeDir, '.foundry/bin');
 
-  let forgeBin = 'forge';
-  let castBin = 'cast';
+  // Also check common install locations
+  const candidates = [
+    projectBin,
+    userBin,
+    '/root/.foundry/bin',
+    '/opt/render/.foundry/bin',
+    '/usr/local/bin',
+  ];
 
-  if (fs.existsSync(path.join(projectBin, 'forge'))) {
-    forgeBin = path.join(projectBin, 'forge');
-    castBin = path.join(projectBin, 'cast');
-  } else if (fs.existsSync(path.join(userBin, 'forge'))) {
-    forgeBin = path.join(userBin, 'forge');
-    castBin = path.join(userBin, 'cast');
+  let forgeBin = '';
+  let castBin = '';
+
+  for (const dir of candidates) {
+    if (fs.existsSync(path.join(dir, 'forge'))) {
+      forgeBin = path.join(dir, 'forge');
+      castBin = path.join(dir, 'cast');
+      console.log(`[run] found foundry binaries in ${dir}`);
+      break;
+    }
+  }
+
+  if (!forgeBin) {
+    console.warn('[run] foundry binaries not found in:', candidates.join(', '));
+    forgeBin = 'forge';
+    castBin = 'cast';
   }
 
   return { forgeBin, castBin, projectBin, userBin };
