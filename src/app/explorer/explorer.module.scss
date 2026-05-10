@@ -2095,6 +2095,287 @@
 
 // ── Gas profiler ──────────────────────────────────────────────
 
+.gasProfilerHero {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  margin-bottom: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gasProfilerHeader {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: linear-gradient(90deg, #f4f4f4, #bdbdbd);
+  color: #111;
+  font-size: 12px;
+  height: 25px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.gasFlameGraph {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--text-tertiary) 22%, transparent) 1px, transparent 1px) 0 0 / 18px 18px,
+    var(--bg-primary);
+}
+
+.gasHoverInfo {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(360px, calc(100% - 16px));
+  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 8px 10px;
+  pointer-events: none;
+
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    color: var(--text-secondary);
+  }
+}
+
+.gasFlameGraphInner {
+  min-width: 100%;
+  position: relative;
+}
+
+.gasFlameBlock {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 48px;
+  min-width: 2px;
+  border: 0;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.2;
+  overflow: hidden;
+  padding: 0 8px;
+  text-align: left;
+  transform-origin: center left;
+  transition:
+    left 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 180ms ease,
+    opacity 180ms ease,
+    outline-color 180ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  white-space: nowrap;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.26);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+    pointer-events: none;
+  }
+
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  small {
+    display: block;
+    font-size: 10px;
+    line-height: 1.15;
+    opacity: 0.82;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover {
+    filter: brightness(1.22);
+    outline: 2px solid color-mix(in srgb, var(--text-primary) 72%, transparent);
+    outline-offset: -2px;
+    z-index: 2;
+  }
+}
+
+.gasFlameBlockSelected {
+  outline: 2px solid color-mix(in srgb, var(--text-primary) 88%, transparent);
+  outline-offset: -2px;
+  filter: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  z-index: 3;
+}
+
+.gasProfilerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.gasProfilerPanel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  min-height: 180px;
+  padding: 28px;
+
+  h3 {
+    color: var(--text-primary);
+    font-size: 16px;
+    margin: 0 0 16px;
+  }
+
+  p {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.7;
+    margin: 0 0 16px;
+  }
+}
+
+.gasProfilerPanelWide {
+  grid-column: 1 / 2;
+}
+
+.gasProfilerMetric {
+  display: flex;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+.gasProgress {
+  width: 360px;
+  max-width: 100%;
+  height: 18px;
+  background: color-mix(in srgb, var(--bg-secondary) 70%, #000);
+  border: 1px solid var(--border-subtle);
+  border-radius: $radius-full;
+  overflow: hidden;
+}
+
+.gasProgressFill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 42px;
+  background: #f4f4f4;
+  color: #111;
+  font-family: $font-mono;
+  font-size: 11px;
+}
+
+.gasEmptySelection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+  color: var(--text-tertiary);
+  text-align: center;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
+
+.gasDetailLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 22px;
+  align-items: center;
+}
+
+.gasDetailGrid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 18px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 12px;
+  min-width: 0;
+
+  strong {
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.gasShareChart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+
+  small {
+    color: var(--text-tertiary);
+    font-family: $font-mono;
+    font-size: 11px;
+  }
+}
+
+.gasShareDonut {
+  display: grid;
+  place-items: center;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 24px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-subtle);
+  }
+
+  span {
+    position: relative;
+    z-index: 1;
+    color: var(--text-primary);
+    font-family: $font-mono;
+    font-size: 13px;
+    font-weight: $font-bold;
+  }
+}
+
 .gasTotal {
   display: flex;
   flex-direction: column;

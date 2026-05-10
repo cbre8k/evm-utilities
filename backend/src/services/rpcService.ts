@@ -575,7 +575,9 @@ export function buildGasTree(node: TraceNode, totalGas: number): GasNode {
   const gasLimit = parseHexOrDecimal((node as any).gas ?? node.gasUsed);
   const childrenNodes = node.children.map(c => buildGasTree(c, totalGas));
   const childrenGas = childrenNodes.reduce((s, c) => s + c.gasUsed, 0);
-  const label = node.decodedFunction ?? node.to ?? node.from ?? node.type;
+  const op = node.caller_op ?? node.type;
+  const method = node.function_name ?? node.decodedFunction;
+  const label = method && method !== op ? `${op} ${method}` : op;
 
   return {
     id: node.id,

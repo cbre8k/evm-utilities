@@ -77,7 +77,13 @@ export default function ExplorerResultWorkspace({
         )}
 
         {activeTab === 'gas' && result.gasTree && (
-          <GasProfilerTab gasTree={result.gasTree} totalGas={totalGas} />
+          <GasProfilerTab
+            gasTree={result.gasTree}
+            root={result.normalizedTree}
+            structLog={result.structLog}
+            allLogs={result.allLogs}
+            totalGas={totalGas}
+          />
         )}
       </div>
     </main>

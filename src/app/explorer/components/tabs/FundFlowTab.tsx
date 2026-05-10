@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
-  Controls,
   type Node,
   type Edge,
   type NodeProps,
@@ -12,7 +11,6 @@ import {
   Handle,
   Position,
   MarkerType,
-  getBezierPath,
   EdgeLabelRenderer,
   BaseEdge,
 } from '@xyflow/react';
@@ -82,7 +80,16 @@ const EDGE_COLORS = [
 ];
 
 // Max parallel edges per pair — determines how many handles we create
-const MAX_HANDLES = 6;
+const MAX_HANDLES: number = 6;
+
+type FlowEdgeData = {
+  color?: string;
+  stepNum?: number;
+  amount?: string;
+  symbol?: string;
+  routeY?: number;
+  items?: { stepNum: number; amount: string; symbol: string; color: string }[];
+};
 
 // ── Custom Node ──
 function AddressNode({ data }: NodeProps) {
@@ -130,10 +137,38 @@ const nodeTypes = { addressNode: AddressNode };
 
 // ── Custom Edge with HTML label ──
 function FlowEdge(props: EdgeProps) {
-  const { sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, style, markerEnd, data } = props;
-  const [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
-  const d = data as { color?: string; stepNum?: number; amount?: string; symbol?: string };
+  const { id, sourceX, sourceY, targetX, targetY, style, markerEnd, data } = props;
+  const d = data as FlowEdgeData;
   const dotColor = d?.color || 'var(--accent-primary)';
+  const leftX = Math.min(sourceX, targetX);
+  const rightX = Math.max(sourceX, targetX);
+  const direction = sourceX <= targetX ? 1 : -1;
+  const routeY = d?.routeY ?? (sourceY + targetY) / 2;
+  const labelX = (sourceX + targetX) / 2;
+  const labelY = routeY;
+  const availableX = Math.max(1, rightX - leftX);
+  const edgeGap = Math.min(56, Math.max(20, availableX * 0.16));
+  const minX = leftX + edgeGap;
+  const maxX = rightX - edgeGap;
+  const p1Base = sourceX + direction * availableX * 0.25;
+  const p4Base = sourceX + direction * availableX * 0.75;
+  const p1X = sourceX <= targetX
+    ? Math.min(Math.max(p1Base, minX), maxX)
+    : Math.max(Math.min(p1Base, maxX), minX);
+  const p4X = sourceX <= targetX
+    ? Math.min(Math.max(p4Base, minX), maxX)
+    : Math.max(Math.min(p4Base, maxX), minX);
+  const canBeStraight = Math.abs(sourceY - targetY) < 1 && Math.abs(routeY - sourceY) < 1;
+  const edgePath = canBeStraight
+    ? `M ${sourceX},${sourceY} L ${targetX},${targetY}`
+    : [
+        `M ${sourceX},${sourceY}`,
+        `C ${p1X},${sourceY} ${p1X},${routeY} ${labelX},${routeY}`,
+        `C ${p4X},${routeY} ${p4X},${targetY} ${targetX},${targetY}`,
+      ].join(' ');
+  const labelItems = d?.items?.length
+    ? d.items
+    : [{ stepNum: d?.stepNum ?? 0, amount: d?.amount ?? '', symbol: d?.symbol ?? '', color: dotColor }];
 
   return (
     <>
@@ -150,6 +185,7 @@ function FlowEdge(props: EdgeProps) {
       <EdgeLabelRenderer>
         <div
           className="ffEdgeLabel"
+          data-edge-id={id}
           data-step={d?.stepNum}
           style={{
             position: 'absolute',
@@ -166,27 +202,33 @@ function FlowEdge(props: EdgeProps) {
             fontFamily: 'var(--font-mono)',
             whiteSpace: 'nowrap',
             transition: 'opacity 0.2s',
+            maxWidth: 360,
+            overflowX: 'auto',
           }}
         >
-          <span
-            className={`ffStep ffStep-${d?.stepNum ?? 0}`}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              minWidth: 18,
-              height: 18,
-              padding: '0 4px',
-              borderRadius: 4,
-              fontSize: 10,
-              fontWeight: 700,
-              lineHeight: 1,
-              color: 'var(--text-tertiary)',
-              transition: 'all 0.15s',
-            }}
-          >{d?.stepNum != null ? d.stepNum + 1 : ''}</span>
-          <span style={{ fontWeight: 600, color: 'var(--text-primary)'}}>{d?.amount}</span>
-          <span style={{ fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: 10 }}>{d?.symbol}</span>
+          {labelItems.map((item) => (
+            <span key={item.stepNum} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span
+                className={`ffStep ffStep-${item.stepNum}`}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: 18,
+                  height: 18,
+                  padding: '0 4px',
+                  borderRadius: 4,
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: 1,
+                  color: 'var(--text-tertiary)',
+                  transition: 'all 0.15s',
+                }}
+              >{item.stepNum + 1}</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)'}}>{item.amount}</span>
+              <span style={{ fontWeight: 500, color: 'var(--text-secondary)', textTransform: 'uppercase', fontSize: 10 }}>{item.symbol}</span>
+            </span>
+          ))}
         </div>
       </EdgeLabelRenderer>
     </>
@@ -261,8 +303,62 @@ type Transfer = {
   type: string; // 'Transfer' | 'Mint' | 'Burn' etc.
 };
 
+type NodeRect = {
+  id: string;
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+};
+
+function handleRatio(handleId: string | null | undefined) {
+  if (!handleId) return 0.5;
+  const index = Number(handleId.split('-')[1]);
+  if (!Number.isFinite(index)) return 0.5;
+  const pct = MAX_HANDLES === 1 ? 50 : 15 + (Math.min(index, MAX_HANDLES - 1) * 70) / (MAX_HANDLES - 1);
+  return pct / 100;
+}
+
+function routeCrossesNode(y: number, leftX: number, rightX: number, rects: NodeRect[], clearance: number) {
+  return rects.some((rect) => {
+    const overlapsX = rect.left - clearance < rightX && rect.right + clearance > leftX;
+    const overlapsY = y > rect.top - clearance && y < rect.bottom + clearance;
+    return overlapsX && overlapsY;
+  });
+}
+
+function edgeRouteY(
+  sourceY: number,
+  targetY: number,
+  leftX: number,
+  rightX: number,
+  blockerRects: NodeRect[],
+  edgeIndex: number,
+) {
+  const directY = (sourceY + targetY) / 2;
+  const clearance = 28;
+  if (!routeCrossesNode(directY, leftX, rightX, blockerRects, clearance)) return directY;
+
+  const laneStep = 44;
+  const sideFirst = edgeIndex % 2 === 0 ? -1 : 1;
+  for (let lane = 1; lane <= 10; lane++) {
+    const first = directY + sideFirst * lane * laneStep;
+    if (!routeCrossesNode(first, leftX, rightX, blockerRects, clearance)) return first;
+
+    const second = directY - sideFirst * lane * laneStep;
+    if (!routeCrossesNode(second, leftX, rightX, blockerRects, clearance)) return second;
+  }
+
+  const crossingRects = blockerRects.filter((rect) => rect.left - clearance < rightX && rect.right + clearance > leftX);
+  if (crossingRects.length === 0) return directY;
+
+  const above = Math.min(...crossingRects.map(rect => rect.top)) - clearance;
+  const below = Math.max(...crossingRects.map(rect => rect.bottom)) + clearance;
+  return Math.abs(above - directY) <= Math.abs(below - directY) ? above : below;
+}
+
 function collectTransfers(props: Props): Transfer[] {
-  const { nativeTransfers, erc20Transfers, erc721Transfers, erc1155Transfers, assetChanges = [], tokenLabels = {}, addressLabels: propAddressLabels = {} } = props;
+  const { nativeTransfers, erc20Transfers, erc721Transfers, erc1155Transfers, assetChanges = [], tokenLabels = {} } = props;
   const transfers: Transfer[] = [];
 
   if (assetChanges.length > 0) {
@@ -303,10 +399,10 @@ function collectTransfers(props: Props): Transfer[] {
 
 function buildGraph(
   props: Props,
-): { nodes: Node[]; edges: Edge[]; transfers: Transfer[]; addressLabels: Record<string, string>; symbolColors: Record<string, string> } {
+): { nodes: Node[]; edges: Edge[]; transfers: Transfer[]; addressLabels: Record<string, string>; symbolColors: Record<string, string>; stepEdgeIds: string[] } {
   const { assetChanges = [], tokenLabels = {}, addressLabels: propAddressLabels = {} } = props;
   const transfers = collectTransfers(props);
-  if (transfers.length === 0) return { nodes: [], edges: [], transfers, addressLabels: {}, symbolColors: {} };
+  if (transfers.length === 0) return { nodes: [], edges: [], transfers, addressLabels: {}, symbolColors: {}, stepEdgeIds: [] };
 
   // Unique addresses in order
   const addressOrder: string[] = [];
@@ -387,34 +483,62 @@ function buildGraph(
       style: { width: NODE_W, transition: 'opacity 0.2s' },
     };
   });
+  const nodeRects: NodeRect[] = nodes.map((node) => ({
+    id: node.id,
+    left: node.position.x,
+    right: node.position.x + NODE_W,
+    top: node.position.y,
+    bottom: node.position.y + NODE_H,
+  }));
+  const nodeById = new Map(nodes.map(node => [node.id, node]));
 
-  // ── Edges with parallel offset ──
-  const srcCount = new Map<string, number>();
-  const tgtCount = new Map<string, number>();
-  const srcIndex = new Map<string, number>();
-  const tgtIndex = new Map<string, number>();
-  for (const t of transfers) {
-    srcCount.set(t.from, (srcCount.get(t.from) ?? 0) + 1);
-    tgtCount.set(t.to, (tgtCount.get(t.to) ?? 0) + 1);
-  }
+  // ── Edges: one rendered line per address pair ──
+  const groupedTransfers = new Map<string, { from: string; to: string; steps: number[] }>();
+  transfers.forEach((t, i) => {
+    const key = `${t.from}->${t.to}`;
+    const group = groupedTransfers.get(key);
+    if (group) {
+      group.steps.push(i);
+    } else {
+      groupedTransfers.set(key, { from: t.from, to: t.to, steps: [i] });
+    }
+  });
 
-  const edges: Edge[] = transfers.map((t, i) => {
-    const si = srcIndex.get(t.from) ?? 0;
-    const ti = tgtIndex.get(t.to) ?? 0;
-    srcIndex.set(t.from, si + 1);
-    tgtIndex.set(t.to, ti + 1);
+  const stepEdgeIds = Array.from<string>({ length: transfers.length });
+  const centerHandle = Math.floor(MAX_HANDLES / 2);
 
-    const totalSrc = srcCount.get(t.from)!;
-    const totalTgt = tgtCount.get(t.to)!;
-    const sHandle = totalSrc > 1 ? `s-${Math.min(si, MAX_HANDLES - 1)}` : `s-${Math.floor(MAX_HANDLES / 2)}`;
-    const tHandle = totalTgt > 1 ? `t-${Math.min(ti, MAX_HANDLES - 1)}` : `t-${Math.floor(MAX_HANDLES / 2)}`;
-
-    const color = symbolColors[t.symbol];
+  const edges: Edge[] = [...groupedTransfers.values()].map((group, groupIndex) => {
+    const firstStep = group.steps[0];
+    const firstTransfer = transfers[firstStep];
+    const edgeId = `e-${firstStep}`;
+    const sHandle = `s-${centerHandle}`;
+    const tHandle = `t-${centerHandle}`;
+    const color = symbolColors[firstTransfer.symbol];
+    const sourceNode = nodeById.get(group.from);
+    const targetNode = nodeById.get(group.to);
+    const sourceX = sourceNode ? sourceNode.position.x + NODE_W : 0;
+    const targetX = targetNode ? targetNode.position.x : sourceX + GAP_X;
+    const sourceY = sourceNode ? sourceNode.position.y + NODE_H * handleRatio(sHandle) : 0;
+    const targetY = targetNode ? targetNode.position.y + NODE_H * handleRatio(tHandle) : sourceY;
+    const leftX = Math.min(sourceX, targetX);
+    const rightX = Math.max(sourceX, targetX);
+    const blockerRects = nodeRects.filter(rect => rect.id !== group.from && rect.id !== group.to);
+    const routeY = edgeRouteY(sourceY, targetY, leftX, rightX, blockerRects, groupIndex);
+    const items = group.steps.map((stepNum) => {
+      const transfer = transfers[stepNum];
+      stepEdgeIds[stepNum] = edgeId;
+      return {
+        stepNum,
+        amount: transfer.amount,
+        symbol: transfer.symbol,
+        color: symbolColors[transfer.symbol],
+      };
+    });
 
     return {
-      id: `e-${i}`,
-      source: t.from,
-      target: t.to,
+      id: edgeId,
+      source: group.from,
+      target: group.to,
       sourceHandle: sHandle,
       targetHandle: tHandle,
       type: 'flowEdge',
@@ -425,11 +549,18 @@ function buildGraph(
         transition: 'opacity 0.2s, stroke-width 0.2s',
       },
       markerEnd: { type: MarkerType.ArrowClosed, color, width: 16, height: 16 },
-      data: { color, stepNum: i, amount: t.amount, symbol: t.symbol },
+      data: {
+        color,
+        stepNum: firstStep,
+        amount: firstTransfer.amount,
+        symbol: firstTransfer.symbol,
+        routeY,
+        items,
+      },
     };
   });
 
-  return { nodes, edges, transfers, addressLabels, symbolColors };
+  return { nodes, edges, transfers, addressLabels, symbolColors, stepEdgeIds };
 }
 
 // ── Step Detail Sidebar ──
@@ -516,7 +647,7 @@ export default function FundFlowTab(props: Props) {
   const onNodeMouseLeave = useCallback(() => setHoveredAddr(null), []);
 
   // Build graph structure only when props change — never on hover
-  const { nodes, edges, transfers, addressLabels, symbolColors } = useMemo(() => buildGraph(props), [props]);
+  const { nodes, edges, transfers, addressLabels, symbolColors, stepEdgeIds } = useMemo(() => buildGraph(props), [props]);
 
   // Edge click → open step detail
   const onEdgeClick = useCallback((_: React.MouseEvent, edge: Edge) => {
@@ -558,12 +689,15 @@ export default function FundFlowTab(props: Props) {
     // Hover styles
     if (hoveredAddr) {
       const connected = new Set<string>([hoveredAddr]);
-      const connEdgeIds: string[] = [];
+      const connStepByEdgeId = new Map<string, number[]>();
       transfers.forEach((t, i) => {
         if (t.from === hoveredAddr || t.to === hoveredAddr) {
           connected.add(t.from);
           connected.add(t.to);
-          connEdgeIds.push(`e-${i}`);
+          const edgeId = stepEdgeIds[i] ?? `e-${i}`;
+          const stepNums = connStepByEdgeId.get(edgeId) ?? [];
+          stepNums.push(i);
+          connStepByEdgeId.set(edgeId, stepNums);
         }
       });
       css += `.react-flow__node { opacity: 0.25 !important; transition: opacity 0.2s; }\n`;
@@ -573,14 +707,15 @@ export default function FundFlowTab(props: Props) {
       css += `.react-flow__node[data-id="${hoveredAddr}"] .${styles.ffNode} { border-color: var(--accent-primary); box-shadow: 0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent); }\n`;
       css += `.react-flow__edge path:not(.ffDot), .react-flow__edge .react-flow__edge-interaction { opacity: 0.12; transition: opacity 0.2s; }\n`;
       css += `.ffEdgeLabel { opacity: 0 !important; transition: opacity 0.2s; }\n`;
-      for (const id of connEdgeIds) {
-        const edgeIdx = parseInt(id.replace('e-', ''), 10);
-        const edgeColor = transfers[edgeIdx] ? symbolColors[transfers[edgeIdx].symbol] : 'var(--accent-primary)';
+      for (const [id, stepNums] of connStepByEdgeId) {
         css += `.react-flow__edge[data-id="${id}"] path:not(.ffDot) { opacity: 1; stroke-width: 1.5px; }\n`;
         css += `.react-flow__edge[data-id="${id}"] .ffDot { opacity: 1; animation: ffDotFlow 0.8s linear infinite; }\n`;
         css += `.react-flow__edge[data-id="${id}"] .react-flow__edge-interaction { opacity: 1; }\n`;
-        css += `.ffEdgeLabel[data-step="${edgeIdx}"] { opacity: 1 !important; }\n`;
-        css += `.ffStep-${edgeIdx} { background: ${edgeColor} !important; color: #fff !important; }\n`;
+        css += `.ffEdgeLabel[data-edge-id="${id}"] { opacity: 1 !important; }\n`;
+        for (const stepNum of stepNums) {
+          const edgeColor = transfers[stepNum] ? symbolColors[transfers[stepNum].symbol] : 'var(--accent-primary)';
+          css += `.ffStep-${stepNum} { background: ${edgeColor} !important; color: #fff !important; }\n`;
+        }
       }
     }
 
@@ -588,10 +723,10 @@ export default function FundFlowTab(props: Props) {
     if (selectedStep !== null) {
       const t = transfers[selectedStep];
       if (t) {
-        const selEdge = `e-${selectedStep}`;
+        const selEdge = stepEdgeIds[selectedStep] ?? `e-${selectedStep}`;
         // Dim unrelated edges
         css += `.react-flow__edge:not([data-id="${selEdge}"]) path:not(.ffDot) { opacity: 0.15 !important; }\n`;
-        css += `.ffEdgeLabel:not([data-step="${selectedStep}"]) { opacity: 0.15 !important; }\n`;
+        css += `.ffEdgeLabel:not([data-edge-id="${selEdge}"]) { opacity: 0.15 !important; }\n`;
         // Highlight selected edge
         const selColor = symbolColors[t.symbol] || 'var(--accent-primary)';
         css += `.react-flow__edge[data-id="${selEdge}"] path:not(.ffDot) { stroke-width: 2px; }\n`;
@@ -612,7 +747,7 @@ export default function FundFlowTab(props: Props) {
     css += `@keyframes ffDotFlow { to { stroke-dashoffset: -41; } }\n`;
 
     return css;
-  }, [hoveredAddr, selectedStep, transfers]);
+  }, [hoveredAddr, selectedStep, transfers, symbolColors, stepEdgeIds]);
 
   const onInit = useCallback((instance: { fitView: () => void }) => {
     setTimeout(() => instance.fitView(), 50);
