@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
     req.headers.get('x-forwarded-for'),
     req.headers.get('x-real-ip')
   );
-  const rateCheck = checkRateLimit(ip);
+  const rateCheck = await checkRateLimit(ip);
   if (!rateCheck.allowed) {
     return NextResponse.json(
       { error: 'Rate limit exceeded. Try again later.' },
@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   }
 
   // --- CONCURRENCY LIMITING ---
-  if (!acquireJob()) {
+  if (!(await acquireJob())) {
     return NextResponse.json(
       { error: 'Server is busy. Too many concurrent requests. Please retry shortly.' },
       { status: 503 }
@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
             console.error('Failed to kill child process:', e);
           }
         }
-        releaseJob();
+        void releaseJob();
         try { controller.close(); } catch {}
       });
 
@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         // Safety check: ensure source exists
         if (!fs.existsSync(sourceFoundryDir)) {
           send('Error: Source foundry directory not found.\n');
-          releaseJob();
+          void releaseJob();
           controller.close();
           return;
         }
@@ -162,7 +162,7 @@ export async function POST(req: NextRequest) {
 
           if (missing.length > 0) {
             send(`Error: Missing ${missing.map(formatField).join(' and ')}\n`);
-            releaseJob();
+            void releaseJob();
             controller.close();
             return;
           }
@@ -178,12 +178,12 @@ export async function POST(req: NextRequest) {
           const required = ['sender', 'target', 'calldata', 'rpcUrl'];
           const missing = required.filter((field: string) => !inputs[field]);
 
-          if (missing.length > 0) {
-            send(`Error: Missing ${missing.map(formatField).join(', ')}\n`);
-            releaseJob();
-            controller.close();
-            return;
-          }
+          // if (missing.length > 0) {
+          //   send(`Error: Missing ${missing.map(formatField).join(', ')}\n`);
+          //   releaseJob();
+          //   controller.close();
+          //   return;
+          // }
           
           // Lightweight workspace: symlink lib/, copy only config + test file
           const sessionId = Math.random().toString(36).substring(7);
@@ -195,7 +195,7 @@ export async function POST(req: NextRequest) {
           send(`> forge ${args.join(' ')}\r\n\r\n`);
         } else {
           send('Error: Unknown operation type\n');
-          releaseJob();
+          void releaseJob();
           controller.close();
           return;
         }
@@ -229,13 +229,13 @@ export async function POST(req: NextRequest) {
         child.on('error', (err: any) => {
           if (isAborted) return;
           send(`\r\nFailed to start subprocess: ${err.message}\r\n`);
-          releaseJob();
+          void releaseJob();
         });
 
         child.on('close', (code: any) => {
           if (!isAborted) {
             send(`\r\nProcess exited with code ${code}`);
-            releaseJob();
+            void releaseJob();
             try { controller.close(); } catch {}
           }
           
@@ -246,7 +246,7 @@ export async function POST(req: NextRequest) {
       } catch (err: any) {
         if (!isAborted) {
           send(`\r\nSystem Error: ${err.message}`);
-          releaseJob();
+          void releaseJob();
           try { controller.close(); } catch {}
         }
       }

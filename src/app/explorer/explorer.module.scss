@@ -1,0 +1,2748 @@
+@use '../../styles/variables' as *;
+
+// ============================================================
+// Explorer — 6-tab transaction explorer
+// ============================================================
+
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-family: $font-mono;
+  background-color: var(--bg-primary);
+  min-height: 0;
+  overflow: hidden;
+}
+
+// ── Input bar ─────────────────────────────────────────────────
+
+.inputBar {
+  display: grid;
+  grid-template-columns: 162px minmax(0, 1fr);
+  align-items: stretch;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+  min-height: 110px;
+}
+
+.inputHero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: $space-2;
+  min-width: 0;
+  min-height: 110px;
+  padding: $space-3;
+  border-right: 1px solid var(--border-default);
+}
+
+.heroHeader {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+}
+
+.heroName {
+  color: var(--text-primary);
+  font-size: 16px;
+  font-weight: $font-bold;
+  letter-spacing: 0.05em;
+}
+
+.heroBadge {
+  background: var(--text-primary);
+  border-radius: $radius-md;
+  color: var(--bg-primary);
+  font-size: 10px;
+  font-weight: $font-bold;
+  padding: 2px 6px;
+}
+
+.heroSub {
+  color: var(--text-tertiary);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+}
+
+.inputControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 150px;
+  grid-template-rows: 1fr;
+  min-width: 0;
+}
+
+.inputWrap {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: $space-3;
+  background: var(--bg-primary);
+  min-width: 0;
+  overflow: hidden;
+  padding: $space-4;
+  border-right: 1px solid var(--border-default);
+}
+
+.inputTag {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  padding: 0;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font-weight: $font-bold;
+}
+
+.controlHeader {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  min-width: 0;
+}
+
+.controlHint {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.inputFrame {
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  display: flex;
+  min-width: 0;
+  padding: 0 $space-3;
+  transition: border-color $transition-fast;
+
+  &:focus-within {
+    border-color: var(--text-primary);
+  }
+}
+
+.inputField {
+  background: transparent;
+  border: none;
+  font-family: $font-mono;
+  font-size: 14px;
+  color: var(--text-primary);
+  outline: none;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  &::placeholder { color: var(--text-tertiary); }
+  &:focus { background: transparent; }
+}
+
+.exploreBtn {
+  align-self: center;
+  --ui-height: 46px;
+  --ui-pad-x: 16px;
+  justify-self: center;
+}
+
+// ── Status bar ────────────────────────────────────────────────
+
+.statusBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  height: 30px;
+  flex-shrink: 0;
+}
+
+.statusLeft {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  display: inline-block;
+  background: var(--border-default);
+  flex-shrink: 0;
+}
+.dotSuccess { background: $success; }
+.dotLoading { background: $warning; animation: blink 0.8s step-end infinite; }
+.dotError   { background: $danger; }
+
+@keyframes blink { 50% { opacity: 0; } }
+.pulse { animation: blink 0.8s step-end infinite; }
+
+.statusActions { display: flex; align-items: center; gap: 8px; }
+.statusError { color: var(--color-danger); }
+
+// ── Result workspace ──────────────────────────────────────────
+
+.resultLayout {
+  background: var(--bg-primary);
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(350px, 20vw) minmax(0, 1fr);
+  min-height: 0;
+}
+
+.resultMain {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+  min-height: 42px;
+  padding: 0 16px;
+}
+
+// ── Body ──────────────────────────────────────────────────────
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  gap: 12px;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  padding: 64px 32px;
+  text-align: center;
+}
+
+.emptyTitle {
+  font-size: 12px;
+  font-weight: $font-bold;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+}
+
+.emptyHint {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  max-width: 420px;
+  line-height: 1.9;
+}
+
+.traceLoadingState {
+  align-items: center;
+  background: var(--bg-primary);
+  color: var(--text-tertiary);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  min-height: 0;
+  padding: 64px 32px;
+  text-align: center;
+}
+
+.errorBox {
+  color: $danger;
+  font-size: 12px;
+  background: var(--bg-primary);
+  border: 1px solid $danger;
+  padding: 12px 16px;
+  border-radius: $radius-md;
+}
+
+// ── Tab content area ──────────────────────────────────────────
+
+.tabContent {
+  flex: 1;
+  overflow: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-primary);
+}
+
+// ── Section card ──────────────────────────────────────────────
+
+.section {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  min-height: 0;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.14em;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.sectionBody {
+  padding: 12px;
+}
+
+.panelBadge {
+  font-size: 9px;
+  font-weight: $font-bold;
+  padding: 1px 7px;
+  border-radius: $radius-full;
+  background: var(--bg-tertiary);
+  color: var(--text-tertiary);
+  border: 1px solid var(--border-default);
+}
+
+// ── KV grid (summary overview) ────────────────────────────────
+
+.kvGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1px;
+  background: var(--border-default);
+  border: 1px solid var(--border-default);
+}
+
+.kvRow {
+  background: var(--bg-primary);
+  display: grid;
+  grid-template-columns: 90px 1fr;
+}
+
+.kvKey {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-default);
+}
+
+.kvVal {
+  font-size: 11px;
+  color: var(--text-primary);
+  padding: 7px 10px;
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+// ── Table ─────────────────────────────────────────────────────
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+}
+
+.th {
+  text-align: left;
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-secondary);
+  font-weight: $font-bold;
+  white-space: nowrap;
+}
+
+.td {
+  padding: 6px 10px;
+  border-bottom: 1px dashed var(--border-subtle);
+  color: var(--text-primary);
+  word-break: break-all;
+  vertical-align: top;
+}
+
+// ── Decoded calldata ──────────────────────────────────────────
+
+.fnName {
+  font-size: 13px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+  padding: 8px 0;
+}
+
+// ── Call trace LIST ──────────────────────────────────────────
+
+.traceList {
+  font-size: 12px;
+  font-family: $font-mono;
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+}
+
+.traceListInner {
+  min-width: max-content;
+}
+
+.traceTreeShell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  border-top: 1px solid var(--border-default);
+
+  .traceList {
+    border: none;
+  }
+}
+
+// ── Base row ───────────────────────────────────────────────────
+
+.traceListRow {
+  --trace-accent: var(--border-default);
+  --trace-depth: 0;
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  min-height: 0;
+  min-width: 0;
+  white-space: nowrap;
+  transition: background 120ms ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.025);
+  }
+
+  &:last-child {
+    border-bottom: none;
+  }
+}
+
+// ── Row type variants ──────────────────────────────────────────
+
+.traceListRowCall {
+  --trace-accent: #4f8cff;
+  font-weight: $font-medium;
+  background: linear-gradient(90deg, rgba(79, 140, 255, 0.04), transparent 50%);
+
+  &:hover {
+    background: linear-gradient(90deg, rgba(79, 140, 255, 0.08), rgba(255, 255, 255, 0.02) 50%);
+  }
+}
+
+.traceListRowJump {
+  --trace-accent: #38bdf8;
+  font-weight: $font-normal;
+  background: linear-gradient(90deg, rgba(56, 189, 248, 0.03), transparent 50%);
+
+  &:hover {
+    background: linear-gradient(90deg, rgba(56, 189, 248, 0.06), rgba(255, 255, 255, 0.02) 50%);
+  }
+}
+
+.traceListRowEvent {
+  --trace-accent: #a78bfa;
+}
+
+.traceListRowStorage {
+  --trace-accent: #f3a73f;
+}
+
+.traceListRowOpcode {
+  --trace-accent: #64748b;
+  opacity: 0.85;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+.traceListRowReturn {
+  --trace-accent: #6fe3a1;
+  background: rgba(111, 227, 161, 0.03);
+}
+
+.traceListRowError {
+  --trace-accent: #ff6b7a;
+  background: rgba(255, 107, 122, 0.04);
+}
+
+// ── Row cells ──────────────────────────────────────────────────
+
+.traceListOp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  flex-shrink: 0;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-primary, #1a1a2e);
+}
+
+.opcBadge {
+  font-size: 9px;
+  font-weight: $font-bold;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  font-family: $font-mono;
+  min-width: 50px;
+  text-align: center;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.gasBadge {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  font-family: $font-mono;
+  min-width: 50px;
+  text-align: center;
+}
+
+.traceListDesc {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: visible;
+  min-width: 0;
+  position: relative;
+  padding: 6px 10px 6px 0;
+  flex: 1;
+}
+
+// ── CSS depth guide lines ──────────────────────────────────────
+
+.depthGuides {
+  display: inline-flex;
+  align-self: stretch;
+  flex-shrink: 0;
+  margin: -6px 0;
+  pointer-events: none;
+}
+
+.guideLine,
+.guideLineActive {
+  width: 20px;
+  position: relative;
+  flex-shrink: 0;
+}
+
+.guideLineActive::after {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--text-tertiary);
+  opacity: 0.18;
+}
+
+// ├─ fork connector
+.guideFork {
+  width: 20px;
+  position: relative;
+  flex-shrink: 0;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--text-tertiary);
+    opacity: 0.18;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    width: 10px;
+    height: 1px;
+    background: var(--text-tertiary);
+    opacity: 0.18;
+  }
+}
+
+// └─ turn connector
+.guideTurn {
+  width: 20px;
+  position: relative;
+  flex-shrink: 0;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 0;
+    height: 50%;
+    width: 1px;
+    background: var(--text-tertiary);
+    opacity: 0.18;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    left: 9px;
+    top: 50%;
+    width: 10px;
+    height: 1px;
+    background: var(--text-tertiary);
+    opacity: 0.18;
+  }
+}
+
+// ── Deprecated connectors ──────────────────────────────────────
+
+.traceDepthRail {
+  display: none;
+}
+
+.treeConnector {
+  display: none;
+}
+
+// ── Row content styles ─────────────────────────────────────────
+
+.traceRole {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.traceName {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: $font-medium;
+  min-width: 0;
+}
+
+.traceNameMuted {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceArrow {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+
+.traceFnCall {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.traceDot {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.traceFnName {
+  color: #7cb8ff;
+  font-weight: $font-bold;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.traceVal {
+  background: rgba(109, 211, 158, 0.1);
+  border: 1px solid rgba(109, 211, 158, 0.2);
+  border-radius: $radius-sm;
+  color: #6dd39e;
+  font-size: 9px;
+  padding: 0 5px;
+  white-space: nowrap;
+}
+
+.traceRevTag {
+  color: #ff8e9b;
+  font-size: 10px;
+  font-weight: $font-bold;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.traceReturn {
+  color: #6dd39e;
+  font-size: 10px;
+  font-weight: $font-medium;
+  white-space: nowrap;
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.traceToggleIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  user-select: none;
+  transition: all 100ms ease;
+  opacity: 0.7;
+
+  svg {
+    transition: transform 120ms ease;
+  }
+
+  &:hover {
+    background: var(--bg-secondary);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
+    opacity: 1;
+  }
+}
+
+.traceToggleOpen svg {
+  transform: rotate(90deg);
+}
+
+.traceArgsInline {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.traceCallBody {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+
+.traceCallMain,
+.traceCallMeta,
+.traceArgList {
+  align-items: baseline;
+  display: inline-flex;
+  gap: 0;
+  min-width: 0;
+}
+
+.traceCallMain {
+  color: var(--text-primary);
+}
+
+.traceCallMeta {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.traceInlineArgs {
+  color: var(--text-tertiary);
+}
+
+.traceReturnArrow {
+  color: var(--text-tertiary);
+  margin: 0 4px;
+}
+
+.traceReturnValue {
+  color: #6fe3a1;
+}
+
+.traceArgList {
+  flex: 1;
+}
+
+.traceArgChip,
+.traceArgMore,
+.traceMetaChip {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  color: var(--text-secondary);
+  font-size: 9px;
+  font-weight: $font-medium;
+  max-width: 200px;
+  overflow: hidden;
+  padding: 1px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceArgMore,
+.traceMetaChip {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.traceDataRow {
+  --trace-depth: 0;
+  display: block;
+  min-width: 0;
+  padding: 0 10px 8px 176px;
+  border-bottom: 1px dashed var(--border-subtle);
+  background: rgba(79, 140, 255, 0.028);
+}
+
+.traceDataSpacer {
+  min-height: 1px;
+}
+
+.traceDataCard {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  border-left: 2px solid rgba(79, 140, 255, 0.28);
+  padding-left: 8px;
+}
+
+.traceDataGroup {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.traceDataLabel {
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+  font-size: 8px;
+  font-weight: $font-bold;
+  letter-spacing: 0.08em;
+}
+
+.traceDataPill {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  color: var(--text-secondary);
+  flex-shrink: 1;
+  font-size: 9px;
+  max-width: 280px;
+  overflow: hidden;
+  padding: 1px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traceInspector {
+  background: var(--bg-secondary);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: auto;
+}
+
+.traceInspectorHeader {
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+  background: var(--bg-primary);
+}
+
+.traceInspectorKind {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.traceInspectorTitle {
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 13px;
+  font-weight: $font-bold;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.traceInspectorStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  border-bottom: 1px solid var(--border-default);
+
+  > div {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 12px 16px;
+
+    &:first-child {
+      border-right: 1px solid var(--border-default);
+    }
+  }
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 9px;
+    font-weight: $font-bold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-size: 14px;
+    font-weight: $font-bold;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  small {
+    color: var(--text-secondary);
+    font-size: 10px;
+  }
+}
+
+.traceInspectorKV {
+  border-bottom: 1px solid var(--border-subtle);
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 82px minmax(0, 1fr);
+  padding: 10px 16px;
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 9px;
+    font-weight: $font-bold;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+
+  strong {
+    color: var(--text-secondary);
+    font-family: $font-mono;
+    font-size: 11px;
+    font-weight: $font-medium;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+}
+
+.traceInspectorBlock {
+  border-bottom: 1px solid var(--border-default);
+  padding: 12px 16px;
+}
+
+.traceInspectorBlockTitle {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.08em;
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+.traceInspectorArg {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(88px, 0.45fr) minmax(0, 1fr);
+  padding: 4px 0;
+  border-bottom: 1px dashed var(--border-subtle);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  span {
+    color: var(--text-secondary);
+    font-family: $font-mono;
+    font-size: 10px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  strong {
+    color: var(--text-primary);
+    font-family: $font-mono;
+    font-size: 10px;
+    font-weight: $font-medium;
+    overflow-wrap: anywhere;
+    line-height: 1.5;
+  }
+}
+
+.traceInspectorEmpty {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  line-height: 1.5;
+  font-style: italic;
+}
+
+.traceSlot {
+  color: #d2b47f;
+  font-size: 10px;
+  font-family: $font-mono;
+}
+
+.storageOld {
+  color: #ff8e9b;
+  font-size: 10px;
+  white-space: nowrap;
+  font-family: $font-mono;
+}
+
+.storageNew {
+  color: #6dd39e;
+  font-size: 10px;
+  white-space: nowrap;
+  font-family: $font-mono;
+}
+
+.traceDetailRow {
+  --trace-depth: 0;
+  display: grid;
+  grid-template-columns: 110px 90px 1fr;
+  margin-bottom: 6px;
+}
+
+.traceDetailSpacer,
+.traceDetailGasSpacer {
+  min-height: 1px;
+}
+
+.traceDetailInline {
+  font-size: 11px;
+}
+
+.traceDetailHead {
+  display: flex;
+  align-items: stretch;
+}
+
+.traceDetailCard {
+  flex: 1;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-left: 2px solid #4f8cff;
+  min-width: 0;
+}
+
+.traceStepsSection {
+  border-top: 1px solid var(--border-default);
+}
+
+.traceStepsHeader {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+  padding: 8px 12px 6px;
+  font-weight: $font-bold;
+}
+
+.traceStepsList {
+  display: flex;
+  flex-direction: column;
+  padding: 0 12px 12px;
+  gap: 6px;
+}
+
+.traceStepRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.traceStepDepth {
+  flex-shrink: 0;
+  align-self: stretch;
+  min-height: 14px;
+  background-image: repeating-linear-gradient(
+    to right,
+    transparent 0,
+    transparent 9px,
+    rgba(255, 255, 255, 0.1) 9px,
+    rgba(255, 255, 255, 0.1) 10px,
+    transparent 10px,
+    transparent 12px
+  );
+  opacity: 0.7;
+}
+
+.traceStepKind {
+  min-width: 52px;
+  color: var(--text-secondary);
+  font-weight: $font-bold;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.traceStepText {
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.traceToolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.traceToggleWrap {
+  padding-right: 2px;
+}
+
+.traceStatsText {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0;
+  font-weight: $font-medium;
+}
+
+// ── (legacy tree kept for compatibility) ──────────────────────
+
+.traceRoot { padding: 8px 4px; font-size: 12px; line-height: 1.5; }
+.traceNode { padding-left: 14px; border-left: 1px dashed var(--border-default); margin-top: 1px; }
+.traceRow  { display: flex; align-items: baseline; gap: 5px; padding: 2px 6px; border-radius: $radius-md; transition: background $transition-fast; &:hover { background: var(--bg-secondary); } }
+.traceToggle { font-size: 9px; color: var(--text-tertiary); min-width: 12px; flex-shrink: 0; cursor: pointer; user-select: none; }
+.callBadge { font-size: 9px; font-weight: $font-bold; padding: 1px 5px; border-radius: $radius-md; flex-shrink: 0; letter-spacing: 0.04em; border: 1px solid transparent; }
+.CALL         { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
+.STATICCALL   { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
+.DELEGATECALL { background: #fef3c7; color: #92400e; border-color: #fde68a; }
+.CREATE, .CREATE2 { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
+.REVERT       { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
+:global([data-theme='dark']) .CALL         { background: #1e3a5f; color: #93c5fd; border-color: #1e4080; }
+:global([data-theme='dark']) .STATICCALL   { background: #2a2a2a; color: #9ca3af; border-color: #374151; }
+:global([data-theme='dark']) .DELEGATECALL { background: #3d2c00; color: #fcd34d; border-color: #78350f; }
+:global([data-theme='dark']) .CREATE,
+:global([data-theme='dark']) .CREATE2      { background: #0c2e1a; color: #6ee7b7; border-color: #064e3b; }
+:global([data-theme='dark']) .REVERT       { background: #3b0f0f; color: #fca5a5; border-color: #7f1d1d; }
+.traceAddr { font-size: 11px; color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.traceFn   { color: var(--text-primary); font-weight: $font-bold; margin-right: 4px; }
+.traceValue { font-size: 10px; color: $success; white-space: nowrap; flex-shrink: 0; }
+.traceGas  { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; flex-shrink: 0; }
+.tracePct  { opacity: 0.6; }
+.traceEventDot { font-size: 8px; color: #a78bfa; flex-shrink: 0; }
+
+.rowSelected {
+  background: rgba(79, 140, 255, 0.06) !important;
+  box-shadow: inset 3px 0 0 0 #4f8cff;
+}
+
+// ── Call Analysis Panel ──────────────────────────────────────
+
+.analysisHeader {
+  font-size: 10px;
+  font-weight: $font-bold;
+  color: var(--text-secondary);
+  background: var(--bg-tertiary);
+  padding: 4px 10px;
+  border-bottom: 1px solid var(--border-default);
+  letter-spacing: 0.1em;
+}
+
+.analysisGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  padding: 12px;
+}
+
+.analysisItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.analysisLabel {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  font-weight: $font-bold;
+  letter-spacing: 0.05em;
+}
+
+.analysisValue {
+  font-size: 11px;
+  color: var(--text-primary);
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.analysisParams {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  background: var(--bg-tertiary);
+  padding: 8px;
+  border-radius: $radius-sm;
+}
+
+.paramRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.paramName {
+  color: var(--text-secondary);
+  min-width: 80px;
+}
+
+.paramType {
+  color: $warning;
+  font-size: 9px;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 0 4px;
+  border-radius: 2px;
+}
+
+.paramValue {
+  color: var(--text-primary);
+  word-break: break-all;
+  flex: 1;
+}
+
+.sourcePlaceholder {
+  padding: 20px;
+  text-align: center;
+  background: var(--bg-tertiary);
+  margin: 12px;
+  border: 1px dashed var(--border-default);
+  border-radius: $radius-md;
+}
+
+// ── Trace detail drawer ───────────────────────────────────────
+
+.traceDetail {
+  margin: 2px 0 6px 20px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  border-bottom: 1px dashed var(--border-subtle);
+  &:last-child { border-bottom: none; }
+}
+
+.detailKey {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.08em;
+  padding: 5px 8px;
+  background: var(--bg-tertiary);
+  border-right: 1px solid var(--border-default);
+  display: flex;
+  align-items: flex-start;
+  padding-top: 7px;
+}
+
+.detailVal {
+  padding: 5px 8px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.detailError { color: $danger; }
+
+.detailLogs {
+  padding: 4px 8px 8px;
+  border-top: 1px solid var(--border-default);
+}
+
+.detailLogHeader {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+  font-weight: $font-bold;
+}
+
+.detailLog {
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--text-secondary);
+  padding: 2px 0;
+}
+
+.topic {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-default);
+  padding: 0 4px;
+  border-radius: $radius-md;
+  font-size: 9px;
+  color: var(--text-tertiary);
+}
+
+// ── Events ────────────────────────────────────────────────────
+
+.eventCard {
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  margin: 8px;
+  &:first-child { margin-top: 8px; }
+  &:last-child { margin-bottom: 8px; }
+}
+
+.eventHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+}
+
+.eventIndex {
+  /* removed — using Badge component */
+}
+
+.eventName {
+  font-size: 12px;
+  font-weight: $font-bold;
+  color: var(--accent-primary);
+  flex: 1;
+}
+
+.eventAddr {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-tertiary);
+}
+
+.eventObjBlock {
+  padding: 8px 14px 10px;
+  border-bottom: 1px dashed var(--border-subtle);
+}
+
+.eventObjPre {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0;
+  color: var(--text-secondary);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.eventObjRow {
+  padding-left: 0;
+}
+
+.eventObjKey {
+  color: var(--accent-primary);
+}
+
+.eventObjVal {
+  color: var(--text-primary);
+}
+
+.eventRaw {
+  padding: 6px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--bg-tertiary);
+  border-top: 1px solid var(--border-subtle);
+}
+
+.eventRawRow {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+  align-items: baseline;
+}
+
+.eventRawLabel {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  text-align: right;
+}
+
+.eventRawValue {
+  font-family: var(--font-mono);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-all;
+}
+
+.eventTopics {
+  padding: 6px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.eventTopic {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 8px;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.eventDecoded {
+  padding: 4px 12px 8px;
+  border-top: 1px dashed var(--border-subtle);
+  background: var(--bg-secondary);
+}
+
+.eventDecodedRow {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 8px;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+// ── State diffs ───────────────────────────────────────────────
+
+.stateCard {
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  margin: 8px;
+}
+
+.stateCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 11px;
+  border-radius: $radius-md $radius-md 0 0;
+}
+
+.stateInlineRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  font-size: 11px;
+  border-bottom: 1px dashed var(--border-subtle);
+  &:last-child { border-bottom: none; }
+}
+
+.stateLabel {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.12em;
+  font-weight: $font-bold;
+  min-width: 80px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stateArrow {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.stateStorageBlock {
+  padding: 6px 12px;
+  font-size: 11px;
+}
+
+.stateStorageRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0 3px 12px;
+  border-bottom: 1px dashed var(--border-subtle);
+  &:last-child { border-bottom: none; }
+}
+
+.stateSection {
+  border-bottom: 1px solid var(--border-default);
+  &:last-child { border-bottom: none; }
+}
+
+.stateSectionTitle {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.12em;
+  padding: 6px 12px 4px;
+  background: var(--bg-secondary);
+  border-bottom: 1px dashed var(--border-subtle);
+  font-weight: $font-bold;
+}
+
+.stateRow {
+  display: grid;
+  grid-template-columns: 60px 1fr;
+  gap: 8px;
+  padding: 5px 12px;
+  font-size: 11px;
+  border-bottom: 1px dashed var(--border-subtle);
+  &:last-child { border-bottom: none; }
+}
+
+// ── Fund flow (React Flow nodes) ──────────────────────────────
+
+.ffNode {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  padding: 8px 12px;
+  min-width: 240px;
+  position: relative;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.ffNodeHovered .ffNode,
+.ffNode:hover {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent);
+}
+
+.ffNodeBadge {
+  position: absolute;
+  top: -22px;
+  left: 0;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 4px 4px 0 0;
+  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
+  color: var(--accent-primary);
+  border: 1px solid var(--accent-primary);
+  border-bottom: none;
+}
+
+.ffNodeInner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ffNodeIcon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--border-default);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: var(--bg-secondary);
+
+  img {
+    width: 18px;
+    height: 18px;
+    object-fit: contain;
+  }
+}
+
+.ffNodeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ffNodeLabel {
+  font-size: 12px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ffNodeAddr {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--accent-primary);
+  }
+}
+
+// ── Fund flow nav hint bar ─────────────────────────────────────
+
+.ffNavHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  background: none;
+  border: none;
+  margin-left: auto;
+  margin-right: 8px;
+}
+
+.ffNavKey {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 10px;
+  font-family: $font-mono;
+  color: var(--text-tertiary);
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  border-radius: 3px;
+  line-height: 1;
+  box-shadow: 0 1px 0 var(--border-default);
+  user-select: none;
+}
+
+.ffNavText {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+.ffNavStep {
+  font-size: 10px;
+  color: var(--accent-primary);
+  font-weight: $font-bold;
+  font-family: $font-mono;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
+  margin-left: 4px;
+}
+
+// ── Fund flow edge labels ─────────────────────────────────────
+
+.ffEdgeLabel {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+}
+
+.ffEdgeBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: $font-bold;
+  font-family: $font-mono;
+  color: #fff;
+  line-height: 1;
+}
+
+.ffEdgeAmount {
+  font-size: 11px;
+  font-weight: $font-bold;
+  font-family: $font-mono;
+  color: var(--text-primary);
+}
+
+.ffEdgeSymbol {
+  font-size: 10px;
+  font-weight: $font-medium;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+// ── Fund flow sidebar ─────────────────────────────────────────
+
+.ffSidebar {
+  width: 300px;
+  height: 100%;
+  background: var(--bg-primary);
+  border-left: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  animation: ffSlideIn 0.2s ease-out;
+}
+
+@keyframes ffSlideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+.ffSidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ffSidebarTitle {
+  font-size: 13px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+}
+
+.ffSidebarClose {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px;
+  border-radius: 4px;
+  line-height: 1;
+
+  &:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+  }
+}
+
+.ffSidebarBody {
+  padding: 16px;
+  overflow-y: auto;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.ffStepBadge {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  background: var(--accent-primary, #3b82f6);
+  font-size: 11px;
+  font-weight: $font-bold;
+  font-family: $font-mono;
+  color: #fff;
+  letter-spacing: 0.03em;
+  margin-bottom: 10px;
+}
+
+.ffStepAddr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+
+  &:hover {
+    border-color: var(--text-tertiary);
+    background: var(--bg-tertiary, var(--bg-secondary));
+  }
+}
+
+.ffStepAddrIcon {
+  font-size: 14px;
+  flex-shrink: 0;
+  width: 20px;
+  text-align: center;
+}
+
+.ffStepAddrName {
+  font-size: 12px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: $font-mono;
+}
+
+.ffStepConnector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  color: var(--text-tertiary);
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.ffStepTransfer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+}
+
+.ffStepArrowIcon {
+  font-size: 14px;
+  color: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.ffStepTokenLogo {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 1px solid var(--border-default);
+}
+
+.ffStepAmountBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ffStepAmountRow {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+
+.ffStepAmount {
+  font-size: 14px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  font-family: $font-mono;
+}
+
+.ffStepSymbol {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: $font-semibold;
+}
+
+.ffStepUsd {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+}
+
+.ffStepNav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border-default);
+  margin-top: auto;
+}
+
+.ffStepNavBtn {
+  background: none;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-family: $font-mono;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+
+  &:hover:not(:disabled) {
+    background: var(--bg-secondary);
+    border-color: var(--text-tertiary);
+    color: var(--text-primary);
+  }
+
+  &:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+  }
+}
+
+.ffStepNavCount {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+}
+
+// ── Fund flow (legacy styles kept for compatibility) ──────────
+
+.flowLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.flowTimeline {
+  border: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 12px;
+}
+
+.flowTimelineRow,
+.flowExposureRow,
+.flowNetRow {
+  align-items: center;
+  border-bottom: 1px dashed var(--border-subtle);
+  display: grid;
+  font-size: 11px;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 10px;
+
+  &:last-child { border-bottom: none; }
+}
+
+.flowTimelineRow {
+  grid-template-columns: 28px 78px minmax(120px, 1fr) 14px minmax(120px, 1fr) minmax(160px, 1fr) 78px;
+}
+
+.flowExposureList,
+.flowNetList {
+  border: 1px solid var(--border-default);
+  margin-bottom: 12px;
+}
+
+.flowExposureRow {
+  grid-template-columns: 78px minmax(120px, 1fr) 64px minmax(120px, 1fr) minmax(160px, 1fr);
+}
+
+.flowNetRow {
+  grid-template-columns: minmax(160px, 1fr) 90px;
+}
+
+.flowStepIndex {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: $font-bold;
+}
+
+.flowChangeType {
+  background: rgba(79, 140, 255, 0.11);
+  border: 1px solid rgba(79, 140, 255, 0.24);
+  border-radius: $radius-md;
+  color: #7ab7ff;
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.05em;
+  padding: 1px 6px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.flowChangeBurn,
+.flowChangeDestruction {
+  background: rgba(255, 107, 122, 0.11);
+  border-color: rgba(255, 107, 122, 0.26);
+  color: #ff8e9b;
+}
+
+.flowChangeTransfer {
+  background: rgba(111, 227, 161, 0.1);
+  border-color: rgba(111, 227, 161, 0.22);
+  color: #92d7a7;
+}
+
+.flowArrowThin {
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.flowAmount {
+  color: var(--text-primary);
+  font-family: $font-mono;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.flowUsd {
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+  font-size: 10px;
+  text-align: right;
+}
+
+.flowNode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  padding: 3px 8px;
+  border-radius: $radius-md;
+}
+
+.flowNodeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex-shrink: 0;
+}
+
+.flowIn  { color: $success; font-size: 10px; }
+.flowOut { color: $danger;  font-size: 10px; }
+
+.flowEdges {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.flowEdge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border-subtle);
+  &:last-child { border-bottom: none; }
+}
+
+.flowArrow {
+  font-size: 11px;
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+.flowType {
+  font-size: 9px;
+  font-weight: $font-bold;
+  padding: 1px 6px;
+  border-radius: $radius-md;
+  letter-spacing: 0.06em;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+// ── Gas profiler ──────────────────────────────────────────────
+
+.gasProfilerHero {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  margin-bottom: 14px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.gasProfilerHeader {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  background: linear-gradient(90deg, #f4f4f4, #bdbdbd);
+  color: #111;
+  font-size: 12px;
+  height: 25px;
+  padding: 0 10px;
+  white-space: nowrap;
+}
+
+.gasFlameGraph {
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--text-tertiary) 22%, transparent) 1px, transparent 1px) 0 0 / 18px 18px,
+    var(--bg-primary);
+}
+
+.gasHoverInfo {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  max-width: min(360px, calc(100% - 16px));
+  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 8px 10px;
+  pointer-events: none;
+
+  strong,
+  span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  span {
+    color: var(--text-secondary);
+  }
+}
+
+.gasFlameGraphInner {
+  min-width: 100%;
+  position: relative;
+}
+
+.gasFlameBlock {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 48px;
+  min-width: 2px;
+  border: 0;
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.2;
+  overflow: hidden;
+  padding: 0 8px;
+  text-align: left;
+  transform-origin: center left;
+  transition:
+    left 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    width 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 180ms ease,
+    opacity 180ms ease,
+    outline-color 180ms ease,
+    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  white-space: nowrap;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-right: 1px solid rgba(255, 255, 255, 0.26);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
+    pointer-events: none;
+  }
+
+  span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  small {
+    display: block;
+    font-size: 10px;
+    line-height: 1.15;
+    opacity: 0.82;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover {
+    filter: brightness(1.22);
+    outline: 2px solid color-mix(in srgb, var(--text-primary) 72%, transparent);
+    outline-offset: -2px;
+    z-index: 2;
+  }
+}
+
+.gasFlameBlockSelected {
+  outline: 2px solid color-mix(in srgb, var(--text-primary) 88%, transparent);
+  outline-offset: -2px;
+  filter: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+  z-index: 3;
+}
+
+.gasProfilerGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.gasProfilerPanel {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  min-height: 180px;
+  padding: 28px;
+
+  h3 {
+    color: var(--text-primary);
+    font-size: 16px;
+    margin: 0 0 16px;
+  }
+
+  p {
+    color: var(--text-secondary);
+    font-size: 12px;
+    line-height: 1.7;
+    margin: 0 0 16px;
+  }
+}
+
+.gasProfilerPanelWide {
+  grid-column: 1 / 2;
+}
+
+.gasProfilerMetric {
+  display: flex;
+  gap: 10px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 12px;
+  margin-bottom: 14px;
+}
+
+.gasProgress {
+  width: 360px;
+  max-width: 100%;
+  height: 18px;
+  background: color-mix(in srgb, var(--bg-secondary) 70%, #000);
+  border: 1px solid var(--border-subtle);
+  border-radius: $radius-full;
+  overflow: hidden;
+}
+
+.gasProgressFill {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-width: 42px;
+  background: #f4f4f4;
+  color: #111;
+  font-family: $font-mono;
+  font-size: 11px;
+}
+
+.gasEmptySelection {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+  color: var(--text-tertiary);
+  text-align: center;
+
+  strong {
+    color: var(--text-primary);
+    font-size: 13px;
+  }
+
+  span {
+    color: var(--text-tertiary);
+    font-size: 12px;
+    line-height: 1.7;
+  }
+}
+
+.gasDetailLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 22px;
+  align-items: center;
+}
+
+.gasDetailGrid {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 18px;
+  color: var(--text-secondary);
+  font-family: $font-mono;
+  font-size: 12px;
+  min-width: 0;
+
+  strong {
+    color: var(--text-primary);
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.gasShareChart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+
+  small {
+    color: var(--text-tertiary);
+    font-family: $font-mono;
+    font-size: 11px;
+  }
+}
+
+.gasShareDonut {
+  display: grid;
+  place-items: center;
+  width: 118px;
+  height: 118px;
+  border-radius: 50%;
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 24px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-subtle);
+  }
+
+  span {
+    position: relative;
+    z-index: 1;
+    color: var(--text-primary);
+    font-family: $font-mono;
+    font-size: 13px;
+    font-weight: $font-bold;
+  }
+}
+
+.gasTotal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.gasTotalBar {
+  height: 6px;
+  background: linear-gradient(90deg, $success, $info);
+  border-radius: $radius-full;
+}
+
+.gasTreeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px 4px 0;
+  border-bottom: 1px dashed var(--border-subtle);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background $transition-fast;
+  &:hover { background: var(--bg-secondary); }
+  &:last-child { border-bottom: none; }
+}
+
+.gasLabel {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.gasBarInline {
+  width: 80px;
+  height: 4px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-full;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.gasBarFill {
+  height: 100%;
+  background: linear-gradient(90deg, $success, $info);
+  border-radius: $radius-full;
+  min-width: 1px;
+}
+
+.gasBar {
+  width: 80px;
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: $radius-full;
+  overflow: hidden;
+}
+
+.gasNum {
+  font-size: 10px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 64px;
+  text-align: right;
+}
+
+.gasPctLabel {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 36px;
+  text-align: right;
+}
+
+// ── Shared utility ────────────────────────────────────────────
+
+.mono    { font-family: $font-mono; }
+.muted   { color: var(--text-tertiary); }
+.statusSuccess { color: var(--color-success) !important; font-weight: $font-bold; }
+.statusFailed  { color: var(--color-danger);  font-weight: $font-bold; }
+
+// ── Transaction header rail ──────────────────────────────────
+
+.txHeader {
+  display: flex;
+  align-items: stretch;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-default);
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.txHeaderTitle {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  color: var(--text-primary);
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: $font-bold;
+  letter-spacing: 0.12em;
+  padding: 10px 16px;
+}
+
+.txHeaderItem {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 92px minmax(0, 1fr);
+  min-width: 0;
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--border-default);
+  &:last-child { border-bottom: none; }
+}
+
+.txHeaderKey {
+  font-size: 9px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+  font-weight: $font-bold;
+  white-space: nowrap;
+  padding-top: 2px;
+}
+
+.txHeaderVal {
+  font-size: 11px;
+  color: var(--text-primary);
+  line-height: 1.45;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.txHeaderValRow {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+
+  .txHeaderVal {
+    flex: 1;
+  }
+}
+
+.copyBtn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: $font-bold;
+  height: 24px;
+  letter-spacing: 0.08em;
+  padding: 0 8px;
+  transition: border-color $transition-fast, color $transition-fast, background $transition-fast;
+
+  &:hover {
+    background: var(--bg-secondary);
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+  }
+}
+
+.copyBtnCopied {
+  animation: copiedPulse 0.35s ease-out;
+}
+
+@keyframes copiedPulse {
+  0% { transform: scale(0.96); }
+  70% { transform: scale(1.04); }
+  100% { transform: scale(1); }
+}
+
+// ── Input / Output two-panel ──────────────────────────────────
+
+.ioRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.ioPanel {
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-primary);
+}
+
+.ioPanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+}
+
+.ioPanelLabel {
+  font-size: 11px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.ioInnerTabs {
+  display: flex;
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  gap: 0;
+  overflow: hidden;
+  background: var(--bg-tertiary);
+
+  button {
+    padding: 3px 8px;
+  }
+}
+
+.ioInnerBtn {
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  font-weight: $font-bold;
+  padding: 3px 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  transition: background $transition-fast, color $transition-fast;
+  &:hover { color: var(--text-primary); }
+  &:disabled {
+    color: var(--text-tertiary);
+    cursor: not-allowed;
+    opacity: 0.35;
+  }
+}
+
+.ioInnerActive {
+  background: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+}
+
+.ioPanelBody {
+  padding: 10px;
+  overflow: auto;
+  max-height: 220px;
+  flex: 1;
+}
+
+.ioPre {
+  margin: 0;
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-all;
+  line-height: 1.5;
+}
+
+.copySmall {
+  font-size: 12px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  border-radius: $radius-md;
+  cursor: pointer;
+  padding: 2px 6px;
+  transition: all $transition-fast;
+  &:hover { color: var(--text-primary); }
+}
+
+// ── Trace embedded (within summary tab) ──────────────────────
+
+.traceEmbedded {
+  flex: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg-secondary);
+
+  .section {
+    flex: none;
+    height: 500px;
+  }
+}
+
+@media (max-width: 900px) {
+  .inputBar {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .inputHero {
+    border-bottom: 1px solid var(--border-default);
+    border-right: none;
+    min-height: 120px;
+  }
+
+  .inputControls {
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .inputWrap {
+    border-bottom: 1px solid var(--border-default);
+    border-right: none;
+    min-height: 42px;
+  }
+
+  .exploreBtn {
+    grid-column: auto;
+    min-height: 44px;
+  }
+
+  .statusBar {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+    height: auto;
+    padding: 8px 14px;
+  }
+
+  .resultLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .txHeader {
+    border-bottom: 1px solid var(--border-default);
+    border-right: none;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: 220px;
+  }
+
+  .txHeaderItem {
+    border-right: 1px solid var(--border-default);
+  }
+
+  .traceTreeShell {
+    grid-template-columns: 1fr;
+
+    .traceList {
+      border-right: none;
+      max-height: 520px;
+    }
+  }
+
+  .traceInspector {
+    border-top: 1px solid var(--border-default);
+    max-height: 420px;
+  }
+
+  .traceListRow {
+    grid-template-columns: 64px 70px minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .traceCallMeta,
+  .traceArgList {
+    flex-wrap: wrap;
+  }
+}

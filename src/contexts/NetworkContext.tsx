@@ -17,7 +17,7 @@ interface NetworkContextType {
 const NetworkContext = createContext<NetworkContextType | undefined>(undefined);
 
 export function NetworkProvider({ children }: { children: React.ReactNode }) {
-  const [selectedNetwork, setSelectedNetwork] = useState<Network>(NETWORKS[0]);
+  const [selectedNetwork, setSelectedNetworkState] = useState<Network>(NETWORKS[0]);
   const [rpcUrl, setRpcUrl] = useState<string>(NETWORKS[0].archiveRpcUrls[0]);
   
   const [latency, setLatency] = useState<string>('--');
@@ -32,10 +32,11 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
     rpcUrlRef.current = rpcUrl;
   }, [rpcUrl]);
 
-  useEffect(() => {
-    setRpcUrl(selectedNetwork.archiveRpcUrls[0]);
+  const setSelectedNetwork = (network: Network) => {
+    setSelectedNetworkState(network);
+    setRpcUrl(network.archiveRpcUrls[0]);
     pollIndexRef.current = 0;
-  }, [selectedNetwork]);
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -101,7 +102,7 @@ export function NetworkProvider({ children }: { children: React.ReactNode }) {
             setChainId(chainId);
           }
         }
-      } catch (err) {
+      } catch {
         if (isMounted) {
           setLatency('--');
           setForkHeight('--');

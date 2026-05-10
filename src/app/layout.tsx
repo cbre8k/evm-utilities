@@ -17,6 +17,11 @@ const jetbrainsMono = JetBrains_Mono({
   variable: '--font-mono',
 });
 
+const mainFont = localFont({
+  src: '../../public/fonts/main.ttf',
+  variable: '--font-main',
+});
+
 const dotGothic = localFont({
   src: '../../public/fonts/dotfont.ttf',
   variable: '--font-dot-matrix',
@@ -29,7 +34,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${dotGothic.variable}`} suppressHydrationWarning>
+    <html lang="en" className={`${inter.variable} ${jetbrainsMono.variable} ${dotGothic.variable} ${mainFont.variable}`} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

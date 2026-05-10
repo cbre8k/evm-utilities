@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Table, message } from 'antd';
 import { AUTHOR, FOURBYTE_API, GITHUB } from '@/lib/constants';
+import { Badge, Button, CopyButton, Hint, Input, Status, TopStatsBar } from '@/components/ui';
 import styles from './signature.module.scss';
 
 interface SignatureResult {
@@ -12,6 +13,29 @@ interface SignatureResult {
   hasVerifiedContract: boolean;
   type: 'function' | 'event';
 }
+
+type SignatureApiItem = {
+  filtered: boolean;
+  hasVerifiedContract: boolean;
+  name: string;
+};
+
+type SignatureApiBuckets = Partial<Record<'function' | 'event', Record<string, SignatureApiItem[]>>>;
+
+type SignatureStatsResponse = {
+  ok?: boolean;
+  result?: {
+    count?: {
+      total?: number;
+    };
+  };
+};
+
+type SignatureLookupResponse = {
+  error?: string;
+  ok?: boolean;
+  result?: SignatureApiBuckets;
+};
 
 export default function SignatureLookup() {
   const [searchText, setSearchText] = useState('');
@@ -25,10 +49,11 @@ export default function SignatureLookup() {
     const fetchStats = async () => {
       try {
         const response = await fetch(FOURBYTE_API.STATS);
-        const data = await response.json();
-        if (data.ok && data.result && data.result.count) {
+        const data: SignatureStatsResponse = await response.json();
+        const total = data.result?.count?.total;
+
+        if (data.ok && typeof total === 'number') {
           setDbStatus('ONLINE');
-          const total = data.result.count.total;
           if (total >= 1000000) {
             setSignatureCount(`${(total / 1000000).toFixed(1)}M+`);
           } else if (total >= 1000) {
@@ -39,7 +64,7 @@ export default function SignatureLookup() {
         } else {
           setDbStatus('OFFLINE');
         }
-      } catch (error) {
+      } catch {
         setDbStatus('OFFLINE');
       }
     };
@@ -70,38 +95,31 @@ export default function SignatureLookup() {
       }
       
       const response = await fetch(url.toString());
-      const data = await response.json();
+      const data: SignatureLookupResponse = await response.json();
 
-      if (data.ok) {
+      if (data.ok && data.result) {
         const flattened: SignatureResult[] = [];
+        const appendEntries = (
+          type: SignatureResult['type'],
+          entries: Record<string, SignatureApiItem[]> | undefined,
+        ) => {
+          if (!entries) return;
 
-        if (data.result.function) {
-          Object.entries(data.result.function).forEach(([hash, sigs]: [string, any]) => {
-            sigs.forEach((sig: any) => {
+          Object.entries(entries).forEach(([hash, sigs]) => {
+            sigs.forEach((sig) => {
               flattened.push({
                 hash,
                 name: sig.name,
                 filtered: sig.filtered,
                 hasVerifiedContract: sig.hasVerifiedContract,
-                type: 'function',
+                type,
               });
             });
           });
-        }
+        };
 
-        if (data.result.event) {
-          Object.entries(data.result.event).forEach(([hash, sigs]: [string, any]) => {
-            sigs.forEach((sig: any) => {
-              flattened.push({
-                hash,
-                name: sig.name,
-                filtered: sig.filtered,
-                hasVerifiedContract: sig.hasVerifiedContract,
-                type: 'event',
-              });
-            });
-          });
-        }
+        appendEntries('function', data.result.function);
+        appendEntries('event', data.result.event);
 
         setResults(flattened);
       } else {
@@ -152,33 +170,7 @@ export default function SignatureLookup() {
             </span>
           )}
           <span>{hash}</span>
-          <button
-            className={styles.copyBtn}
-            onClick={() => {
-              navigator.clipboard.writeText(hash);
-              for (let i = 0; i < 20; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const radius = 20 + Math.random() * 60;
-                message.success({
-                  content: 'COPIED',
-                  duration: 4 + Math.random() * 2,
-                  className: 'firework-msg',
-                  style: {
-                    opacity: 0,
-                    transform: 'translate(-50%, -50%) scale(0)',
-                    animationDelay: `${Math.random() * 0.15}s`,
-                    animationDuration: `${3 + Math.random() * 2}s`,
-                    '--dx': `${Math.cos(angle) * radius}vmin`,
-                    '--dy': `${Math.sin(angle) * radius}vmin`,
-                    '--rot': `${(Math.random() - 0.5) * 360}deg`,
-                    '--rot-end': `${(Math.random() - 0.5) * 720}deg`,
-                  } as any
-                });
-              }
-            }}
-          >
-            COPY
-          </button>
+          <CopyButton text={hash} />
         </div>
       ),
     },
@@ -192,7 +184,7 @@ export default function SignatureLookup() {
             <div className={styles.mainInfo}>
               <div className={styles.statsHeader}>
                 <span className={styles.username} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
-                <span className={styles.badge}>SELECTOR</span>
+                <Badge fontSize={9}>SELECTOR</Badge>
               </div>
               <div className={styles.addressBox}>SIGNATURE LOOKUP TOOL</div>
             </div>
@@ -200,50 +192,44 @@ export default function SignatureLookup() {
             <div className={styles.bigStatContainer}>
               <span className={styles.bigStatLabel}>■ STATUS:</span>
               <span className={styles.bigStatValue}>
-                {dbStatus === 'LOADING' ? (
-                  <span className={styles.statusBlink}>LOADING</span>
-                ) : dbStatus === 'ONLINE' ? (
-                  <span className={styles.statusSuccess}>ONLINE</span>
-                ) : (
-                  <span className={styles.statusDanger}>OFFLINE</span>
-                )}
+                <Status
+                  tone={dbStatus === 'LOADING' ? 'loading' : dbStatus === 'ONLINE' ? 'success' : 'error'}
+                  fontSize={12}
+                >
+                  {dbStatus}
+                </Status>
               </span>
             </div>
           </div>
-
-          <div className={styles.statsGrid}>
-            <div className={styles.statCol}>
-              <div className={styles.scLabel}>DATASTREAM</div>
-              <div className={styles.scValue}>SOURCIFY</div>
-            </div>
-            <div className={styles.statCol}>
-              <div className={styles.scLabel}>SIGNATURES</div>
-              <div className={styles.scValue}>{signatureCount} SIGNATURES</div>
-            </div>
-          </div>
+          <TopStatsBar
+            className={styles.statsGridBar}
+            columns="repeat(2, minmax(0, 1fr))"
+            items={[
+              { label: 'DATASTREAM', value: 'SOURCIFY', fontSize: 12 },
+              { label: 'SIGNATURES', value: `${signatureCount} SIGNATURES`, fontSize: 12, fontType: 'dot' },
+            ]}
+          />
         </div>
         
         <div className={styles.statsRight}>
-          <div className={styles.pipelineHeader}>
-            <span>■ SEARCH MODULE</span>
-            <span className={styles.badgeLine}>AWAITING QUERY</span>
-          </div>
-          
           <div className={styles.searchBox}>
-            <input
-              className={styles.searchInput}
-              placeholder="ENTER HEX OR FUNCTION NAME..."
+            <Input
+              fontSize={12}
+              label="SEARCH BAR"
+              hint="Search by function selector, event signature, or text query"
+              placeholder="0xa9059cbb"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              wrapperClassName={styles.searchInputWrapper}
             />
-            <button
-              className={styles.searchBtn}
+            <Button
+              className={styles.searchButton}
               onClick={handleSearch}
               disabled={loading}
             >
               {loading ? 'SEARCHING' : 'EXECUTE'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -253,9 +239,12 @@ export default function SignatureLookup() {
           <div className={styles.resultsPanel}>
             <div className={styles.resultsHeader}>
               <span>QUERY RESULTS</span>
-              <span className={loading ? styles.statusBlink : styles.statusSuccess}>
+              <Status
+                fontSize={10}
+                tone={loading ? 'loading' : 'success'}
+              >
                 {loading ? 'PROCESSING' : `FOUND: ${results.length}`}
-              </span>
+              </Status>
             </div>
             <div className={styles.tableWrapper}>
               {loading ? (
@@ -282,7 +271,7 @@ export default function SignatureLookup() {
         {!searched && (
           <div className={styles.emptyWorkspace}>
             <div>SYSTEM IDLE</div>
-            <div className={styles.subtext}>AWAITING QUERY INPUT</div>
+            <Hint className={styles.subtext} fontSize={12}>AWAITING QUERY INPUT</Hint>
           </div>
         )}
       </div>

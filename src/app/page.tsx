@@ -1,22 +1,31 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { AUTHOR, GITHUB } from '@/lib/constants';
 import { generateSimulationTest } from '@/lib/templates';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { TraceFields, SimulateFields } from '@/components/FormFields';
 import Terminal, { TerminalHandle } from '@/components/Terminal';
+import CommonTabs, { type CommonTabItem } from '@/components/CommonTabs';
+import { Button, CopyButton } from '@/components/ui';
+import { copyWithFirework } from '@/utils/copyAnimation';
 import styles from './simulator.module.scss';
-import { message } from 'antd';
 
 type Tab = 'TRACE' | 'SIMULATE';
 type PipelineState = 'PREPARING' | 'EXECUTING' | 'RESULTING' | 'CRASHING' | 'ABORTING';
 
-export default function Home() {
+const TABS: CommonTabItem<Tab>[] = [
+  { id: 'TRACE', label: '[ TRACE ]' },
+  { id: 'SIMULATE', label: '[ SIMULATE ]' },
+];
+
+function HomeInner() {
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<Tab>('TRACE');
   const [pipelineState, setPipelineState] = useState<PipelineState>('PREPARING');
   const [isRunning, setIsRunning] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [shareHash, setShareHash] = useState<string | null>(null);
   const terminalRef = useRef<TerminalHandle>(null);
 
   const { 
@@ -49,6 +58,28 @@ export default function Home() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const startTimeRef = useRef<number>(0);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // ── URL param pre-fill (Re-Simulate handoff from Explorer) ──
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const fromParam = searchParams.get('from');
+    const toParam = searchParams.get('to');
+    const calldataParam = searchParams.get('calldata');
+    const valueParam = searchParams.get('value');
+    const blockParam = searchParams.get('blockNumber');
+    const rpcParam = searchParams.get('rpcUrl');
+
+    if (tab === 'SIMULATE' && (fromParam || toParam || calldataParam)) {
+      setActiveTab('SIMULATE');
+      if (fromParam) setSender(fromParam);
+      if (toParam) setTo(toParam);
+      if (calldataParam) setCalldata(calldataParam);
+      if (valueParam) setMsgValue(valueParam);
+      if (blockParam) { setBlockNumber(blockParam); setShouldForkBlock(true); }
+      if (rpcParam) setRpcUrl(rpcParam);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Effect for rpcUrl removed as it now comes directly from context
 
@@ -84,7 +115,7 @@ export default function Home() {
       });
       setScriptContent(content);
     }
-  }, [activeTab, sender, shouldDealToken, tokenAddress, spender, amount, calldata, to, msgValue, rpcUrl]);
+  }, [activeTab, sender, shouldDealToken, tokenAddress, spender, amount, calldata, to, msgValue, blockNumber, rpcUrl]);
 
   const handleRun = async () => {
     if (isRunning) return;
@@ -132,13 +163,33 @@ export default function Home() {
       }
       
       setPipelineState(prev => prev === 'CRASHING' ? 'CRASHING' : 'RESULTING');
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
+
+      // ── Create share for successful simulate (direct-spawn path) ──
+      if (activeTab === 'SIMULATE' && pipelineState !== 'CRASHING') {
+        try {
+          const shareRes = await fetch('/api/share-simulate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              rpcUrl,
+              inputs: { from: sender, to, calldata, value: msgValue, blockNumber,
+                        shouldDealToken, tokenAddress, spender, amount },
+              output: buffer,
+              exitCode: 0,
+              success: true,
+            }),
+          });
+          const shareData = await shareRes.json();
+          if (shareData.hash) setShareHash(shareData.hash);
+        } catch {}
+      }
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
         setPipelineState('ABORTING');
         terminalRef.current?.write('\x1b[31mCancelled.\x1b[0m\n');
       } else {
         setPipelineState('CRASHING');
-        terminalRef.current?.write(`\r\nError: ${error}\r\n`);
+        terminalRef.current?.write(`\r\nError: ${error instanceof Error ? error.message : String(error)}\r\n`);
       }
     } finally {
       setIsRunning(false);
@@ -171,25 +222,7 @@ export default function Home() {
               </div>
               <div 
                 className={styles.addressBox}
-                onClick={() => {
-                  navigator.clipboard.writeText('0x0000000000000000000000000000000000000000');
-                  for (let i = 0; i < 20; i++) {
-                    message.success({
-                      content: 'COPIED',
-                      duration: 4 + Math.random() * 2,
-                      className: 'firework-msg',
-                      style: {
-                        opacity: 0,
-                        transform: 'translate(-50%, -50%) scale(0)',
-                        animationDelay: `${Math.random() * 0.12}s`,
-                        '--dx': `${(Math.random() - 0.5) * 100}vw`,
-                        '--dy': `${(Math.random() - 0.5) * 100}vh`,
-                        '--rot': `${(Math.random() - 0.5) * 360}deg`,
-                        '--rot-end': `${(Math.random() - 0.5) * 720}deg`,
-                      } as any
-                    });
-                  }
-                }}
+                onClick={() => copyWithFirework('0x0000000000000000000000000000000000000000')}
                 style={{ cursor: 'pointer' }}
               >
                 0x0000000000000000000000000000000000000000
@@ -262,20 +295,7 @@ export default function Home() {
       </div>
 
       <div className={styles.toolbar}>
-        <div className={styles.tabs}>
-          <button
-            className={`${styles.tab} ${activeTab === 'TRACE' ? styles.active : ''}`}
-            onClick={() => setActiveTab('TRACE')}
-          >
-            [ TRACE ]
-          </button>
-          <button
-            className={`${styles.tab} ${activeTab === 'SIMULATE' ? styles.active : ''}`}
-            onClick={() => setActiveTab('SIMULATE')}
-          >
-            [ SIMULATE ]
-          </button>
-        </div>
+        <CommonTabs items={TABS} activeTab={activeTab} onChange={setActiveTab} />
         <div className={styles.runtimeBox}>
           RUNTIME: {isRunning ? formatTime(elapsedTime) : '0.0s'}
         </div>
@@ -322,17 +342,29 @@ export default function Home() {
           )}
 
           <div className={styles.actions}>
-            <button
+            <Button
               className={styles.runBtn}
               onClick={handleRun}
               disabled={isRunning}
             >
               {isRunning ? 'EXECUTING' : 'EXECUTE SEQUENCE'}
-            </button>
+            </Button>
             {isRunning && (
-              <button className={styles.cancelBtn} onClick={handleCancel} title="Cancel">
+              <Button
+                className={styles.cancelBtn}
+                variant="danger"
+                onClick={handleCancel}
+              >
                 ABORT
-              </button>
+              </Button>
+            )}
+            {!isRunning && shareHash && activeTab === 'SIMULATE' && (
+              <CopyButton
+                className={styles.cancelBtn}
+                text={`${window.location.origin}/s/${shareHash}`}
+                label="⎘ SHARE"
+                copiedLabel="✓ COPIED"
+              />
             )}
           </div>
         </div>
@@ -342,5 +374,13 @@ export default function Home() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <Suspense fallback={null}>
+      <HomeInner />
+    </Suspense>
   );
 }
