@@ -1,0 +1,376 @@
+@use '../../styles/variables' as *;
+@use '../../styles/mixins' as *;
+
+.page {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  font-family: $font-mono;
+  background-color: var(--bg-secondary);
+}
+
+// ----------------------------------------
+// Stats Banner
+// ----------------------------------------
+.statsBanner {
+  display: flex;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-primary);
+}
+
+.statsLeft {
+  padding: $space-3 $space-4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+}
+
+.statsLeftTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.mainInfo {
+  display: flex;
+  flex-direction: column;
+  gap: $space-1;
+}
+
+.statsHeader {
+  display: flex;
+  align-items: center;
+  gap: $space-3;
+  margin: 0;
+}
+
+.username {
+  font-size: 13px;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  letter-spacing: 0.05em;
+}
+
+.addressBox {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+
+.bigStatContainer {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  height: 100%;
+}
+
+.bigStatLabel {
+  font-size: 9px;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  margin: 0;
+  line-height: 1;
+}
+
+.bigStatValue {
+  font-size: 12px;
+  line-height: 1;
+  font-weight: $font-bold;
+  color: var(--text-primary);
+  display: inline-block;
+  min-width: 150px;
+  text-align: left;
+}
+
+// ----------------------------------------
+// Search Section (inside left panel)
+// ----------------------------------------
+.searchSection {
+  padding: $space-3 $space-4;
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-primary);
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+  flex-shrink: 0;
+}
+
+.searchStats {
+  width: 100%;
+}
+
+.searchBox {
+  display: flex;
+  gap: $space-2;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+.searchInputWrapper {
+  --ui-height: 32px;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchButton {
+  --ui-height: 32px;
+  flex-shrink: 0;
+  min-width: 88px;
+}
+
+// ----------------------------------------
+// Split Layout
+// ----------------------------------------
+.splitLayout {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 7fr 3fr;
+  min-height: 0;
+}
+
+// Left panel — signature search
+.leftPanel {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-default);
+  min-height: 0;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: $space-2 $space-4;
+  background: var(--bg-tertiary);
+  border-bottom: 1px solid var(--border-default);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.resultsArea {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+}
+
+.tableWrapper {
+  padding: $space-2;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 200px;
+  color: var(--text-tertiary);
+  font-size: 13px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+}
+
+.subtext {
+  font-size: 12px;
+  margin-top: $space-2;
+  font-weight: normal;
+}
+
+// Right panel — converters stacked
+.rightPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.rightTop,
+.rightBottom {
+  display: flex;
+  flex-direction: column;
+}
+
+.rightTop {
+  flex: 1;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.rightBottom {
+  flex: 1;
+}
+
+.converterBody {
+  flex: 1;
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background: var(--bg-primary);
+}
+
+.fields {
+  width: 100%;
+  max-width: 500px;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+  position: relative;
+  padding: $space-3;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: relative;
+}
+
+.inputRow {
+  align-items: flex-end;
+  display: flex;
+  gap: $space-2;
+  min-width: 0;
+
+  > label {
+    --ui-height: 32px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  > button {
+    --ui-height: 32px;
+    flex-shrink: 0;
+  }
+}
+
+.input {
+  font-size: 13px;
+}
+
+.textarea {
+  min-height: 80px;
+}
+
+.arrowBox {
+  display: flex;
+  justify-content: center;
+  padding: $space-1 0;
+  font-size: 10px;
+  font-weight: $font-bold;
+  color: var(--text-tertiary);
+  letter-spacing: 0.1em;
+}
+
+.corner {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-color: var(--text-primary);
+  border-style: solid;
+  pointer-events: none;
+}
+
+.topLeft { top: -4px; left: -4px; border-width: 2px 0 0 2px; }
+.topRight { top: -4px; right: -4px; border-width: 2px 2px 0 0; }
+.bottomLeft { bottom: -4px; left: -4px; border-width: 0 0 2px 2px; }
+.bottomRight { bottom: -4px; right: -4px; border-width: 0 2px 2px 0; }
+
+// ----------------------------------------
+// Table & Tags
+// ----------------------------------------
+.terminalTable {
+  :global(.ant-table) {
+    font-family: $font-mono !important;
+    background: transparent !important;
+  }
+  :global(.ant-table-thead) > tr > th {
+    background: var(--bg-secondary) !important;
+    color: var(--text-secondary) !important;
+    font-size: 9px !important;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border-default) !important;
+  }
+  :global(.ant-table-tbody) > tr > td {
+    border-bottom: 1px dashed var(--border-default) !important;
+    font-size: 12px !important;
+  }
+}
+
+.tag {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 9px;
+  font-weight: $font-bold;
+  border-radius: $radius-sm;
+  letter-spacing: 0.05em;
+
+  &.fn {
+    background: var(--info-subtle);
+    color: var(--info);
+    border: 1px solid var(--info);
+  }
+
+  &.event {
+    background: var(--warning-subtle);
+    color: var(--warning);
+    border: 1px solid var(--warning);
+  }
+}
+
+.mono {
+  color: var(--text-primary);
+}
+
+.hash {
+  display: flex;
+  align-items: center;
+  gap: $space-2;
+  color: var(--text-secondary);
+}
+
+.verifiedBadge {
+  color: var(--color-success);
+  font-size: 12px;
+}
+
+.unverifiedBadge {
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+.loadingState {
+  padding: $space-4;
+  display: flex;
+  flex-direction: column;
+  gap: $space-3;
+}
+
+.skeletonLine {
+  height: 24px;
+  background: var(--bg-tertiary);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.2; }
+  100% { opacity: 0.6; }
+}
+
+.empty {
+  padding: $space-10;
+  text-align: center;
+  color: var(--text-tertiary);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+}
+
+:global(.ant-pagination) {
+  font-size: 12px;
+}

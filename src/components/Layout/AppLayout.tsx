@@ -13,8 +13,7 @@ import styles from './Layout.module.scss';
 const NAV_ITEMS = [
   { href: '/', label: 'Simulator' },
   { href: '/explorer', label: 'Explorer' },
-  { href: '/selector', label: 'Selector' },
-  { href: '/converter', label: 'Converter' },
+  { href: '/misc', label: 'Misc' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
