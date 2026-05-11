@@ -35,14 +35,17 @@ const sourceFoundryDir = path.join(projectRoot, 'foundry');
 
 function locateBinaries() {
   const projectBin = path.join(projectRoot, 'bin');
+  const backendBin = path.join(projectRoot, 'backend', 'foundry-bin');
   const homeDir = process.env.HOME || '/root';
   const userBin = path.join(homeDir, '.foundry/bin');
 
-  // Check foundry install locations first, then project bin (which may have macOS binaries)
+  // Check backend/foundry-bin (Render build) first, then foundry install, then project bin (macOS)
   const candidates = [
+    backendBin,
     userBin,
     '/root/.foundry/bin',
     '/opt/render/.foundry/bin',
+    '/opt/render/project/src/backend/foundry-bin',
     '/usr/local/bin',
     projectBin,
   ];
