@@ -214,14 +214,6 @@ export default function MiscPage() {
               </div>
               <div className={styles.addressBox}>UTILITIES & TOOLS</div>
             </div>
-            <div className={styles.bigStatContainer}>
-              <span className={styles.bigStatLabel}>■ STATUS:</span>
-              <span className={styles.bigStatValue}>
-                <Status tone={dbStatus === 'LOADING' ? 'loading' : dbStatus === 'ONLINE' ? 'success' : 'error'} fontSize={12}>
-                  {dbStatus}
-                </Status>
-              </span>
-            </div>
           </div>
         </div>
       </div>
