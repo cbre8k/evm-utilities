@@ -2459,7 +2459,7 @@
 .mono    { font-family: $font-mono; }
 .muted   { color: var(--text-tertiary); }
 .statusSuccess { color: var(--color-success) !important; font-weight: $font-bold; }
-.statusFailed  { color: var(--color-danger);  font-weight: $font-bold; }
+.statusFailed  { color: var(--color-danger) !important;  font-weight: $font-bold; }
 
 // ── Transaction header rail ──────────────────────────────────
 
