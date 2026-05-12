@@ -97,7 +97,9 @@ function AddressNode({ data }: NodeProps) {
     address: string; label: string; isSender?: boolean; isContract?: boolean; logo?: string;
   };
 
-  // Generate multiple handles at different Y offsets for parallel edges
+  // Generate handles on both sides for forward and back edges
+  // Right side: s-{i} (source), tr-{i} (target for back-edges)
+  // Left side:  t-{i} (target), sl-{i} (source for back-edges)
   const handles = [];
   for (let i = 0; i < MAX_HANDLES; i++) {
     const pct = MAX_HANDLES === 1 ? 50 : 15 + (i * 70) / (MAX_HANDLES - 1);
@@ -105,6 +107,10 @@ function AddressNode({ data }: NodeProps) {
       <Handle key={`t-${i}`} type="target" position={Position.Left} id={`t-${i}`}
         style={{ top: `${pct}%`, opacity: 0 }} />,
       <Handle key={`s-${i}`} type="source" position={Position.Right} id={`s-${i}`}
+        style={{ top: `${pct}%`, opacity: 0 }} />,
+      <Handle key={`sl-${i}`} type="source" position={Position.Left} id={`sl-${i}`}
+        style={{ top: `${pct}%`, opacity: 0 }} />,
+      <Handle key={`tr-${i}`} type="target" position={Position.Right} id={`tr-${i}`}
         style={{ top: `${pct}%`, opacity: 0 }} />,
     );
   }
@@ -237,12 +243,48 @@ function FlowEdge(props: EdgeProps) {
 
 const edgeTypes = { flowEdge: FlowEdge };
 
-// ── Layout: BFS layered from sources ──
+// ── Layout: step-based column assignment ──
+// Each transfer step places its source and target in successive columns,
+// ensuring a strict left-to-right flow that follows transfer order.
 function layeredLayout(
   addresses: string[],
   transfers: { from: string; to: string }[],
 ): Record<string, { col: number; row: number }> {
-  // Build adjacency
+  const colOf = new Map<string, number>();
+
+  // Assign columns by processing transfers in order.
+  // Each transfer's "from" gets a column if not yet assigned,
+  // then "to" is placed at least one column to the right of "from".
+  for (const t of transfers) {
+    if (!colOf.has(t.from)) {
+      // New source node: place in column 0 or find a suitable column
+      colOf.set(t.from, 0);
+    }
+    const fromCol = colOf.get(t.from)!;
+    const existing = colOf.get(t.to);
+    if (existing === undefined) {
+      // New target node: always one column right of its source
+      colOf.set(t.to, fromCol + 1);
+    } else if (existing <= fromCol) {
+      // Target already placed but at same or earlier column — it's a back-edge, keep it
+      // Don't move it, the back-edge rendering handles this
+    }
+  }
+
+  // Assign any unvisited addresses
+  for (const a of addresses) {
+    if (!colOf.has(a)) colOf.set(a, 0);
+  }
+
+  // Group by column
+  const colGroups = new Map<number, string[]>();
+  for (const a of addresses) {
+    const c = colOf.get(a)!;
+    if (!colGroups.has(c)) colGroups.set(c, []);
+    colGroups.get(c)!.push(a);
+  }
+
+  // Build adjacency for barycenter ordering
   const outgoing = new Map<string, Set<string>>();
   const incoming = new Map<string, Set<string>>();
   for (const a of addresses) {
@@ -254,44 +296,51 @@ function layeredLayout(
     incoming.get(t.to)?.add(t.from);
   }
 
-  // BFS from sources (nodes with no incoming or the first node)
-  const sources = addresses.filter(a => incoming.get(a)!.size === 0);
-  if (sources.length === 0) sources.push(addresses[0]);
+  // Initial row assignment: order by first appearance in transfers
+  const firstAppearance = new Map<string, number>();
+  transfers.forEach((t, i) => {
+    if (!firstAppearance.has(t.from)) firstAppearance.set(t.from, i);
+    if (!firstAppearance.has(t.to)) firstAppearance.set(t.to, i);
+  });
+  for (const [, addrs] of colGroups) {
+    addrs.sort((a, b) => (firstAppearance.get(a) ?? 0) - (firstAppearance.get(b) ?? 0));
+  }
 
-  const colOf = new Map<string, number>();
-  const queue = [...sources];
-  for (const s of sources) colOf.set(s, 0);
+  // Assign initial row positions
+  const rowOf = new Map<string, number>();
+  for (const [, addrs] of colGroups) {
+    addrs.forEach((a, i) => rowOf.set(a, i));
+  }
 
-  while (queue.length > 0) {
-    const cur = queue.shift()!;
-    const curCol = colOf.get(cur)!;
-    for (const next of outgoing.get(cur) ?? []) {
-      const existing = colOf.get(next);
-      if (existing === undefined || existing < curCol + 1) {
-        colOf.set(next, curCol + 1);
-        queue.push(next);
+  // Barycenter heuristic: sweep to minimize crossings
+  const sortedCols = [...colGroups.keys()].sort((a, b) => a - b);
+  for (let sweep = 0; sweep < 4; sweep++) {
+    const cols = sweep % 2 === 0 ? sortedCols : [...sortedCols].reverse();
+    for (const col of cols) {
+      const addrs = colGroups.get(col)!;
+      const bary = new Map<string, number>();
+      for (const a of addrs) {
+        const neighbors: number[] = [];
+        for (const n of outgoing.get(a) ?? []) {
+          if (rowOf.has(n)) neighbors.push(rowOf.get(n)!);
+        }
+        for (const n of incoming.get(a) ?? []) {
+          if (rowOf.has(n)) neighbors.push(rowOf.get(n)!);
+        }
+        if (neighbors.length > 0) {
+          bary.set(a, neighbors.reduce((s, v) => s + v, 0) / neighbors.length);
+        } else {
+          bary.set(a, rowOf.get(a) ?? 0);
+        }
       }
+      addrs.sort((a, b) => bary.get(a)! - bary.get(b)!);
+      addrs.forEach((a, i) => rowOf.set(a, i));
     }
   }
 
-  // Assign any unvisited nodes
-  for (const a of addresses) {
-    if (!colOf.has(a)) colOf.set(a, 0);
-  }
-
-  // Group by column, assign rows
-  const colGroups = new Map<number, string[]>();
-  for (const a of addresses) {
-    const c = colOf.get(a)!;
-    if (!colGroups.has(c)) colGroups.set(c, []);
-    colGroups.get(c)!.push(a);
-  }
-
   const positions: Record<string, { col: number; row: number }> = {};
-  for (const [col, addrs] of colGroups) {
-    addrs.forEach((a, row) => {
-      positions[a] = { col, row };
-    });
+  for (const a of addresses) {
+    positions[a] = { col: colOf.get(a)!, row: rowOf.get(a)! };
   }
   return positions;
 }
@@ -319,41 +368,84 @@ function handleRatio(handleId: string | null | undefined) {
   return pct / 100;
 }
 
-function routeCrossesNode(y: number, leftX: number, rightX: number, rects: NodeRect[], clearance: number) {
-  return rects.some((rect) => {
-    const overlapsX = rect.left - clearance < rightX && rect.right + clearance > leftX;
-    const overlapsY = y > rect.top - clearance && y < rect.bottom + clearance;
-    return overlapsX && overlapsY;
-  });
+/** Sample the full double-cubic Bezier path at N points and check if ANY sample hits a node rect. */
+function curveCrossesNode(
+  sourceX: number, sourceY: number,
+  targetX: number, targetY: number,
+  routeY: number,
+  rects: NodeRect[], clearance: number,
+) {
+  // Reproduce the same control-point math used by FlowEdge
+  const leftX = Math.min(sourceX, targetX);
+  const rightX = Math.max(sourceX, targetX);
+  const direction = sourceX <= targetX ? 1 : -1;
+  const availableX = Math.max(1, rightX - leftX);
+  const edgeGap = Math.min(56, Math.max(20, availableX * 0.16));
+  const minX = leftX + edgeGap;
+  const maxX = rightX - edgeGap;
+  const p1Base = sourceX + direction * availableX * 0.25;
+  const p4Base = sourceX + direction * availableX * 0.75;
+  const p1X = sourceX <= targetX
+    ? Math.min(Math.max(p1Base, minX), maxX)
+    : Math.max(Math.min(p1Base, maxX), minX);
+  const p4X = sourceX <= targetX
+    ? Math.min(Math.max(p4Base, minX), maxX)
+    : Math.max(Math.min(p4Base, maxX), minX);
+  const midX = (sourceX + targetX) / 2;
+
+  // Sample both cubic segments (source→mid, mid→target)
+  const SAMPLES = 12;
+  for (let i = 0; i <= SAMPLES; i++) {
+    const t = i / SAMPLES;
+    const it = 1 - t;
+    // First cubic: (sourceX,sourceY) → ctrl(p1X,sourceY) → ctrl(p1X,routeY) → (midX,routeY)
+    const x1 = it * it * it * sourceX + 3 * it * it * t * p1X + 3 * it * t * t * p1X + t * t * t * midX;
+    const y1 = it * it * it * sourceY + 3 * it * it * t * sourceY + 3 * it * t * t * routeY + t * t * t * routeY;
+    // Second cubic: (midX,routeY) → ctrl(p4X,routeY) → ctrl(p4X,targetY) → (targetX,targetY)
+    const x2 = it * it * it * midX + 3 * it * it * t * p4X + 3 * it * t * t * p4X + t * t * t * targetX;
+    const y2 = it * it * it * routeY + 3 * it * it * t * routeY + 3 * it * t * t * targetY + t * t * t * targetY;
+
+    for (const rect of rects) {
+      if (
+        x1 > rect.left - clearance && x1 < rect.right + clearance &&
+        y1 > rect.top - clearance && y1 < rect.bottom + clearance
+      ) return true;
+      if (
+        x2 > rect.left - clearance && x2 < rect.right + clearance &&
+        y2 > rect.top - clearance && y2 < rect.bottom + clearance
+      ) return true;
+    }
+  }
+  return false;
 }
 
 function edgeRouteY(
-  sourceY: number,
-  targetY: number,
-  leftX: number,
-  rightX: number,
+  sourceX: number, sourceY: number,
+  targetX: number, targetY: number,
   blockerRects: NodeRect[],
   edgeIndex: number,
 ) {
   const directY = (sourceY + targetY) / 2;
-  const clearance = 28;
-  if (!routeCrossesNode(directY, leftX, rightX, blockerRects, clearance)) return directY;
+  const clearance = 40;
+  if (!curveCrossesNode(sourceX, sourceY, targetX, targetY, directY, blockerRects, clearance)) return directY;
 
-  const laneStep = 44;
+  const laneStep = 50;
   const sideFirst = edgeIndex % 2 === 0 ? -1 : 1;
-  for (let lane = 1; lane <= 10; lane++) {
+  for (let lane = 1; lane <= 14; lane++) {
     const first = directY + sideFirst * lane * laneStep;
-    if (!routeCrossesNode(first, leftX, rightX, blockerRects, clearance)) return first;
+    if (!curveCrossesNode(sourceX, sourceY, targetX, targetY, first, blockerRects, clearance)) return first;
 
     const second = directY - sideFirst * lane * laneStep;
-    if (!routeCrossesNode(second, leftX, rightX, blockerRects, clearance)) return second;
+    if (!curveCrossesNode(sourceX, sourceY, targetX, targetY, second, blockerRects, clearance)) return second;
   }
 
+  const leftX = Math.min(sourceX, targetX);
+  const rightX = Math.max(sourceX, targetX);
   const crossingRects = blockerRects.filter((rect) => rect.left - clearance < rightX && rect.right + clearance > leftX);
   if (crossingRects.length === 0) return directY;
 
-  const above = Math.min(...crossingRects.map(rect => rect.top)) - clearance;
-  const below = Math.max(...crossingRects.map(rect => rect.bottom)) + clearance;
+  const above = Math.min(...crossingRects.map(rect => rect.top)) - clearance - 30;
+  const below = Math.max(...crossingRects.map(rect => rect.bottom)) + clearance + 30;
   return Math.abs(above - directY) <= Math.abs(below - directY) ? above : below;
 }
 
@@ -505,25 +597,51 @@ function buildGraph(
   });
 
   const stepEdgeIds = Array.from<string>({ length: transfers.length });
-  const centerHandle = Math.floor(MAX_HANDLES / 2);
+
+  // Track how many edges connect from/to each node to distribute handles
+  const nodeSourceCount = new Map<string, number>();
+  const nodeTargetCount = new Map<string, number>();
 
   const edges: Edge[] = [...groupedTransfers.values()].map((group, groupIndex) => {
     const firstStep = group.steps[0];
     const firstTransfer = transfers[firstStep];
     const edgeId = `e-${firstStep}`;
-    const sHandle = `s-${centerHandle}`;
-    const tHandle = `t-${centerHandle}`;
+
+    // Distribute handles so multiple edges from/to the same node don't overlap
+    const sIdx = nodeSourceCount.get(group.from) ?? 0;
+    const tIdx = nodeTargetCount.get(group.to) ?? 0;
+    nodeSourceCount.set(group.from, sIdx + 1);
+    nodeTargetCount.set(group.to, tIdx + 1);
+
     const color = symbolColors[firstTransfer.symbol];
     const sourceNode = nodeById.get(group.from);
     const targetNode = nodeById.get(group.to);
-    const sourceX = sourceNode ? sourceNode.position.x + NODE_W : 0;
-    const targetX = targetNode ? targetNode.position.x : sourceX + GAP_X;
+
+    // Determine if this is a back-edge (target is left of or same column as source)
+    const srcX = sourceNode ? sourceNode.position.x : 0;
+    const tgtX = targetNode ? targetNode.position.x : srcX + NODE_W + GAP_X;
+    const isBackEdge = tgtX <= srcX;
+
+    // For forward edges: source right (s-*) → target left (t-*)
+    // For back edges: source left (sl-*) → target right (tr-*)
+    let sourceX: number, targetX: number;
+    let sHandle: string, tHandle: string;
+    if (isBackEdge) {
+      sourceX = sourceNode ? sourceNode.position.x : 0;               // left side
+      targetX = targetNode ? targetNode.position.x + NODE_W : srcX;    // right side
+      sHandle = `sl-${Math.min(sIdx, MAX_HANDLES - 1)}`;
+      tHandle = `tr-${Math.min(tIdx, MAX_HANDLES - 1)}`;
+    } else {
+      sourceX = sourceNode ? sourceNode.position.x + NODE_W : 0;      // right side
+      targetX = targetNode ? targetNode.position.x : sourceX + GAP_X;  // left side
+      sHandle = `s-${Math.min(sIdx, MAX_HANDLES - 1)}`;
+      tHandle = `t-${Math.min(tIdx, MAX_HANDLES - 1)}`;
+    }
+
     const sourceY = sourceNode ? sourceNode.position.y + NODE_H * handleRatio(sHandle) : 0;
     const targetY = targetNode ? targetNode.position.y + NODE_H * handleRatio(tHandle) : sourceY;
-    const leftX = Math.min(sourceX, targetX);
-    const rightX = Math.max(sourceX, targetX);
     const blockerRects = nodeRects.filter(rect => rect.id !== group.from && rect.id !== group.to);
-    const routeY = edgeRouteY(sourceY, targetY, leftX, rightX, blockerRects, groupIndex);
+    const routeY = edgeRouteY(sourceX, sourceY, targetX, targetY, blockerRects, groupIndex);
     const items = group.steps.map((stepNum) => {
       const transfer = transfers[stepNum];
       stepEdgeIds[stepNum] = edgeId;

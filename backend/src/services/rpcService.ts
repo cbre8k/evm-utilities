@@ -39,7 +39,7 @@ async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Pr
   const res = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    body: JSON.stringify({ jsonrpc: '"2.0"', id: 1, method, params }),
   });
   if (!res.ok) throw new Error(`RPC HTTP ${res.status} for ${method}`);
   const data = await res.json() as { result?: T; error?: { message: string } };

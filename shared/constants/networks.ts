@@ -41,6 +41,12 @@ export const NETWORKS: Network[] = [
     archiveRpcUrls: ['https://base-mainnet.chainnodes.org/2067b7f3-ccf2-4bf2-9fd2-b318bd6e7098'],
   },
   {
+    id: 'viction',
+    name: 'VICTION',
+    fullnodeRpcUrls: ['https://viction.blockpi.network/v1/rpc/public', 'https://viction.drpc.org', 'https://rpc.viction.xyz'],
+    archiveRpcUrls: ['https://vic-mainnetd-rpc.tforce.dev/'],
+  },
+  {
     id: 'custom',
     name: 'CUSTOM',
     fullnodeRpcUrls: [''],
