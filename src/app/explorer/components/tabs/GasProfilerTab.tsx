@@ -57,11 +57,12 @@ const MIN_SIDE_WIDTH_PERCENT = 12;
 function buildCallItems(node: GasNode): FlameItem[] {
   const items: FlameItem[] = [];
 
-  function walk(n: GasNode, x: number, width: number, depth: number, index: number) {
+  function walk(n: GasNode, x: number, width: number, depth: number, index: number, parentId: string | null = null) {
     const safeWidth = Math.max(width, 0);
+    const myId = n.id;
     items.push({
-      id: n.id,
-      parentId: depth === 0 ? null : items[items.length - 1]?.id ?? null,
+      id: myId,
+      parentId,
       label: shortCallLabel(n.label),
       gasUsed: n.gasUsed,
       selfGas: n.selfGas,
@@ -79,12 +80,12 @@ function buildCallItems(node: GasNode): FlameItem[] {
     let cursor = x;
     n.children.forEach((child, childIndex) => {
       const childWidth = safeWidth * (Math.max(child.gasUsed, 0) / childTotal);
-      walk(child, cursor, childWidth, depth + 1, childIndex);
+      walk(child, cursor, childWidth, depth + 1, childIndex, myId);
       cursor += childWidth;
     });
   }
 
-  walk(node, 0, 100, 0, 0);
+  walk(node, 0, 100, 0, 0, null);
   return items;
 }
 

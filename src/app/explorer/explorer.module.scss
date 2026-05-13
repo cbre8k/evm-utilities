@@ -192,7 +192,7 @@
   background: var(--bg-primary);
   display: grid;
   flex: 1;
-  grid-template-columns: minmax(350px, 20vw) minmax(0, 1fr);
+  grid-template-columns: max(280px, 20vw) minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -1372,8 +1372,24 @@
 .eventName {
   font-size: 12px;
   font-weight: $font-bold;
-  color: var(--accent-primary);
+  color: var(--accent);
   flex: 1;
+}
+
+.eventSigTypes {
+  font-size: 10px;
+  font-weight: $font-normal;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+  letter-spacing: 0.01em;
+}
+
+.eventSigLoading {
+  padding: 8px 14px;
+  font-size: 10px;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
 }
 
 .eventAddr {
@@ -1402,7 +1418,7 @@
 }
 
 .eventObjKey {
-  color: var(--accent-primary);
+  color: var(--accent);
 }
 
 .eventObjVal {
@@ -2107,8 +2123,8 @@
   display: flex;
   align-items: center;
   gap: 18px;
-  background: linear-gradient(90deg, #f4f4f4, #bdbdbd);
-  color: #111;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
   font-size: 12px;
   height: 25px;
   padding: 0 10px;
@@ -2117,8 +2133,9 @@
 
 .gasFlameGraph {
   position: relative;
-  overflow-x: hidden;
-  overflow-y: hidden;
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 420px;
   background:
     radial-gradient(circle, color-mix(in srgb, var(--text-tertiary) 22%, transparent) 1px, transparent 1px) 0 0 / 18px 18px,
     var(--bg-primary);
@@ -2282,8 +2299,8 @@
   justify-content: center;
   height: 100%;
   min-width: 42px;
-  background: #f4f4f4;
-  color: #111;
+  background: var(--accent);
+  color: var(--bg-primary);
   font-family: $font-mono;
   font-size: 11px;
 }
@@ -2707,6 +2724,10 @@
   }
 
   .resultLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .gasProfilerGrid {
     grid-template-columns: 1fr;
   }
 

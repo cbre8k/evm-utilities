@@ -39,10 +39,26 @@ async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Pr
   const res = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '"2.0"', id: 1, method, params }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
   });
   if (!res.ok) throw new Error(`RPC HTTP ${res.status} for ${method}`);
-  const data = await res.json() as { result?: T; error?: { message: string } };
+
+  // Read as text first so we can include the raw body in error messages
+  // when the RPC node returns an empty or truncated JSON response.
+  const text = await res.text();
+  if (!text || !text.trim()) {
+    throw new Error(`RPC empty response for ${method}`);
+  }
+
+  let data: { result?: T; error?: { message: string; code?: number } };
+  try {
+    data = JSON.parse(text);
+  } catch (parseErr: any) {
+    // Include a snippet of the body so it is easier to diagnose truncation.
+    const snippet = text.slice(0, 200);
+    throw new Error(`RPC invalid JSON for ${method}: ${parseErr.message} — body: ${snippet}`);
+  }
+
   if (data.error) throw new Error(`RPC [${method}]: ${data.error.message}`);
   if (data.result === undefined) throw new Error(`RPC no result for ${method}`);
   return data.result as T;
@@ -154,10 +170,23 @@ export async function buildTxOverview(rpcUrl: string, txHash: string): Promise<T
 // ── debug_traceTransaction (callTracer + withLog) ────────────
 
 export async function debugTraceTransaction(rpcUrl: string, txHash: string): Promise<any> {
-  return rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
-    txHash,
-    { tracer: 'callTracer', tracerConfig: { withLog: true } },
-  ]);
+  try {
+    return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+      txHash,
+      { tracer: 'callTracer', tracerConfig: { withLog: true } },
+    ]);
+  } catch (err: any) {
+    // Some nodes don't support withLog — retry without it
+    try {
+      return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+        txHash,
+        { tracer: 'callTracer' },
+      ]);
+    } catch (fallbackErr: any) {
+      console.warn(`[rpcService] debugTraceTransaction failed for ${txHash}: ${fallbackErr.message}`);
+      return null;
+    }
+  }
 }
 
 // ── debug_traceTransaction (prestateTracer diffMode) ─────────
@@ -361,6 +390,25 @@ export async function getFilteredStructLog(
 let nodeCounter = 0;
 
 export function normalizeCallTree(raw: any, parentId?: string, depth = 0): TraceNode {
+  // raw can be null when debugTraceTransaction failed — return a minimal stub
+  if (!raw) {
+    const id = `node-${nodeCounter++}`;
+    return {
+      id,
+      parentId,
+      depth,
+      type: 'CALL',
+      from: '',
+      to: null,
+      input: '0x',
+      output: '0x',
+      value: '0x0',
+      gas: '0x0',
+      gasUsed: '0x0',
+      children: [],
+    };
+  }
+
   const id = `node-${nodeCounter++}`;
   const children = (raw.calls ?? []).map((c: any) => normalizeCallTree(c, id, depth + 1));
 

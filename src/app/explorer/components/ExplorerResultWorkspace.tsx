@@ -85,6 +85,13 @@ export default function ExplorerResultWorkspace({
             totalGas={totalGas}
           />
         )}
+        {activeTab === 'gas' && !result.gasTree && (
+          <div className={styles.tabContent}>
+            <div className={styles.emptyHint} style={{ padding: 32, textAlign: 'center' }}>
+              Gas profiling data is not available for this transaction.
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );
