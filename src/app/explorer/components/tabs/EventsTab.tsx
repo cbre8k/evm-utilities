@@ -15,19 +15,6 @@ function splitDataWords(data: string): string[] {
   return words;
 }
 
-function formatDataWord(word: string): string {
-  const raw = word.startsWith('0x') ? word.slice(2) : word;
-  if (raw === '0'.repeat(64)) return '0';
-  if (raw === '0'.repeat(63) + '1') return 'true';
-  if (raw.length === 64 && raw.slice(0, 24) === '0'.repeat(24)) {
-    try {
-      const n = BigInt('0x' + raw);
-      if (n <= 0xFFFFFFFFFFn) return n.toString();
-    } catch { /* */ }
-    return '0x' + raw.slice(24);
-  }
-}
-
 // ── Tab component ─────────────────────────────────────────────
 
 export default function EventsTab({ logs }: Props) {
