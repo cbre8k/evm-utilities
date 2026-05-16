@@ -8,6 +8,13 @@ export function parseGas(v?: string): number {
   try { return Number(v.startsWith('0x') ? BigInt(v) : BigInt(v)); } catch { return 0; }
 }
 
+function callSelector(node?: TraceNode | null): string | undefined {
+  if (!node) return undefined;
+  const input = node.input ?? '';
+  if (!input || input === '0x' || input.length < 10) return undefined;
+  return input.slice(0, 10).toLowerCase();
+}
+
 function collectDescendantCalls(root: TraceNode): TraceNode[] {
   const calls: TraceNode[] = [];
   for (const child of root.children) {
@@ -96,6 +103,7 @@ export function buildFromStructLog(
     visibleTo: rootTo,
     storageAddress: rootTo,
     isDelegateCall: false,
+    selector: callSelector(root),
   }];
 
   const callQueue = collectDescendantCalls(root);
@@ -194,6 +202,7 @@ export function buildFromStructLog(
           visibleTo,
           storageAddress: isDcall ? ctx.storageAddress : nodeAddr,
           isDelegateCall: isDcall,
+          selector: callSelector(node),
         });
 
         // Push new context — like OpenTracer's stack push on CALL/DELEGATECALL/STATICCALL
@@ -205,7 +214,7 @@ export function buildFromStructLog(
           codeAddress: nodeAddr,
           // For DELEGATECALL: child calls should show codeAddress (logic) as sender
           // For regular CALL: child calls should show the target address
-          visibleAddress: isDcall ? nodeAddr : nodeAddr,
+          visibleAddress: nodeAddr,
         });
       }
     } else if (HIDDEN_OPCODE_ROWS.has(e.op)) {
@@ -227,9 +236,11 @@ export function buildFromStructLog(
         jumpTargetLine: e.jumpTargetLine,
         jumpTargetFunction: e.jumpTargetFunction,
         jumpTargetFunctionParams: e.jumpTargetFunctionParams,
+        jumpResolvedParams: e.jumpResolvedParams,
         jumpTargetFunctionReturnsValue: e.jumpTargetFunctionReturnsValue,
         jumpStack: e.jumpStack,
         jumpMemory: e.jumpMemory,
+        selector: callSelector(ctx?.node),
         sourceJump: e.sourceJump,
         line: e.sourceLine,
         file: e.sourceFile,
@@ -292,7 +303,15 @@ export function buildFlatEntries(
 
 export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
   const roots: TraceItem[] = [];
-  const stack: Array<{ depth: number; items: TraceItem[]; contractName?: string; isJump?: boolean }> = [{ depth: -1, items: roots }];
+  const stack: Array<{
+    depth: number;
+    items: TraceItem[];
+    contractName?: string;
+    isJump?: boolean;
+    jumpFrame?: JumpFrame;
+    callSelector?: string;
+    callFunction?: string;
+  }> = [{ depth: -1, items: roots }];
 
   entries.forEach((entry, index) => {
     // Pop frames when we return to a shallower depth.
@@ -328,7 +347,13 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
       // implementation's contract_name.
       const isDcall = entry.isDelegateCall;
       const frameName = isDcall ? parent.contractName : entry.node.contract_name;
-      stack.push({ depth: entry.depth, items: frame.items, contractName: frameName });
+      stack.push({
+        depth: entry.depth,
+        items: frame.items,
+        contractName: frameName,
+        callSelector: entry.selector,
+        callFunction: (entry.node.function_name || entry.node.decodedFunction?.split('(')[0] || '').toLowerCase(),
+      });
       return;
     }
 
@@ -338,6 +363,17 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
       entry.sourceJump === 'i' &&
       (entry.jumpTargetFunction || entry.jumpTargetLabel)
     ) {
+      const jumpFn = (entry.jumpTargetFunction || '').toLowerCase();
+      const parentFn = parent.callFunction || '';
+      const sameSelector = !!entry.selector && !!parent.callSelector && entry.selector === parent.callSelector;
+      const sameFunction = !!jumpFn && !!parentFn && jumpFn === parentFn;
+
+      // Hide duplicate jump frame that mirrors the parent call function body
+      // (same selector + function name) to avoid redundant rows.
+      if (sameSelector && sameFunction) {
+        return;
+      }
+
       const jumpFrame: JumpFrame = {
         kind: 'jump-frame',
         id: `jump-${index}`,
@@ -349,23 +385,16 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
         gasUsed: entry.gasCost,
       };
       parent.items.push(jumpFrame);
-      stack.push({ depth: entry.depth, items: jumpFrame.items, contractName: parent.contractName, isJump: true });
+      stack.push({ depth: entry.depth, items: jumpFrame.items, contractName: parent.contractName, isJump: true, jumpFrame });
       return;
     }
 
     // JUMP-out → explicitly pop the enclosing jump frame and capture return stack
     if (entry.kind === 'opcode' && entry.sourceJump === 'o') {
       if (stack.length > 1 && stack[stack.length - 1].isJump) {
-        // Find the JumpFrame to attach return data
-        const jumpStackEntry = stack[stack.length - 1];
-        const parentItems = jumpStackEntry.items;
-        // The jump frame itself is in the parent-of-parent's items
-        const grandparent = stack[stack.length - 2];
-        const jumpFrame = grandparent.items.findLast(
-          (it: TraceItem) => it.kind === 'jump-frame'
-        ) as JumpFrame | undefined;
-        if (jumpFrame && entry.jumpStack) {
-          jumpFrame.returnStack = entry.jumpStack;
+        const top = stack[stack.length - 1];
+        if (top.jumpFrame && entry.jumpStack) {
+          top.jumpFrame.returnStack = entry.jumpStack;
         }
         stack.pop();
       }
@@ -386,13 +415,13 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
     }
   });
 
-  // Compute cumulative gas for jump frames
-  computeJumpGas(roots);
-
-  // Absorb first JumpFrame inside DELEGATECALL/CALLCODE frames:
-  // the first JUMP after a DELEGATECALL is just the entry into the logic
-  // contract's dispatched function — hide it and lift its children.
+  // Absorb first JumpFrame inside DELEGATECALL/CALLCODE frames BEFORE computing
+  // gas so that gas values are correct for the final tree structure.
   absorbDelegateJumps(roots);
+
+  // Compute cumulative gas for jump frames (must run after absorption so the
+  // tree structure is stable).
+  computeJumpGas(roots);
 
   return roots;
 }
@@ -409,9 +438,7 @@ function computeJumpGas(items: TraceItem[]): number {
       computeJumpGas(item.items);
       total += item.entry.gasUsed;
     } else {
-      total += item.entry.kind === 'opcode'
-        ? item.entry.gasCost
-        : item.entry.gasCost;
+      total += item.entry.gasCost;
     }
   }
   return total;
@@ -431,10 +458,19 @@ function absorbDelegateJumps(items: TraceItem[]): void {
     if (item.kind === 'frame') {
       const node = item.entry.node;
       if (node.type === 'DELEGATECALL' || node.type === 'CALLCODE') {
-        // Unwrap the first JumpFrame (function entry dispatch)
+        // Unwrap the first JumpFrame only when it represents the function entry
+        // dispatch (i.e. same function as the DELEGATECALL itself, or either
+        // name is unknown).  When both names are known and differ, the dedup
+        // guard already fired and the first JumpFrame is a real internal call —
+        // do NOT absorb it in that case.
         if (item.items.length > 0 && item.items[0].kind === 'jump-frame') {
-          const jump = item.items[0];
-          item.items.splice(0, 1, ...jump.items);
+          const jump = item.items[0] as JumpFrame;
+          const dcFn = (node.function_name || node.decodedFunction?.split('(')[0] || '').toLowerCase();
+          const jFn  = (jump.entry.jumpTargetFunction || '').toLowerCase();
+          const shouldAbsorb = !dcFn || !jFn || dcFn === jFn;
+          if (shouldAbsorb) {
+            item.items.splice(0, 1, ...jump.items);
+          }
         }
       }
       absorbDelegateJumps(item.items);

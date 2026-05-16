@@ -102,7 +102,9 @@ export interface FilteredStructLog {
   jumpTargetParams?: { name: string; type: string }[];
   jumpTargetFunction?: string;
   jumpTargetFunctionParams?: string[];
+  jumpResolvedParams?: string[];
   jumpTargetFunctionReturnsValue?: boolean;
+  refund?: number;
   truncated?: boolean;
   storageKey?: string;
   storagePre?: string;
@@ -110,4 +112,7 @@ export interface FilteredStructLog {
   /** topic0..topicN extracted from EVM stack for LOG0..LOG4 opcodes */
   logTopics?: string[];
   error?: string;
+  sourceStart?: number;
+  sourceLength?: number;
+  sourceFileIndex?: number;
 }

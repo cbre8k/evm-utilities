@@ -7,7 +7,9 @@ import { cacheGet, cacheSet } from '../db/redis';
 import { config } from '../config';
 import type { DecodedCalldata, DecodedArg, DecodedOutput, DecodedOutputValue } from '../types';
 import { getVerifiedSource } from './sourcifyService';
+import { getContractSource } from './etherscanService';
 import { FOURBYTE_API } from '@shared/constants/selectors';
+import { Interface } from 'ethers';
 
 const OPENCHAIN_API = 'https://api.openchain.xyz/signature-database/v1/lookup';
 
@@ -72,8 +74,8 @@ export async function decodeCalldata(
   if (!input || input === '0x' || input.length < 10) return null;
 
   const selector = input.slice(0, 10);
-  const verifiedDecoded = await decodeWithVerifiedAbi(input, selector, address, chainId);
-  if (verifiedDecoded) return verifiedDecoded;
+  const abiDecoded = await decodeWithContractAbi(input, selector, address, chainId);
+  if (abiDecoded) return abiDecoded;
 
   const result = await lookupSelector(selector);
   if (!result) return null;
@@ -94,7 +96,7 @@ export async function decodeOutput(
   if (!input || input === '0x' || input.length < 10 || !output || output === '0x') return null;
 
   const selector = input.slice(0, 10);
-  const matchedAbi = await findVerifiedFunctionAbi(selector, address, chainId);
+  const matchedAbi = await findFunctionAbi(selector, address, chainId);
   if (!matchedAbi?.outputs?.length || !matchedAbi.name) return null;
 
   const values = decodeOutputArgs(output, matchedAbi.outputs);
@@ -104,13 +106,13 @@ export async function decodeOutput(
   };
 }
 
-async function decodeWithVerifiedAbi(
+async function decodeWithContractAbi(
   input: string,
   selector: string,
   address?: string | null,
   chainId?: number,
 ): Promise<DecodedCalldata | null> {
-  const matchedAbi = await findVerifiedFunctionAbi(selector, address, chainId);
+  const matchedAbi = await findFunctionAbi(selector, address, chainId);
   if (!matchedAbi) return null;
 
   const abiArgs = Array.isArray(matchedAbi.inputs) ? matchedAbi.inputs : [];
@@ -124,35 +126,59 @@ async function decodeWithVerifiedAbi(
   };
 }
 
-async function findVerifiedFunctionAbi(
+async function findFunctionAbi(
   selector: string,
   address?: string | null,
   chainId?: number,
 ): Promise<AbiFunctionEntry | null> {
   if (!address || !chainId) return null;
 
-  const [verifiedContract, selectorResult] = await Promise.all([
-    getVerifiedSource(chainId, address),
-    lookupSelector(selector),
-  ]);
+  // Prefer explorer ABI (Etherscan-like) first.
+  const etherscanSource = await getContractSource(chainId, address);
+  const etherscanAbi = parseExplorerAbi(etherscanSource?.abi);
+  const etherscanMatched = matchFunctionAbiBySelector(selector, etherscanAbi);
+  if (etherscanMatched) return etherscanMatched;
 
-  if (!verifiedContract?.abi?.length || !selectorResult) return null;
+  // Fallback to Sourcify verified ABI if available.
+  const verifiedContract = await getVerifiedSource(chainId, address);
+  const verifiedAbi = Array.isArray(verifiedContract?.abi)
+    ? (verifiedContract.abi as AbiFunctionEntry[])
+    : null;
+  const verifiedMatched = matchFunctionAbiBySelector(selector, verifiedAbi);
+  if (verifiedMatched) return verifiedMatched;
 
-  const matchedAbi = verifiedContract.abi.find((entry: AbiFunctionEntry) => {
-    if (entry?.type !== 'function' || entry?.name !== selectorResult.functionName) return false;
-    const inputs = Array.isArray(entry.inputs) ? entry.inputs : [];
-    if (inputs.length !== selectorResult.args.length) return false;
-
-    return inputs.every((param, index) => (
-      normalizeAbiType(param?.type) === normalizeAbiType(selectorResult.args[index]?.type)
-    ));
-  });
-
-  return matchedAbi ?? null;
+  return null;
 }
 
-function normalizeAbiType(type: string | undefined): string {
-  return String(type ?? '').replace(/\s+/g, '');
+function parseExplorerAbi(rawAbi?: string): AbiFunctionEntry[] | null {
+  if (!rawAbi || rawAbi === 'Contract source code not verified') return null;
+  try {
+    const parsed = JSON.parse(rawAbi) as unknown;
+    return Array.isArray(parsed) ? (parsed as AbiFunctionEntry[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function matchFunctionAbiBySelector(
+  selector: string,
+  abi: AbiFunctionEntry[] | null,
+): AbiFunctionEntry | null {
+  if (!abi || abi.length === 0) return null;
+
+  try {
+    const iface = new Interface(abi as unknown as object[]);
+    const fragment = iface.getFunction(selector);
+    if (!fragment) return null;
+    return {
+      type: 'function',
+      name: fragment.name,
+      inputs: fragment.inputs.map((input) => ({ name: input.name, type: input.type })),
+      outputs: fragment.outputs?.map((output) => ({ name: output.name, type: output.type })) ?? [],
+    };
+  } catch {
+    return null;
+  }
 }
 
 // ── ABI value decoding (no external deps) ───────────────────
@@ -245,16 +271,19 @@ function abiDecodeParam(data: string, headByteOffset: number, type: string): str
     if (dataOffset * 2 >= data.length) return type === 'string' ? '""' : '0x';
     const byteLen = parseInt(w(data, dataOffset), 16);
     if (byteLen === 0) return type === 'string' ? '""' : '0x';
-    const raw = data.slice((dataOffset + 32) * 2, (dataOffset + 32 + Math.min(byteLen, 32)) * 2);
+    const maxBytes = 4096;
+    const readBytes = Math.min(byteLen, maxBytes);
+    const raw = data.slice((dataOffset + 32) * 2, (dataOffset + 32 + readBytes) * 2);
+    const truncated = byteLen > maxBytes;
     if (type === 'string') {
       try {
         const str = Buffer.from(raw, 'hex').toString('utf8').replace(/\0/g, '');
-        return byteLen > 32 ? `"${str.slice(0, 32)}…"` : `"${str}"`;
+        return truncated ? `"${str}"…` : `"${str}"`;
       } catch {
-        return `0x${raw.slice(0, 16)}…`;
+        return truncated ? `0x${raw}…` : `0x${raw}`;
       }
     }
-    return `0x${raw.slice(0, 32)}${byteLen > 16 ? '…' : ''}`;
+    return truncated ? `0x${raw}…` : `0x${raw}`;
   }
 
   return abiDecodeWord(head, type);

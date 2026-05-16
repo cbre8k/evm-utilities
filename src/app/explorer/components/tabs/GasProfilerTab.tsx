@@ -261,6 +261,13 @@ function textFor(value: string) {
 
 export default function GasProfilerTab({ gasTree, root, structLog = [], allLogs, totalGas }: Props) {
   const total = gasTree.gasLimit || totalGas || gasTree.gasUsed || 1;
+  const refundCounter = useMemo(() => {
+    let value = 0;
+    for (const entry of structLog) {
+      if (typeof entry.refund === 'number') value = entry.refund;
+    }
+    return value;
+  }, [structLog]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const traceItems = useMemo(() => buildTraceItems(root, structLog, allLogs), [root, structLog, allLogs]);
@@ -340,6 +347,7 @@ export default function GasProfilerTab({ gasTree, root, structLog = [], allLogs,
         <div className={styles.gasProfilerHeader}>
           <span>Total Gas - {total.toLocaleString()} Gas</span>
           <span>Actual Gas Used - {gasTree.gasUsed.toLocaleString()} Gas</span>
+          <span>Refund Counter - {refundCounter.toLocaleString()} Gas</span>
         </div>
         <div
           className={`${styles.gasFlameGraph} ${selectedId ? styles.gasFlameGraphHasSelection : ''}`}
@@ -398,6 +406,10 @@ export default function GasProfilerTab({ gasTree, root, structLog = [], allLogs,
             <span>{gasTree.gasUsed.toLocaleString()}</span>
             <span>/</span>
             <span>{total.toLocaleString()} Gas Used</span>
+          </div>
+          <div className={styles.gasProfilerMetric}>
+            <span>{refundCounter.toLocaleString()}</span>
+            <span>Gas Refund Counter</span>
           </div>
           <div className={styles.gasProgress}>
             <div className={styles.gasProgressFill} style={{ width: `${Math.min(actualPct, 100)}%` }}>

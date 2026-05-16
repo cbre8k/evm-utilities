@@ -21,5 +21,8 @@ export declare const config: {
         readonly job: 3600;
         readonly share: 0;
     };
+    readonly etherscan: {
+        readonly apiKey: string;
+    };
 };
 //# sourceMappingURL=config.d.ts.map

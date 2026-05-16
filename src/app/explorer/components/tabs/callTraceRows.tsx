@@ -6,11 +6,10 @@ import { getOpcodeStyle } from '@/utils/opcodes';
 import styles from '../../explorer.module.scss';
 import { MAX_INLINE_EVENT_ARGS, ZERO_WORD } from './callTraceConstants';
 import {
-  short, shortSlot, shortVal, argLabel,
-  isTruthyHex, decodeEventName, deriveJumpContext,
-  opcodeShortLabel, compactValue,
-  decodedArgs, decodedOutputs, nodeContractName, nodeFunctionName, previewArgs,
-  decodeRawOutput,
+  short, shortSlot, argLabel,
+  isTruthyHex, decodeEventName,
+  opcodeShortLabel,
+  decodedArgs, decodedOutputs, nodeContractName, nodeFunctionName, previewArgs, rawJumpParams,
 } from './callTraceUtils';
 
 /** Ensure a hex string has the 0x prefix */
@@ -75,11 +74,15 @@ export function LeafRow({
   tokenAddresses,
   connectors,
   isLast,
+  onSelect,
+  selected,
 }: {
   entry: NonCallEntry;
   contractName?: string;
   connectors: boolean[];
   isLast: boolean;
+  onSelect?: (entry: NonCallEntry) => void;
+  selected?: boolean;
 } & AddressContext) {
   if (entry.kind === 'event') {
     return (
@@ -109,7 +112,16 @@ export function LeafRow({
     );
   }
 
-  return <OpcodeRow entry={entry} depth={entry.depth} connectors={connectors} isLast={isLast} />;
+  return (
+    <OpcodeRow
+      entry={entry}
+      depth={entry.depth}
+      connectors={connectors}
+      isLast={isLast}
+      onSelect={onSelect ? (entry) => onSelect(entry) : undefined}
+      selected={selected}
+    />
+  );
 }
 
 // ── Event leaf ────────────────────────────────────────────────
@@ -209,7 +221,7 @@ function EventFallbackArgs({ topics, data }: { topics: string[]; data: string })
 function decodeTopicValue(raw: string): string {
   if (!raw || raw === '0x') return '0';
   const hex = raw.startsWith('0x') ? raw.slice(2) : raw;
-  if (hex.length !== 64) return raw.length > 18 ? `${raw.slice(0, 10)}…${raw.slice(-6)}` : raw;
+  if (hex.length !== 64) return raw;
   // All zeros
   if (hex === '0'.repeat(64)) return '0';
   // Bool true
@@ -223,9 +235,9 @@ function decodeTopicValue(raw: string): string {
     if (hex.slice(0, 24) === '0'.repeat(24)) {
       return '0x' + hex.slice(24);
     }
-    return `0x${hex.slice(0, 8)}…${hex.slice(-6)}`;
+    return `0x${hex}`;
   } catch {
-    return `0x${hex.slice(0, 8)}…${hex.slice(-6)}`;
+    return `0x${hex}`;
   }
 }
 
@@ -284,17 +296,21 @@ function OpcodeRow({
   depth,
   connectors,
   isLast,
+  onSelect,
+  selected,
 }: {
   entry: OpcodeEntry;
   depth: number;
   connectors: boolean[];
   isLast: boolean;
+  onSelect?: (entry: OpcodeEntry) => void;
+  selected?: boolean;
 }) {
   const {
     op, gasCost, error, jumpCondition,
     file, line, jumpTargetFile, jumpTargetLine,
     jumpTargetFunction, jumpTargetFunctionParams,
-    jumpStack,
+    jumpStack, jumpResolvedParams,
   } = entry;
   const oStyle = getOpcodeStyle(op);
   const rowStyle = { '--trace-depth': depth } as CSSProperties;
@@ -323,13 +339,29 @@ function OpcodeRow({
 
   const stackContext = useMemo(() => {
     if (op !== 'JUMP' && op !== 'JUMPI') return null;
-    return deriveJumpContext(op, jumpStack, jumpTargetFunctionParams?.length);
+    const raw = rawJumpParams(op, jumpStack, jumpTargetFunctionParams?.length);
+    return raw.length > 0 ? { params: raw } : null;
   }, [op, jumpStack, jumpTargetFunctionParams]);
 
   return (
     <div
-      className={`${styles.traceListRow} ${styles.traceListRowOpcode}`}
+      className={[
+        styles.traceListRow,
+        styles.traceListRowOpcode,
+        selected ? styles.traceListRowSelected : '',
+      ].filter(Boolean).join(' ')}
       style={rowStyle}
+      role={onSelect ? 'button' : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onClick={onSelect ? () => onSelect(entry) : undefined}
+      onKeyDown={onSelect
+        ? (event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              onSelect(entry);
+            }
+          }
+        : undefined}
     >      <div className={styles.traceListOp}>
         <span className={styles.opcBadge} style={{ background: oStyle.bg, color: oStyle.color }}>
           {op}
@@ -346,7 +378,7 @@ function OpcodeRow({
             {jumpTargetFunctionParams?.map((name, i) => (
               <span key={i}>
                 {i > 0 && ', '}
-                {name}={stackContext?.params[i] || '?'}
+                {name}={(jumpResolvedParams?.[i]) ?? stackContext?.params[i] ?? '?'}
               </span>
             ))}
             )
@@ -375,6 +407,8 @@ export function FrameRow({
   addressLabels,
   tokenLabels,
   tokenAddresses,
+  onHover,
+  onLeave,
 }: {
   node: import('@/types/explorer').TraceNode;
   entry: import('./callTraceTypes').CallEntry;
@@ -386,11 +420,13 @@ export function FrameRow({
   hasChildren: boolean;
   reverted?: boolean;
   onToggle: () => void;
+  onHover?: (id: string) => void;
+  onLeave?: () => void;
 } & AddressContext) {
   const reverted = revertedProp ?? !!node.error;
   const opcode = node.type;
   const oStyle = getOpcodeStyle(opcode);
-  const valueLabel = compactValue(node.value);
+  const valueLabel = node.value && node.value !== '0x0' ? node.value : '';
   const fnName = nodeFunctionName(node);
 
   // Use visibleFrom/visibleTo from the context stack (spec: Tenderly rendering).
@@ -404,6 +440,12 @@ export function FrameRow({
   const args = decodedArgs(node);
   const outputs = decodedOutputs(node);
   const returnVal = !reverted && node.output && node.output !== '0x' ? node.output : '';
+  const selectorLikeName = !!fnName && /^0x[a-fA-F0-9]{8}$/.test(fnName);
+  const isLikelyInternalFn = !!fnName && fnName.startsWith('_');
+  const rawInput = node.input ?? '0x';
+  const rawArgs = rawInput.length > 10
+    ? `0x${rawInput.startsWith('0x') ? rawInput.slice(10) : rawInput.slice(8)}`
+    : '0x';
   const rowStyle = { '--trace-depth': connectors.length } as CSSProperties;
 
   return (
@@ -414,6 +456,8 @@ export function FrameRow({
         reverted ? styles.traceListRowError : '',
       ].filter(Boolean).join(' ')}
       style={rowStyle}
+      onMouseEnter={() => onHover?.(node.id)}
+      onMouseLeave={() => onLeave?.()}
     >
       <div className={styles.traceListOp}>
         <span className={styles.opcBadge} style={{ background: oStyle.bg, color: oStyle.color }}>
@@ -442,12 +486,17 @@ export function FrameRow({
           <span className={styles.traceDot}>::</span>
           <span className={styles.traceFnName}>{fnName || '()'}</span>
           <span className={styles.traceInlineArgs}>
-            ({args.map((a, i) => (
-              <span key={i}>
-                {i > 0 && ', '}
-                {a.name || `arg${i}`}={a.value}
-              </span>
-            ))})
+            ({(isLikelyInternalFn || selectorLikeName)
+              ? rawArgs
+              : args.length > 0
+              ? args.map((a, i) => (
+                <span key={i}>
+                  {i > 0 && ', '}
+                  {a.name || `arg${i}`}={a.value}
+                </span>
+              ))
+              : ''
+            })
           </span>
           {valueLabel && <span className={styles.traceVal}> [{valueLabel}]</span>}
           {returnVal && (
@@ -455,13 +504,16 @@ export function FrameRow({
               <span className={styles.traceReturnArrow}>{' => '}</span>
               <span className={styles.traceReturnValue}>
                 ({outputs.length > 0
-                  ? outputs.map((o, i) => (
+                  ? (isLikelyInternalFn
+                    ? returnVal
+                    : outputs.map((o, i) => (
                     <span key={i}>
                       {i > 0 && ', '}
                       {o.name || `output${i}`}={o.value}
                     </span>
-                  ))
-                  : decodeRawOutput(returnVal).join(', ') || returnVal
+                    ))
+                  )
+                  : returnVal
                 })
               </span>
             </>
@@ -486,6 +538,8 @@ export function JumpFrameRow({
   tokenLabels,
   tokenAddresses,
   parentContractName,
+  onHover,
+  onLeave,
 }: {
   frame: JumpFrame;
   totalGas: number;
@@ -495,6 +549,8 @@ export function JumpFrameRow({
   hasChildren: boolean;
   onToggle: () => void;
   parentContractName?: string;
+  onHover?: (id: string) => void;
+  onLeave?: () => void;
 } & AddressContext) {
   const { entry, gasUsed, address } = frame;
   const oStyle = getOpcodeStyle('JUMP');
@@ -503,11 +559,11 @@ export function JumpFrameRow({
     || (address ? short(address, addressLabels, tokenLabels, tokenAddresses) : '—');
   const fnName = entry.jumpTargetFunction || entry.jumpTargetLabel || '';
 
-  const stackContext = deriveJumpContext(
-    entry.op,
-    entry.jumpStack,
-    entry.jumpTargetFunctionParams?.length,
-  );
+  const resolvedContext = (() => {
+    const raw = rawJumpParams(entry.op, entry.jumpStack, entry.jumpTargetFunctionParams?.length);
+    return raw.length > 0 ? { params: raw } : null;
+  })();
+  const hasResolvedParams = !!(entry.jumpResolvedParams?.length || resolvedContext);
 
   const rowStyle = { '--trace-depth': connectors.length } as CSSProperties;
 
@@ -519,6 +575,8 @@ export function JumpFrameRow({
         styles.traceListRowJump,
       ].filter(Boolean).join(' ')}
       style={rowStyle}
+      onMouseEnter={() => onHover?.(frame.id)}
+      onMouseLeave={() => onLeave?.()}
     >
       <div className={styles.traceListOp}>
         <span className={styles.opcBadge} style={{ background: oStyle.bg, color: oStyle.color }}>
@@ -547,11 +605,11 @@ export function JumpFrameRow({
           <span className={styles.traceDot}>::</span>
           <span className={styles.traceFnName}>{fnName || '()'}</span>
           <span className={styles.traceInlineArgs}>
-            ({entry.jumpTargetFunctionParams && stackContext
+            ({entry.jumpTargetFunctionParams && hasResolvedParams
               ? entry.jumpTargetFunctionParams.map((name, i) => (
                 <span key={i}>
                   {i > 0 && ', '}
-                  {name}={stackContext.params[i] || '?'}
+                  {name}={(entry.jumpResolvedParams?.[i]) ?? resolvedContext?.params[i] ?? '?'}
                 </span>
               ))
               : ''

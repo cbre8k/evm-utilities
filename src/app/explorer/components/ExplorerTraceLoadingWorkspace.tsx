@@ -19,14 +19,14 @@ export default function ExplorerTraceLoadingWorkspace({
         <TabBar items={tabItems} activeTab={activeTab} onChange={onTabChange} fontSize={12} />
       </div>
 
-      <div className={styles.body}>
-        <div className={styles.traceLoadingState}>
-          <div className={`${styles.emptyTitle} ${styles.pulse}`}>■ TRACING SUMMARY…</div>
-          <div className={styles.emptyHint}>
-            Transaction details are ready. Building call trace, events, state diffs, fund flow, and gas profile.
+        <div className={styles.body}>
+          <div className={styles.traceLoadingState}>
+            <div className={`${styles.emptyTitle} ${styles.pulse}`}>■ TRACING SUMMARY…</div>
+            <div className={styles.emptyHint}>
+              Transaction details are ready. Building call trace, events, state diffs, fund flow, gas profile, and call graph.
+            </div>
           </div>
         </div>
-      </div>
     </main>
   );
 }

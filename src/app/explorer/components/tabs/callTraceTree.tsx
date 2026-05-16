@@ -3,6 +3,7 @@
 import React from 'react';
 import type { AddressContext, TraceItem } from './callTraceTypes';
 import { FrameRow, JumpFrameRow, LeafRow } from './callTraceRows';
+import type { OpcodeEntry } from './callTraceTypes';
 import { nodeContractName, short } from './callTraceUtils';
 import { getOpcodeStyle } from '@/utils/opcodes';
 import styles from '../../explorer.module.scss';
@@ -24,6 +25,10 @@ interface TraceTreeProps extends AddressContext {
   connectors?: boolean[];
   /** Inherited contract name from a parent DELEGATECALL frame */
   parentContractName?: string;
+  onSelectOpcode?: (entry: OpcodeEntry, id: string) => void;
+  selectedOpcodeId?: string | null;
+  onHoverNode?: (id: string) => void;
+  onLeaveNode?: () => void;
 }
 
 export function TraceTree({
@@ -36,6 +41,10 @@ export function TraceTree({
   onToggle,
   connectors = [],
   parentContractName,
+  onSelectOpcode,
+  selectedOpcodeId,
+  onHoverNode,
+  onLeaveNode,
 }: TraceTreeProps) {
   return (
     <>
@@ -78,6 +87,8 @@ export function TraceTree({
                 addressLabels={addressLabels}
                 tokenLabels={tokenLabels}
                 tokenAddresses={tokenAddresses}
+                onHover={onHoverNode}
+                onLeave={onLeaveNode}
               />
 
               {isOpen && hasChildren && (
@@ -91,6 +102,10 @@ export function TraceTree({
                   onToggle={onToggle}
                   connectors={childConnectors}
                   parentContractName={childContractName}
+                  onSelectOpcode={onSelectOpcode}
+                  selectedOpcodeId={selectedOpcodeId}
+                  onHoverNode={onHoverNode}
+                  onLeaveNode={onLeaveNode}
                 />
               )}
               {isOpen && !!node.error && (() => {
@@ -141,6 +156,8 @@ export function TraceTree({
                 tokenLabels={tokenLabels}
                 tokenAddresses={tokenAddresses}
                 parentContractName={parentContractName}
+                onHover={onHoverNode}
+                onLeave={onLeaveNode}
               />
 
               {isOpen && hasChildren && (
@@ -154,6 +171,10 @@ export function TraceTree({
                   onToggle={onToggle}
                   connectors={childConnectors}
                   parentContractName={parentContractName}
+                  onSelectOpcode={onSelectOpcode}
+                  selectedOpcodeId={selectedOpcodeId}
+                  onHoverNode={onHoverNode}
+                  onLeaveNode={onLeaveNode}
                 />
               )}
             </div>
@@ -170,6 +191,10 @@ export function TraceTree({
             tokenAddresses={tokenAddresses}
             connectors={connectors}
             isLast={isLast}
+            onSelect={item.entry.kind === 'opcode'
+              ? (entry) => onSelectOpcode?.(entry as any, item.id)
+              : undefined}
+            selected={selectedOpcodeId === item.id}
           />
         );
       })}

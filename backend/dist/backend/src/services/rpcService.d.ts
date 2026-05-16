@@ -10,11 +10,21 @@ export declare function buildTxOverview(rpcUrl: string, txHash: string): Promise
 export declare function debugTraceTransaction(rpcUrl: string, txHash: string): Promise<any>;
 export declare function getPrestateTrace(rpcUrl: string, txHash: string): Promise<any>;
 /**
- * Fetch the full structlog trace and filter to interesting opcodes only.
- * The raw structlog can be millions of entries — we keep only the subset
- * needed to show SLOAD/SSTORE, jumps, events, and call boundaries.
+ * Lightweight structlog trace capturing only call boundaries, internal jumps,
+ * and log events — no EVM stack or memory snapshots.
+ *
+ * This replaces the previous heavy approach that captured 128 stack entries
+ * and 128 memory words per JUMP opcode. The result is dramatically smaller
+ * and faster while still supporting:
+ *   - JumpFrame creation (internal Solidity functions via JUMP-in/out)
+ *   - Sourcify source-map annotation (function names per PC)
+ *   - Inline event ordering (LOG* positions preserve execution order)
+ *   - DELEGATECALL context tracking (call variants maintain context stack)
+ *
+ * SLOAD/SSTORE inline steps are intentionally removed; storage changes
+ * remain visible in the State Diffs tab via prestateTracer.
  */
-export declare function getFilteredStructLog(rpcUrl: string, txHash: string, verbose?: boolean): Promise<import('../types').FilteredStructLog[]>;
+export declare function getFilteredStructLog(rpcUrl: string, txHash: string, _verbose?: boolean): Promise<import('../types').FilteredStructLog[]>;
 export declare function normalizeCallTree(raw: any, parentId?: string, depth?: number): TraceNode;
 export declare function parseAllLogs(receipt: any): {
     allLogs: EventLog[];

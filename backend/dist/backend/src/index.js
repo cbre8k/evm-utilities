@@ -55,6 +55,7 @@ const jobs_1 = __importDefault(require("./routes/jobs"));
 const share_1 = __importDefault(require("./routes/share"));
 const selectors_1 = __importDefault(require("./routes/selectors"));
 const sourcify_1 = __importDefault(require("./routes/sourcify"));
+const etherscan_1 = __importDefault(require("./routes/etherscan"));
 const run_1 = __importDefault(require("./routes/run"));
 const config_1 = require("./config");
 const app = (0, express_1.default)();
@@ -70,6 +71,7 @@ app.use('/jobs', jobs_1.default);
 app.use('/share', share_1.default);
 app.use('/selectors', selectors_1.default);
 app.use('/sourcify', sourcify_1.default);
+app.use('/etherscan', etherscan_1.default);
 app.use('/run', run_1.default);
 // ── Error handler (must be last) ─────────────────────────────
 app.use(errorHandler_1.errorHandler);

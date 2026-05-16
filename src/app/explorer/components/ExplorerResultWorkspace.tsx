@@ -37,10 +37,6 @@ export default function ExplorerResultWorkspace({
             txOverview={result.txOverview}
             decodedCalldata={result.decodedCalldata}
             decodedOutput={result.decodedOutput}
-            nativeTransfers={result.nativeTransfers ?? []}
-            erc20Transfers={result.erc20Transfers ?? []}
-            erc721Transfers={result.erc721Transfers ?? []}
-            erc1155Transfers={result.erc1155Transfers ?? []}
             rawOutput={result.normalizedTree?.output}
             root={result.normalizedTree}
             structLog={result.structLog}
@@ -73,6 +69,10 @@ export default function ExplorerResultWorkspace({
             tokenLabels={result.tokenLabels ?? {}}
             addressLabels={result.addressLabels ?? {}}
             txSender={result.txOverview?.from}
+            transferCount={(result.nativeTransfers?.length ?? 0)
+              + (result.erc20Transfers?.length ?? 0)
+              + (result.erc721Transfers?.length ?? 0)
+              + (result.erc1155Transfers?.length ?? 0)}
           />
         )}
 
@@ -92,6 +92,7 @@ export default function ExplorerResultWorkspace({
             </div>
           </div>
         )}
+
       </div>
     </main>
   );

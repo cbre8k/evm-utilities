@@ -166,7 +166,7 @@ router.post('/', (req, res) => {
     const sessionId = Math.random().toString(36).substring(7);
     tempDir = setupLightWorkspace(sessionId, inputs.scriptContent);
     command = forgeBin;
-    args = ['test', '--mt', 'testSimulation', '-vvvv', '--color', 'always'];
+    args = ['test', '--mt', 'testSimulation', '-vvvv', '--decode-internal', '--color', 'always'];
     send(`> forge ${args.join(' ')}\r\n\r\n`);
 
   } else {

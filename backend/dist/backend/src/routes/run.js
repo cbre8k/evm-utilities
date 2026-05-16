@@ -17,21 +17,52 @@ const MAX_CONCURRENT = config_1.config.jobs.maxConcurrent;
 const PROCESS_TIMEOUT_MS = config_1.config.jobs.processTimeoutMs;
 let activeJobs = 0;
 // ── Foundry paths ────────────────────────────────────────────
-const projectRoot = path_1.default.resolve(__dirname, '..', '..', '..');
+// Walk up from __dirname until we find the repo root (has package.json + foundry/)
+function findProjectRoot() {
+    let dir = __dirname;
+    for (let i = 0; i < 10; i++) {
+        if (fs_1.default.existsSync(path_1.default.join(dir, 'foundry')) && fs_1.default.existsSync(path_1.default.join(dir, 'package.json'))) {
+            return dir;
+        }
+        const parent = path_1.default.dirname(dir);
+        if (parent === dir)
+            break;
+        dir = parent;
+    }
+    // Fallback: assume CWD is project root
+    return process.cwd();
+}
+const projectRoot = findProjectRoot();
 const sourceFoundryDir = path_1.default.join(projectRoot, 'foundry');
 function locateBinaries() {
     const projectBin = path_1.default.join(projectRoot, 'bin');
+    const backendBin = path_1.default.join(projectRoot, 'backend', 'foundry-bin');
     const homeDir = process.env.HOME || '/root';
     const userBin = path_1.default.join(homeDir, '.foundry/bin');
-    let forgeBin = 'forge';
-    let castBin = 'cast';
-    if (fs_1.default.existsSync(path_1.default.join(projectBin, 'forge'))) {
-        forgeBin = path_1.default.join(projectBin, 'forge');
-        castBin = path_1.default.join(projectBin, 'cast');
+    // Check backend/foundry-bin (Render build) first, then foundry install, then project bin (macOS)
+    const candidates = [
+        backendBin,
+        userBin,
+        '/root/.foundry/bin',
+        '/opt/render/.foundry/bin',
+        '/opt/render/project/src/backend/foundry-bin',
+        '/usr/local/bin',
+        projectBin,
+    ];
+    let forgeBin = '';
+    let castBin = '';
+    for (const dir of candidates) {
+        if (fs_1.default.existsSync(path_1.default.join(dir, 'forge'))) {
+            forgeBin = path_1.default.join(dir, 'forge');
+            castBin = path_1.default.join(dir, 'cast');
+            console.log(`[run] found foundry binaries in ${dir}`);
+            break;
+        }
     }
-    else if (fs_1.default.existsSync(path_1.default.join(userBin, 'forge'))) {
-        forgeBin = path_1.default.join(userBin, 'forge');
-        castBin = path_1.default.join(userBin, 'cast');
+    if (!forgeBin) {
+        console.warn('[run] foundry binaries not found in:', candidates.join(', '));
+        forgeBin = 'forge';
+        castBin = 'cast';
     }
     return { forgeBin, castBin, projectBin, userBin };
 }
@@ -121,7 +152,7 @@ router.post('/', (req, res) => {
         const sessionId = Math.random().toString(36).substring(7);
         tempDir = setupLightWorkspace(sessionId, inputs.scriptContent);
         command = forgeBin;
-        args = ['test', '--mt', 'testSimulation', '-vvvv', '--color', 'always'];
+        args = ['test', '--mt', 'testSimulation', '-vvvv', '--decode-internal', '--color', 'always'];
         send(`> forge ${args.join(' ')}\r\n\r\n`);
     }
     else {

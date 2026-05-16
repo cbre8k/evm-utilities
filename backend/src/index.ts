@@ -18,6 +18,7 @@ import jobsRouter from './routes/jobs';
 import shareRouter from './routes/share';
 import selectorsRouter from './routes/selectors';
 import sourcifyRouter from './routes/sourcify';
+import etherscanRouter from './routes/etherscan';
 import runRouter from './routes/run';
 import { config } from './config';
 
@@ -36,6 +37,7 @@ app.use('/jobs', jobsRouter);
 app.use('/share', shareRouter);
 app.use('/selectors', selectorsRouter);
 app.use('/sourcify', sourcifyRouter);
+app.use('/etherscan', etherscanRouter);
 app.use('/run', runRouter);
 
 // ── Error handler (must be last) ─────────────────────────────

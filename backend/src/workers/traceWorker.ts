@@ -64,22 +64,21 @@ type StructLogEntry = {
   sourceFile?: string;
   sourceLine?: number;
   sourceJump?: string;
+  sourceStart?: number;
+  sourceLength?: number;
+  sourceFileIndex?: number;
   jumpTargetLabel?: string;
   jumpTargetFile?: string;
   jumpTargetLine?: number;
   jumpTargetParams?: Array<{ name: string; type: string }>;
   jumpTargetFunction?: string;
   jumpTargetFunctionParams?: string[];
+  jumpResolvedParams?: string[];
   jumpTargetFunctionReturnsValue?: boolean;
+  jumpStack?: string[];
+  jumpMemory?: string[];
 };
 
-function formatParamType(param: any): string {
-  if (!param || typeof param !== 'object') return 'unknown';
-  if (param.typeDescriptions?.typeString) return String(param.typeDescriptions.typeString);
-  if (param.typeName?.name) return String(param.typeName.name);
-  if (param.typeName?.nodeType === 'ElementaryTypeName' && param.typeName?.name) return String(param.typeName.name);
-  return 'unknown';
-}
 
 function collectTraceAddresses(node: any, out = new Set<string>()): string[] {
   if (node?.from) out.add(String(node.from).toLowerCase());
@@ -119,6 +118,29 @@ async function buildAddressLabelMap(
   );
 
   return Object.fromEntries(entries.filter(([, label]) => !!label)) as Record<string, string>;
+}
+
+function formatParamType(param: any): string {
+  if (!param || typeof param !== 'object') return 'unknown';
+  let type: string;
+  if (param.typeDescriptions?.typeString) {
+    type = String(param.typeDescriptions.typeString);
+  } else if (param.typeName?.name) {
+    type = String(param.typeName.name);
+  } else if (param.typeName?.nodeType === 'ElementaryTypeName' && param.typeName?.name) {
+    type = String(param.typeName.name);
+  } else {
+    return 'unknown';
+  }
+  // Solidity's typeDescriptions.typeString does NOT include the data-location qualifier
+  // (calldata / memory / storage) — that is stored separately in the node's storageLocation
+  // field.  Append it so that resolveInternalCallParams can distinguish calldata slices
+  // (2 stack words) from memory references (1 stack word).
+  const loc = typeof param.storageLocation === 'string' ? param.storageLocation : '';
+  if (loc && loc !== 'default' && !type.includes(loc)) {
+    type = `${type} ${loc}`;
+  }
+  return type;
 }
 
 function parseSrc(src?: string): { start: number; length: number; fileIndex: number } | null {
@@ -211,8 +233,11 @@ function parseFunctionParams(paramsText: string): Array<{ name: string; type: st
         !['memory', 'storage', 'calldata', 'payable'].includes(last);
       const name = hasName ? last : `arg${index}`;
       const typeParts = hasName ? parts.slice(0, -1) : parts;
+      // Preserve location qualifiers (calldata/memory/storage) in the type string so that
+      // resolveInternalCallParams can distinguish calldata slices (2 stack words) from
+      // memory references (1 stack word).  Only strip 'payable' which carries no ABI meaning.
       const type = typeParts
-        .filter((part) => !['memory', 'storage', 'calldata', 'payable'].includes(part))
+        .filter((part) => part !== 'payable')
         .join(' ') || 'unknown';
 
       return { name, type };
@@ -286,14 +311,21 @@ async function buildRuntimeAnnotator(chainId: number, address: string): Promise<
     const id = typeof (sourceInfo as any)?.id === 'number' ? (sourceInfo as any).id : undefined;
     if (typeof id === 'number') fileIndexToPath.set(id, path);
   });
+  Object.keys(info.sources ?? {}).forEach((path) => {
+    const sourceInfo = (info.stdJsonOutput?.sources ?? {})[path] as any;
+    const id = typeof sourceInfo?.id === 'number' ? sourceInfo.id : undefined;
+    if (typeof id === 'number' && !fileIndexToPath.has(id)) fileIndexToPath.set(id, path);
+  });
 
   const astFunctionRanges = Object.values(outputSources)
     .flatMap((sourceInfo) => collectFunctionRanges((sourceInfo as any)?.ast))
     .sort((a, b) => (a.end - a.start) - (b.end - b.start));
-  const sourceFunctionRanges = Object.entries(outputSources)
+  const sourceFunctionRanges = Object.entries(info.sources ?? {})
     .flatMap(([path, sourceInfo]) => {
-      const fileIndex = typeof (sourceInfo as any)?.id === 'number' ? (sourceInfo as any).id : undefined;
-      const source = info.sources[path]?.content;
+      const fileIndex = typeof (outputSources as any)?.[path]?.id === 'number'
+        ? (outputSources as any)[path].id
+        : undefined;
+      const source = (sourceInfo as any)?.content;
       if (typeof fileIndex !== 'number' || !source) return [];
       return collectFunctionRangesFromSource(source, fileIndex, info.contractName);
     })
@@ -332,6 +364,11 @@ function applySourceMeta(entry: StructLogEntry, meta: TraceSourceMeta): void {
   if (meta.sourceLabel) entry.sourceLabel = meta.sourceLabel;
   if (meta.sourceFile) entry.sourceFile = meta.sourceFile;
   if (meta.sourceLine) entry.sourceLine = meta.sourceLine;
+  if (meta.sourceLocation) {
+    entry.sourceStart = meta.sourceLocation.start;
+    entry.sourceLength = meta.sourceLocation.length;
+    entry.sourceFileIndex = meta.sourceLocation.fileIndex;
+  }
   if (meta.sourceLocation?.jump && meta.sourceLocation.jump !== '-') {
     entry.sourceJump = meta.sourceLocation.jump;
   }
@@ -357,6 +394,8 @@ function parseJumpDestination(jumpTo?: string): number | null {
 
 class JumpDispatcher {
   private pendingJumpIn: { entry: StructLogEntry; targetPc: number } | null = null;
+
+  constructor(private readonly calldata?: string) {}
 
   dispatch(entry: StructLogEntry, annotator: RuntimeAnnotator): void {
     const currentMeta = annotator.annotatePc(entry.pc);
@@ -393,15 +432,253 @@ class JumpDispatcher {
       return;
     }
 
-    applyJumpTargetMeta(this.pendingJumpIn.entry, meta);
+    const jumpEntry = this.pendingJumpIn.entry;
+    applyJumpTargetMeta(jumpEntry, meta);
+
+    // Resolve call parameters now that jumpTargetParams is authoritative from the JUMPDEST.
+    // annotatePc(targetPc) at JUMP time sometimes misses the function range; the JUMPDEST's
+    // own source map entry is the reliable lookup point.
+    if (
+      jumpEntry.sourceJump === 'i' &&
+      jumpEntry.jumpTargetParams?.length &&
+      jumpEntry.jumpStack?.length &&
+      !jumpEntry.jumpResolvedParams
+    ) {
+      const resolved = resolveInternalCallParams('JUMP', jumpEntry.jumpStack, jumpEntry.jumpTargetParams, this.calldata);
+      if (resolved) jumpEntry.jumpResolvedParams = resolved;
+    }
+
     this.pendingJumpIn = null;
   }
+}
+
+// ── Internal call parameter resolution ───────────────────────
+
+/**
+ * Extract a calldata slice and return a human-readable decoded value.
+ *
+ * @param calldata  Full transaction calldata ("0x" + hex).
+ * @param offset    Byte offset into calldata where the slice begins.
+ * @param byteLen   Byte length of the slice.
+ * @param type      Solidity type string (e.g. "uint256[] calldata", "bytes calldata").
+ * @param baseTypeFn  The same baseType() helper used in resolve.
+ */
+function sliceCalldata(
+  calldata: string,
+  offset: bigint,
+  byteLen: bigint,
+  type: string,
+  baseTypeFn: (t: string) => string,
+): string | null {
+  // Sanity guards — reject obviously wrong (e.g. swapped offset/length) values
+  if (offset < 0n || byteLen < 0n) return null;
+  if (byteLen === 0n) return type.includes('bytes') || type.includes('string') ? '0x' : '[]';
+  // Refuse implausibly large values to avoid Number precision loss / huge allocations
+  if (offset > 65536n || byteLen > 65536n) return null;
+
+  const hex = calldata.startsWith('0x') ? calldata.slice(2) : calldata;
+  const byteStart = Number(offset);
+  const byteCount = Number(byteLen);
+  if ((byteStart + byteCount) * 2 > hex.length) return null; // out of bounds
+
+  const slice = hex.slice(byteStart * 2, (byteStart + byteCount) * 2);
+  const b = baseTypeFn(type);
+
+  // bytes / string
+  if (b === 'bytes') return byteCount === 0 ? '0x' : '0x' + slice;
+  if (b === 'string') {
+    try {
+      const bytes = Uint8Array.from(slice.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+      return '"' + new TextDecoder().decode(bytes) + '"';
+    } catch { return '0x' + slice; }
+  }
+
+  // Array type: every EVM value element is padded to 32 bytes
+  if (b.endsWith('[]') || b.includes('[')) {
+    const elemType = b.replace(/\[.*/, '').trim(); // strip [] suffix
+    const elemCount = Math.floor(byteCount / 32);
+    if (elemCount === 0) return '[]';
+    const elements: string[] = [];
+    for (let i = 0; i < elemCount; i++) {
+      const word = '0x' + slice.slice(i * 64, (i + 1) * 64);
+      if (elemType.includes('address')) {
+        elements.push('0x' + word.slice(-40));
+      } else {
+        // uint*, int*, bytes32, etc. — compact hex (trim leading zeros)
+        try { elements.push('0x' + BigInt(word).toString(16)); } catch { elements.push(word); }
+      }
+    }
+    return '[' + elements.join(', ') + ']';
+  }
+
+  return '0x' + slice; // fallback: raw hex
+}
+
+/**
+ * Decode parameters for a Solidity internal function call from the EVM stack.
+ *
+ * Stack layout at JUMP — Solidity pushes args so the FIRST declared param ends
+ * up closest to the stack top:
+ *   peek(0)   = jump destination
+ *   peek(1)   = first declared param's first word
+ *   peek(2)   = first declared param's second word (for 2-word calldata slices)
+ *   ...
+ *   peek(N)   = last declared param's last word
+ *
+ * Case 1 — static value types (address, uint*, int*, bool, bytesN):
+ *   1 stack word; decoded directly.
+ *
+ * Case 2 — memory-dynamic types (bytes memory, string memory, unqualified bytes/string):
+ *   1 stack word (memory pointer); value is not decodable without memory access → '?'.
+ *
+ * Case 3 — calldata-dynamic types (bytes calldata, string calldata):
+ *   2 stack words: (offset, length) — a calldata slice pointer.
+ *   Shown as calldata[offset+length] pointer notation; no data is read because
+ *   there is no mload-equivalent for calldata in the trace context.
+ */
+function resolveInternalCallParams(
+  op: string,
+  jumpStack: string[],
+  params: Array<{ name: string; type: string }>,
+  calldata?: string,
+): string[] | null {
+  if (!params.length || !jumpStack.length) return null;
+
+  // Parse a stack word as a BigInt; returns null on failure.
+  const toBigInt = (h: string): bigint | null => {
+    try { return BigInt(h.startsWith('0x') ? h : `0x${h}`); } catch { return null; }
+  };
+
+  // Strip ABI location modifiers to get the canonical Solidity base type
+  const baseType = (t: string) =>
+    t.toLowerCase().trim().replace(/\b(calldata|memory|storage|payable)\b/g, '').replace(/\s+/g, ' ').trim();
+
+  const isDyn = (t: string) => {
+    const b = baseType(t);
+    return b === 'bytes' || b === 'string' || b.endsWith('[]') || b.includes('[]');
+  };
+  // Calldata-dynamic: ONLY when the type explicitly carries the 'calldata' qualifier.
+  // Two stack words: (calldata-offset, byte-length).
+  const isCalldataDyn = (t: string) => isDyn(t) && t.toLowerCase().includes('calldata');
+  // Memory-dynamic: dynamic types with 'memory' qualifier OR without any qualifier
+  // (Solidity defaults unqualified reference types to 'memory' for internal params).
+  // One stack word: a memory pointer — we can't decode the value without memory access.
+  const isMemDyn = (t: string) => isDyn(t) && !isCalldataDyn(t);
+
+  // Every param occupies at least 1 stack word; calldata-dynamic occupy 2.
+  const stackStart = op === 'JUMPI' ? 2 : 1; // skip dest (+ JUMPI condition)
+  const wordsNeeded = params.reduce((sum, p) => sum + (isCalldataDyn(p.type) ? 2 : 1), 0);
+
+  if (jumpStack.length < stackStart + wordsNeeded) return null;
+
+  /**
+   * Decode one attempt given a `words` slice (already offset past dest/condition).
+   * `words[0]` corresponds to the LAST declared parameter (Solidity reversal),
+   * or the first if called with the forward slice.
+   */
+  const decode = (words: string[]): string[] => {
+    const result: string[] = [];
+    let idx = 0;
+    for (const p of params) {
+      if (isMemDyn(p.type)) {
+        idx++; // consume the 1-word memory pointer — value is not decodable without memory access
+        result.push('?'); // Case 2: memory-dynamic, skip value
+        continue;
+      }
+
+      if (isCalldataDyn(p.type)) {
+        // Case 3: two stack words — (offset, length) calldata pointer pair.
+        // If we have the raw calldata, decode the actual bytes; otherwise fall
+        // back to the compact pointer notation calldata[offset+byteLen].
+        const w1 = words[idx], w2 = words[idx + 1];
+        idx += 2;
+        if (!w1 || !w2) { result.push('?'); continue; }
+        const off = toBigInt(w1);
+        const len = toBigInt(w2);
+        if (off !== null && len !== null) {
+          const decoded = calldata ? sliceCalldata(calldata, off, len, p.type, baseType) : null;
+          result.push(decoded ?? `calldata[${w1}+${len}]`);
+        } else {
+          result.push('?');
+        }
+        continue;
+      }
+
+      // Case 1: static value type — 1 stack word
+      const w = words[idx++];
+      if (!w) { result.push('?'); continue; }
+      const b = baseType(p.type);
+      const raw = w.startsWith('0x') ? w.slice(2) : w;
+      if (b.includes('address')) {
+        result.push('0x' + raw.slice(-40));
+      } else if (b === 'bool') {
+        try { result.push(BigInt(w) === 0n ? 'false' : 'true'); } catch { result.push(w); }
+      } else if (b.startsWith('uint')) {
+        try { result.push(BigInt(w).toString()); } catch { result.push(w); }
+      } else if (b.startsWith('int')) {
+        // Sign-extend from 256-bit two's complement
+        try {
+          const u = BigInt(w);
+          const TWO_255 = 1n << 255n;
+          const signed = u >= TWO_255 ? u - (1n << 256n) : u;
+          result.push(signed.toString());
+        } catch { result.push(w); }
+      } else {
+        result.push(w); // bytes32, etc.
+      }
+    }
+    return result;
+  };
+
+  /**
+   * Score a decoded result: lower = better.
+   * Penalises obvious type mismatches (e.g. address word with high bits set,
+   * bool that is neither 0 nor 1).
+   */
+  const score = (values: string[]): number => {
+    let penalty = 0;
+    for (let i = 0; i < params.length; i++) {
+      const v = values[i] ?? '?';
+      if (v === '?') { penalty += 3; continue; }
+      const b = baseType(params[i].type);
+      const raw = v.startsWith('0x') ? v.slice(2) : v;
+      if (b.includes('address')) {
+        // An address should have its high 12 bytes zeroed
+        if (raw.length > 40 && raw.slice(0, raw.length - 40).replace(/0/g, '') !== '') penalty += 5;
+        // A value shorter than 40 hex chars cannot be a full Ethereum address
+        if (raw.length < 40) penalty += 3;
+        // Very short values (clearly a PC, offset, or other small integer, not an address)
+        if (raw.length < 10) penalty += 5;
+        if (raw === '0'.repeat(raw.length)) penalty += 2; // zero address is suspicious
+      }
+      if (b === 'bool' && v !== 'false' && v !== 'true') penalty += 5;
+    }
+    return penalty;
+  };
+
+  // Solidity pushes args so that the FIRST declared param ends up closest to the
+  // stack top (lowest peek index after dest).  For calldata slices the offset word
+  // is pushed after the length word, so offset sits at a lower peek index (closer
+  // to dest) than length.
+  //
+  // Therefore rawSlice[0] = first-param's first word, rawSlice[1] = first-param's
+  // second word (if calldata), etc. — this is the "fwd" / declaration order.
+  // "rev" (reversed) is kept only as a scoring fallback for safety.
+  const rawSlice = jumpStack.slice(stackStart, stackStart + wordsNeeded);
+  const fwd = decode(rawSlice);                // declaration order — the canonical correct order
+  const rev = decode([...rawSlice].reverse()); // reversed — fallback sanity check
+
+  // Prefer fwd unless rev clearly scores better (lower = fewer type mismatches).
+  // Using strict < so ties always go to fwd.
+  const best = score(rev) < score(fwd) ? rev : fwd;
+  return best.every(v => v === '?') ? null : best;
 }
 
 async function annotateStructLogWithSourceLabels(
   structLog: StructLogEntry[],
   root: any,
   chainId: number,
+  txCalldata?: string,
 ): Promise<StructLogEntry[]> {
   if (!structLog.length) return structLog;
 
@@ -429,7 +706,8 @@ async function annotateStructLogWithSourceLabels(
     const currentFrame = activeFrames[frameDepth] ?? root;
     const currentAddress = (currentFrame?.to ?? currentFrame?.from ?? '').toLowerCase();
 
-    if ((entry.op === 'CALL' || entry.op === 'CALLCODE' || entry.op === 'STATICCALL' || entry.op === 'DELEGATECALL' || entry.op === 'CREATE' || entry.op === 'CREATE2')) {
+    if (entry.op === 'CALL' || entry.op === 'CALLCODE' || entry.op === 'STATICCALL' ||
+        entry.op === 'DELEGATECALL' || entry.op === 'CREATE' || entry.op === 'CREATE2') {
       const node = callQueue[callIdx++] ?? null;
       if (node) activeFrames[rowDepth] = node;
     }
@@ -444,24 +722,47 @@ async function annotateStructLogWithSourceLabels(
     if (!annotator) continue;
 
     const dispatcherKey = `${frameDepth}:${currentAddress}`;
-    const dispatcher = dispatchers.get(dispatcherKey) ?? new JumpDispatcher();
+    const dispatcher = dispatchers.get(dispatcherKey) ?? new JumpDispatcher(txCalldata);
     dispatchers.set(dispatcherKey, dispatcher);
 
-    if (entry.op === 'JUMP') {
+    if (entry.op === 'JUMP' || entry.op === 'JUMPDEST') {
       dispatcher.dispatch(entry, annotator);
+      // Attempt to decode internal call parameters for call-site JUMPs ('i').
+      // Return JUMPs ('o') are excluded to avoid false decodes (the stack at a
+      // return JUMP contains return values / return PCs, not function arguments).
+      // Note: most decodes happen inside handleJumpDest (above); this block is a
+      // fast-path for the rare case where annotatePc(targetPc) already resolved
+      // the function range at JUMP time.
+      if (entry.op === 'JUMP' && entry.sourceJump === 'i') {
+        if (entry.jumpTargetParams?.length && entry.jumpStack?.length && !entry.jumpResolvedParams) {
+          const resolved = resolveInternalCallParams(
+            'JUMP',
+            entry.jumpStack,
+            entry.jumpTargetParams,
+            txCalldata,
+          );
+          if (resolved) entry.jumpResolvedParams = resolved;
+        }
+      }
       continue;
     }
 
-    if (entry.op === 'JUMPDEST') {
-      dispatcher.dispatch(entry, annotator);
-      continue;
-    }
-
+    // JUMPI — annotate current PC and jump target
     const meta = annotator.annotatePc(entry.pc);
     applySourceMeta(entry, meta);
     const targetPc = parseJumpDestination(entry.jumpTo);
     if (targetPc !== null) {
       applyJumpTargetMeta(entry, annotator.annotatePc(targetPc));
+    }
+    // Attempt to decode internal call parameters for JUMPI call sites as well
+    if (entry.jumpTargetParams?.length && entry.jumpStack?.length) {
+      const resolved = resolveInternalCallParams(
+        'JUMPI',
+        entry.jumpStack,
+        entry.jumpTargetParams,
+        txCalldata,
+      );
+      if (resolved) entry.jumpResolvedParams = resolved;
     }
   }
 
@@ -487,7 +788,7 @@ export async function buildTraceResultPayload(
   ]);
 
   const normalizedTree = normalizeCallTree(rawCallTree);
-  const structLog = await annotateStructLogWithSourceLabels(rawStructLog, normalizedTree, chainId);
+  const structLog = await annotateStructLogWithSourceLabels(rawStructLog, normalizedTree, chainId, txOverview.input);
   const {
     allLogs,
     erc20Transfers,
@@ -607,7 +908,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
     ]);
 
     const normalizedTree  = normalizeCallTree(rawCallTree);
-    const structLog = await annotateStructLogWithSourceLabels(rawStructLog, normalizedTree, chainId);
+    const structLog = await annotateStructLogWithSourceLabels(rawStructLog, normalizedTree, chainId, txOverview.input);
     const {
       allLogs,
       erc20Transfers,

@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import type { AddressStateDiff, FilteredStructLog, TraceNode } from '@/types/explorer';
 import styles from '../../explorer.module.scss';
 import { buildFromStructLog, buildFlatEntries, buildTraceTree, parseGas } from './callTraceBuild';
 import { TraceTree } from './callTraceTree';
+import CallGraphTab from './CallGraphTab';
+import type { ContractSourceBundle, SourceSelection } from './sourceMapTypes';
+import { pickFileByName } from './sourceMapUtils';
+import SourceMapInspector from './SourceMapInspector';
 
 // ── Component ─────────────────────────────────────────────────
 
@@ -20,6 +24,8 @@ interface Props {
   embedded?: boolean;
 }
 
+type SourceCache = Record<string, ContractSourceBundle | null>;
+
 export default function CallTraceTab({
   root,
   structLog,
@@ -28,8 +34,23 @@ export default function CallTraceTab({
   tokenLabels = {},
   tokenAddresses = [],
   stateDiffs = [],
+  chainId = 1,
   embedded = false,
 }: Props) {
+  const rootNode = useMemo<TraceNode>(() => root ?? {
+    id: 'missing-root',
+    depth: 0,
+    type: 'CALL',
+    from: '',
+    to: null,
+    input: '0x',
+    output: '0x',
+    value: '0x0',
+    gas: '0x0',
+    gasUsed: '0x0',
+    children: [],
+  }, [root]);
+
   const tokenAddressSet = useMemo(
     () => new Set(tokenAddresses.map((address) => address.toLowerCase())),
     [tokenAddresses],
@@ -37,9 +58,9 @@ export default function CallTraceTab({
 
   const allEntries = useMemo(
     () => (structLog && structLog.length > 0)
-      ? buildFromStructLog(structLog, root, allLogs)
-      : buildFlatEntries(root, stateDiffs),
-    [root, stateDiffs, structLog, allLogs],
+      ? buildFromStructLog(structLog, rootNode, allLogs)
+      : buildFlatEntries(rootNode, stateDiffs),
+    [rootNode, stateDiffs, structLog, allLogs],
   );
   const treeItems = useMemo(() => buildTraceTree(allEntries), [allEntries]);
   const callCount = useMemo(
@@ -47,12 +68,94 @@ export default function CallTraceTab({
     [allEntries],
   );
 
-  const totalGas = useMemo(() => parseGas(root.gasUsed) || 1, [root.gasUsed]);
-  const [openCalls, setOpenCalls] = useState<Record<string, boolean>>(() => ({ [root.id]: true }));
+  const totalGas = useMemo(() => parseGas(rootNode.gasUsed) || 1, [rootNode.gasUsed]);
+  const [openCalls, setOpenCalls] = useState<Record<string, boolean>>(() => ({ [rootNode.id]: true }));
+  const [selectedOpcodeId, setSelectedOpcodeId] = useState<string | null>(null);
+  const [selection, setSelection] = useState<SourceSelection | null>(null);
+  const [sourceCache, setSourceCache] = useState<SourceCache>({});
+  const [sourceLoading, setSourceLoading] = useState(false);
+  const [sourceError, setSourceError] = useState<string | null>(null);
+  const [hoveredTraceId, setHoveredTraceId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedOpcodeId(null);
+    setSelection(null);
+    setSourceLoading(false);
+    setSourceError(null);
+  }, [rootNode]);
+
+  async function loadSourceBundle(address: string) {
+    const key = address.toLowerCase();
+    if (sourceCache[key] !== undefined) return sourceCache[key];
+
+    setSourceLoading(true);
+    setSourceError(null);
+    try {
+      const res = await fetch(`/api/etherscan/${chainId}/${key}`);
+      if (!res.ok) throw new Error('Source not verified on Etherscan');
+      const data = await res.json();
+      const bundle: ContractSourceBundle = {
+        address: data.address,
+        contractName: data.contractName ?? null,
+        compilerVersion: data.compilerVersion ?? undefined,
+        sources: data.sources ?? [],
+      };
+      setSourceCache((current) => ({ ...current, [key]: bundle }));
+      return bundle;
+    } catch (err) {
+      setSourceCache((current) => ({ ...current, [key]: null }));
+      setSourceError(err instanceof Error ? err.message : 'Failed to load source');
+      return null;
+    } finally {
+      setSourceLoading(false);
+    }
+  }
+
+  async function handleSelectOpcode(entry: import('./callTraceTypes').OpcodeEntry, id: string) {
+    setSelectedOpcodeId(id);
+    setSourceError(null);
+    if (!entry.address) {
+      setSelection({ address: '', opcode: entry.op, pc: entry.pc });
+      setSourceError('Opcode does not have a contract address.');
+      return;
+    }
+
+    const bundle = await loadSourceBundle(entry.address);
+    if (!bundle) {
+      setSelection({ address: entry.address, opcode: entry.op, pc: entry.pc });
+      return;
+    }
+    let file = pickFileByName(bundle, entry.file);
+    let errorMessage: string | null = null;
+    if (!file && bundle) {
+      const fallback = bundle.sources[0];
+      if (fallback) {
+        file = fallback;
+        errorMessage = `Source file ${entry.file ?? '(unknown)'} not found. Showing ${fallback.name}.`;
+      } else {
+        errorMessage = `Source file ${entry.file ?? '(unknown)'} not found in verified contract.`;
+      }
+    }
+    setSelection({
+      address: entry.address,
+      file,
+      line: entry.line,
+      start: entry.sourceStart,
+      length: entry.sourceLength,
+      opcode: entry.op,
+      pc: entry.pc,
+    });
+    if (errorMessage) setSourceError(errorMessage);
+  }
+
+  const selectedBundle = selection?.address
+    ? sourceCache[selection.address.toLowerCase()] ?? null
+    : null;
+  const finalSelection = selection;
 
   return (
     <div className={embedded ? styles.traceEmbedded : styles.tabContent}>
-      <div className={styles.section}>
+      <div className={`${styles.section} ${styles.traceSection}`.trim()}>
         <div className={styles.sectionHeader}>
           <span>■ CALL TRACE</span>
           <div className={styles.traceToolbar}>
@@ -62,19 +165,48 @@ export default function CallTraceTab({
           </div>
         </div>
 
-        <div className={styles.traceTreeShell}>
-          <div className={styles.traceList}>
-            <div className={styles.traceListInner}>
-              <TraceTree
-                items={treeItems}
-                addressLabels={addressLabels}
-                tokenLabels={tokenLabels}
-                tokenAddresses={tokenAddressSet}
-                totalGas={totalGas}
-                openCalls={openCalls}
-                onToggle={(id) => setOpenCalls((current) => ({ ...current, [id]: !current[id] }))}
-              />
+        <div className={styles.traceSplit}>
+          <div className={styles.tracePane}>
+            <div className={styles.traceList}>
+              <div className={styles.traceListInner}>
+                <TraceTree
+                  items={treeItems}
+                  addressLabels={addressLabels}
+                  tokenLabels={tokenLabels}
+                  tokenAddresses={tokenAddressSet}
+                  totalGas={totalGas}
+                  openCalls={openCalls}
+                  onToggle={(id) => setOpenCalls((current) => ({ ...current, [id]: !current[id] }))}
+                  onSelectOpcode={handleSelectOpcode}
+                  selectedOpcodeId={selectedOpcodeId}
+                  onHoverNode={(id) => setHoveredTraceId(id)}
+                  onLeaveNode={() => setHoveredTraceId(null)}
+                />
+              </div>
             </div>
+            {!embedded && (
+              <div className={styles.sourcePane}>
+                <SourceMapInspector
+                  selection={finalSelection}
+                  bundle={selectedBundle ?? null}
+                  isLoading={sourceLoading}
+                  error={sourceError}
+                  onClose={() => setSelection(null)}
+                />
+              </div>
+            )}
+          </div>
+          <div className={styles.callGraphPane}>
+            <CallGraphTab
+              root={rootNode}
+              structLog={structLog}
+              allLogs={allLogs}
+              stateDiffs={stateDiffs}
+              addressLabels={addressLabels}
+              tokenLabels={tokenLabels}
+              tokenAddresses={tokenAddresses}
+              selectedNodeId={hoveredTraceId}
+            />
           </div>
         </div>
       </div>

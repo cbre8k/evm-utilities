@@ -3,9 +3,9 @@
 import type { AddressContext, JumpFrame, TraceFrame, TraceStep } from './callTraceTypes';
 import styles from '../../explorer.module.scss';
 import {
-  short, shortVal, decodedArgs, decodedOutputs,
-  nodeContractName, nodeFunctionName, argLabel, compactValue,
-  decodeEventName, shortSlot, deriveJumpContext,
+  short, decodedArgs, decodedOutputs,
+  nodeContractName, nodeFunctionName, argLabel,
+  decodeEventName, shortSlot, rawJumpParams,
 } from './callTraceUtils';
 
 export function TraceInspector({
@@ -24,7 +24,7 @@ export function TraceInspector({
   const contractName = nodeContractName(node, addressLabels, tokenLabels, tokenAddresses);
   const fnName = nodeFunctionName(node) || '(fallback)';
   const gasPct = totalGas > 0 ? ((gasUsed / totalGas) * 100).toFixed(1) : '0';
-  const valueLabel = compactValue(node.value);
+  const valueLabel = node.value && node.value !== '0x0' ? node.value : '';
 
   return (
     <aside className={styles.traceInspector}>
@@ -41,7 +41,7 @@ export function TraceInspector({
         </div>
         <div>
           <span>Value</span>
-          <strong>{valueLabel || '0 ETH'}</strong>
+          <strong>{valueLabel || '0x0'}</strong>
           <small>{node.call_type ?? node.type}</small>
         </div>
       </div>
@@ -96,7 +96,7 @@ function InspectorKV({
     <div className={styles.traceInspectorKV}>
       <span>{label}</span>
       <strong className={danger ? styles.detailError : undefined} title={value}>
-        {display ?? shortVal(value)}
+        {display ?? value}
       </strong>
     </div>
   );
@@ -118,7 +118,7 @@ function InspectorArgs({
         values.map((item, index) => (
           <div key={`${item.name}-${index}`} className={styles.traceInspectorArg}>
             <span>{item.name}</span>
-            <strong title={item.value}>{shortVal(item.value)}</strong>
+            <strong title={item.value}>{item.value}</strong>
           </div>
         ))
       ) : (
@@ -252,11 +252,10 @@ export function JumpFrameInspector({
   const fnName = entry.jumpTargetFunction || entry.jumpTargetLabel || entry.op;
   const gasPct = totalGas > 0 ? ((gasUsed / totalGas) * 100).toFixed(1) : '0';
 
-  const stackContext = deriveJumpContext(
-    entry.op,
-    entry.jumpStack,
-    entry.jumpTargetFunctionParams?.length,
-  );
+  const stackContext = (() => {
+    const raw = rawJumpParams(entry.op, entry.jumpStack, entry.jumpTargetFunctionParams?.length);
+    return raw.length > 0 ? { params: raw } : null;
+  })();
 
   return (
     <aside className={styles.traceInspector}>
@@ -271,12 +270,12 @@ export function JumpFrameInspector({
       {entry.jumpTargetFile && entry.jumpTargetLine && (
         <InspectorKV label="Source" value={`${entry.jumpTargetFile}:${entry.jumpTargetLine}`} />
       )}
-      {entry.jumpTargetFunctionParams && stackContext && (
+      {entry.jumpTargetFunctionParams && (stackContext || entry.jumpResolvedParams) && (
         <InspectorArgs
           title="Parameters"
           values={entry.jumpTargetFunctionParams.map((name, i) => ({
             name,
-            value: stackContext.params[i] || '?',
+            value: (entry.jumpResolvedParams?.[i]) ?? stackContext?.params[i] ?? '?',
           }))}
           empty="No parameters."
         />

@@ -20,7 +20,6 @@ exports.parseTokenTransfers = parseTokenTransfers;
 exports.extractNativeTransfers = extractNativeTransfers;
 exports.buildStateDiffs = buildStateDiffs;
 exports.buildGasTree = buildGasTree;
-const opcodes_1 = require("../utils/opcodes");
 // ── EVM event topics ─────────────────────────────────────────
 const SIG = {
     TRANSFER: '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef',
@@ -51,7 +50,21 @@ async function rpcCall(rpcUrl, method, params) {
     });
     if (!res.ok)
         throw new Error(`RPC HTTP ${res.status} for ${method}`);
-    const data = await res.json();
+    // Read as text first so we can include the raw body in error messages
+    // when the RPC node returns an empty or truncated JSON response.
+    const text = await res.text();
+    if (!text || !text.trim()) {
+        throw new Error(`RPC empty response for ${method}`);
+    }
+    let data;
+    try {
+        data = JSON.parse(text);
+    }
+    catch (parseErr) {
+        // Include a snippet of the body so it is easier to diagnose truncation.
+        const snippet = text.slice(0, 200);
+        throw new Error(`RPC invalid JSON for ${method}: ${parseErr.message} — body: ${snippet}`);
+    }
     if (data.error)
         throw new Error(`RPC [${method}]: ${data.error.message}`);
     if (data.result === undefined)
@@ -151,10 +164,25 @@ async function buildTxOverview(rpcUrl, txHash) {
 }
 // ── debug_traceTransaction (callTracer + withLog) ────────────
 async function debugTraceTransaction(rpcUrl, txHash) {
-    return rpcCall(rpcUrl, 'debug_traceTransaction', [
-        txHash,
-        { tracer: 'callTracer', tracerConfig: { withLog: true } },
-    ]);
+    try {
+        return await rpcCall(rpcUrl, 'debug_traceTransaction', [
+            txHash,
+            { tracer: 'callTracer', tracerConfig: { withLog: true } },
+        ]);
+    }
+    catch (err) {
+        // Some nodes don't support withLog — retry without it
+        try {
+            return await rpcCall(rpcUrl, 'debug_traceTransaction', [
+                txHash,
+                { tracer: 'callTracer' },
+            ]);
+        }
+        catch (fallbackErr) {
+            console.warn(`[rpcService] debugTraceTransaction failed for ${txHash}: ${fallbackErr.message}`);
+            return null;
+        }
+    }
 }
 // ── debug_traceTransaction (prestateTracer diffMode) ─────────
 async function getPrestateTrace(rpcUrl, txHash) {
@@ -178,166 +206,152 @@ async function getPrestateTrace(rpcUrl, txHash) {
         }
     }
 }
-/** Normalize a storage map key: strip 0x prefix and lowercase. */
-function normalizeMapKey(k) {
-    const s = k.startsWith('0x') ? k.slice(2) : k;
-    return s.toLowerCase().replace(/^0+/, '') || '0';
-}
-/** Look up a value in the storage map, handling various key formats across nodes. */
-function findStorageVal(storage, key, keyStripped) {
-    // Fast path: try direct matches first
-    if (storage[key] !== undefined)
-        return String(storage[key]);
-    if (storage[`0x${key}`] !== undefined)
-        return String(storage[`0x${key}`]);
-    if (storage[keyStripped] !== undefined)
-        return String(storage[keyStripped]);
-    if (storage[key.padStart(64, '0')] !== undefined)
-        return String(storage[key.padStart(64, '0')]);
-    // Slow path: normalize all map keys and compare
-    for (const [k, v] of Object.entries(storage)) {
-        if (normalizeMapKey(k) === keyStripped)
-            return String(v);
+/**
+ * Minimal opcodes needed for call-trace display:
+ *   - Call boundaries: track context stack and DELEGATECALL storage addresses
+ *   - Jumps + JUMPDEST: detect Solidity internal function calls via source-map annotation
+ *   - Log opcodes: preserve inline event ordering within the call tree
+ * SLOAD/SSTORE are intentionally excluded — storage diffs come from prestateTracer.
+ */
+const MINIMAL_TRACE_OPS = new Set([
+    'CALL', 'STATICCALL', 'DELEGATECALL', 'CALLCODE', 'CREATE', 'CREATE2',
+    'JUMP', 'JUMPI', 'JUMPDEST',
+    'LOG0', 'LOG1', 'LOG2', 'LOG3', 'LOG4',
+]);
+function parseMinimalTrace(entries) {
+    const out = [];
+    for (const raw of entries) {
+        if (!raw.op)
+            continue;
+        const entry = {
+            pc: raw.pc ?? 0,
+            op: raw.op,
+            gas: raw.gas ?? 0,
+            gasCost: raw.gasCost ?? 0,
+            depth: raw.depth ?? 1,
+        };
+        if (raw.jumpTo)
+            entry.jumpTo = String(raw.jumpTo).startsWith('0x') ? raw.jumpTo : `0x${raw.jumpTo}`;
+        if (raw.error)
+            entry.error = raw.error;
+        // Preserve the small stack window captured for JUMP/JUMPI param decoding
+        if (Array.isArray(raw.jumpStack) && raw.jumpStack.length > 0) {
+            entry.jumpStack = raw.jumpStack.map((v) => {
+                const s = String(v);
+                return s.startsWith('0x') ? s : `0x${s}`;
+            });
+        }
+        out.push(entry);
     }
-    return undefined;
-}
-/** Normalize a storage value to 0x-prefixed 64-char hex. */
-function normalizeStorageVal(val) {
-    const v = val.startsWith('0x') ? val.slice(2) : val;
-    return `0x${v.padStart(64, '0')}`;
+    return out;
 }
 /**
- * Fetch the full structlog trace and filter to interesting opcodes only.
- * The raw structlog can be millions of entries — we keep only the subset
- * needed to show SLOAD/SSTORE, jumps, events, and call boundaries.
+ * Lightweight structlog trace capturing only call boundaries, internal jumps,
+ * and log events — no EVM stack or memory snapshots.
+ *
+ * This replaces the previous heavy approach that captured 128 stack entries
+ * and 128 memory words per JUMP opcode. The result is dramatically smaller
+ * and faster while still supporting:
+ *   - JumpFrame creation (internal Solidity functions via JUMP-in/out)
+ *   - Sourcify source-map annotation (function names per PC)
+ *   - Inline event ordering (LOG* positions preserve execution order)
+ *   - DELEGATECALL context tracking (call variants maintain context stack)
+ *
+ * SLOAD/SSTORE inline steps are intentionally removed; storage changes
+ * remain visible in the State Diffs tab via prestateTracer.
  */
-async function getFilteredStructLog(rpcUrl, txHash, verbose = false) {
+async function getFilteredStructLog(rpcUrl, txHash, _verbose = false) {
+    // Minimal custom JS tracer — captures only the opcode name, PC, depth,
+    // and (for JUMP/JUMPI) the jump destination plus a small stack window
+    // (max 12 words) for internal function parameter decoding.
+    // 12 words covers: dest (1) + condition for JUMPI (1) + up to ~10 params.
+    const minimalTracer = `{
+    out: [],
+    fault: function(log, db) {},
+    step: function(log, db) {
+      var op = log.op.toString();
+      if (op !== 'CALL' && op !== 'STATICCALL' && op !== 'DELEGATECALL' &&
+          op !== 'CALLCODE' && op !== 'CREATE' && op !== 'CREATE2' &&
+          op !== 'JUMP' && op !== 'JUMPI' && op !== 'JUMPDEST' &&
+          op !== 'LOG0' && op !== 'LOG1' && op !== 'LOG2' && op !== 'LOG3' && op !== 'LOG4') return;
+      var e = {
+        pc:      log.getPC(),
+        op:      op,
+        gas:     log.getGas(),
+        gasCost: log.getCost(),
+        depth:   log.getDepth()
+      };
+      if (op === 'JUMP' || op === 'JUMPI') {
+        var n = log.stack.length();
+        if (n > 0) {
+          e.jumpTo = '0x' + log.stack.peek(0).toString(16);
+          var lim = n < 12 ? n : 12;
+          e.jumpStack = [];
+          for (var s = 0; s < lim; s++) {
+            e.jumpStack.push('0x' + log.stack.peek(s).toString(16));
+          }
+        }
+      }
+      this.out.push(e);
+    },
+    result: function(ctx, db) { return this.out; }
+  }`;
     try {
         const result = await rpcCall(rpcUrl, 'debug_traceTransaction', [
             txHash,
-            { disableStack: false, disableMemory: true, disableStorage: false },
+            { tracer: minimalTracer, timeout: '60s' },
         ]);
-        const out = [];
-        const logs = result?.structLogs ?? [];
-        const maxEntries = verbose ? 100000 : 25000;
-        let truncated = false;
-        for (let i = 0; i < logs.length; i++) {
-            const e = logs[i];
-            const depth = e.depth ?? 1;
-            // Filter logic:
-            // Always skip noise (PUSH, DUP, SWAP)
-            if (e.op.startsWith('PUSH') || e.op.startsWith('DUP') || e.op.startsWith('SWAP'))
-                continue;
-            // If not verbose, only keep "interesting" ops
-            if (!verbose && !opcodes_1.INTERESTING_OPS.has(e.op))
-                continue;
-            const entry = {
-                pc: e.pc ?? 0,
-                op: e.op ?? '',
-                gas: e.gas ?? 0,
-                gasCost: e.gasCost ?? 0,
-                depth: depth,
-                error: e.error,
-            };
-            // For LOG0..LOG4, extract topic hashes from the EVM stack.
-            // Stack layout: [..., offset, size, topic0, topic1, ...topicN]
-            // topicCount = opcode number (LOG0=0, LOG1=1, etc.)
-            if (e.op.startsWith('LOG') && Array.isArray(e.stack)) {
-                const topicCount = parseInt(e.op.slice(3), 10);
-                if (topicCount > 0 && e.stack.length >= 2 + topicCount) {
-                    const topics = [];
-                    for (let t = 0; t < topicCount; t++) {
-                        // Topics are below offset+size on the stack (stack grows upward)
-                        // stack[-1] = offset, stack[-2] = size, stack[-3] = topic0, etc.
-                        const raw = String(e.stack[e.stack.length - 3 - t]);
-                        const hex = raw.startsWith('0x') ? raw.slice(2) : raw;
-                        topics.push(`0x${hex.padStart(64, '0')}`);
-                    }
-                    entry.logTopics = topics;
-                }
-            }
-            // For SLOAD/SSTORE, extract slot + value from the EVM stack.
-            // Geth structlog shows state BEFORE opcode execution:
-            //   SLOAD:  stack = [..., slot]  →  after exec, next step stack = [..., loadedValue]
-            //   SSTORE: stack = [..., slot, newValue]  →  both consumed
-            if ((e.op === 'SLOAD' || e.op === 'SSTORE') && Array.isArray(e.stack) && e.stack.length > 0) {
-                const rawKey = String(e.stack[e.stack.length - 1]);
-                const key = rawKey.startsWith('0x') ? rawKey.slice(2).toLowerCase() : rawKey.toLowerCase();
-                entry.storageKey = `0x${key.padStart(64, '0')}`;
-                if (e.op === 'SLOAD') {
-                    // After SLOAD executes, the loaded value is on top of the next step's stack
-                    const next = (i + 1 < logs.length) ? logs[i + 1] : null;
-                    if (next && Array.isArray(next.stack) && next.stack.length > 0) {
-                        const rawVal = String(next.stack[next.stack.length - 1]);
-                        const val = rawVal.startsWith('0x') ? rawVal.slice(2) : rawVal;
-                        entry.storagePost = `0x${val.padStart(64, '0')}`;
-                    }
-                }
-                else {
-                    // SSTORE: new value is second from top on the current stack
-                    if (e.stack.length > 1) {
-                        const rawNewVal = String(e.stack[e.stack.length - 2]);
-                        const newVal = rawNewVal.startsWith('0x') ? rawNewVal.slice(2) : rawNewVal;
-                        entry.storagePost = `0x${newVal.padStart(64, '0')}`;
-                    }
-                    // Old value: scan backwards through raw structlog at the same depth
-                    // to find the most recent storage map containing this slot
-                    const keyStripped = key.replace(/^0+/, '') || '0';
-                    for (let j = i; j >= Math.max(0, i - 200); j--) {
-                        const step = logs[j];
-                        if (step.depth !== e.depth)
-                            continue;
-                        if (!step.storage)
-                            continue;
-                        const oldVal = findStorageVal(step.storage, key, keyStripped);
-                        if (oldVal !== undefined) {
-                            entry.storagePre = normalizeStorageVal(oldVal);
-                            break;
-                        }
-                    }
-                }
-            }
-            if ((e.op === 'JUMP' || e.op === 'JUMPI') && Array.isArray(e.stack) && e.stack.length > 0) {
-                const top = String(e.stack[e.stack.length - 1]);
-                entry.jumpTo = top.startsWith('0x') ? top : `0x${top}`;
-                if (e.op === 'JUMPI' && e.stack.length > 1) {
-                    const cond = String(e.stack[e.stack.length - 2]);
-                    entry.jumpCondition = cond.startsWith('0x') ? cond : `0x${cond}`;
-                }
-                entry.jumpStack = e.stack
-                    .slice(Math.max(0, e.stack.length - 8))
-                    .reverse()
-                    .map((value) => {
-                    const hex = String(value);
-                    return hex.startsWith('0x') ? hex : `0x${hex}`;
-                });
-            }
-            if (e.op === 'JUMP' && Array.isArray(e.memory) && e.memory.length > 0) {
-                entry.jumpMemory = e.memory
-                    .slice(0, 8)
-                    .map((value) => {
-                    const hex = String(value);
-                    return hex.startsWith('0x') ? hex : `0x${hex}`;
-                });
-            }
-            out.push(entry);
-            if (out.length >= maxEntries) {
-                truncated = true;
-                break;
-            }
-        }
-        if (truncated && out.length > 0) {
-            out[out.length - 1].truncated = true;
-        }
-        return out;
+        const logs = Array.isArray(result) ? result : (result?.structLogs ?? []);
+        return parseMinimalTrace(logs);
     }
     catch {
-        // Structlog not supported by this node — return empty (feature degrades gracefully)
-        return [];
+        // Some RPCs do not support JS tracers — fall back to standard structLogs,
+        // filtering to the minimal op set and extracting jumpTo + jumpStack from the stack.
+        try {
+            const fallback = await rpcCall(rpcUrl, 'debug_traceTransaction', [
+                txHash,
+                { disableStack: false, disableMemory: true, disableStorage: true },
+            ]);
+            const filtered = (fallback?.structLogs ?? []).filter((e) => MINIMAL_TRACE_OPS.has(e.op));
+            // Standard structlog stack is bottom-to-top: reverse last 12 to get peek order
+            for (const e of filtered) {
+                if ((e.op === 'JUMP' || e.op === 'JUMPI') && Array.isArray(e.stack) && e.stack.length > 0) {
+                    const top = String(e.stack[e.stack.length - 1]);
+                    e.jumpTo = top.startsWith('0x') ? top : `0x${top}`;
+                    e.jumpStack = e.stack.slice(-12).reverse().map((v) => {
+                        const s = String(v);
+                        return s.startsWith('0x') ? s : `0x${s}`;
+                    });
+                }
+            }
+            return parseMinimalTrace(filtered);
+        }
+        catch {
+            // Structlog not supported by this node — return empty (feature degrades gracefully)
+            return [];
+        }
     }
 }
 let nodeCounter = 0;
 function normalizeCallTree(raw, parentId, depth = 0) {
+    // raw can be null when debugTraceTransaction failed — return a minimal stub
+    if (!raw) {
+        const id = `node-${nodeCounter++}`;
+        return {
+            id,
+            parentId,
+            depth,
+            type: 'CALL',
+            from: '',
+            to: null,
+            input: '0x',
+            output: '0x',
+            value: '0x0',
+            gas: '0x0',
+            gasUsed: '0x0',
+            children: [],
+        };
+    }
     const id = `node-${nodeCounter++}`;
     const children = (raw.calls ?? []).map((c) => normalizeCallTree(c, id, depth + 1));
     // Inline logs from callTracer withLog:true

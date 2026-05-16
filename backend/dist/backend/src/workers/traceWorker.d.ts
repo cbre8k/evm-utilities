@@ -7,6 +7,9 @@ type StructLogEntry = {
     sourceFile?: string;
     sourceLine?: number;
     sourceJump?: string;
+    sourceStart?: number;
+    sourceLength?: number;
+    sourceFileIndex?: number;
     jumpTargetLabel?: string;
     jumpTargetFile?: string;
     jumpTargetLine?: number;
@@ -16,7 +19,10 @@ type StructLogEntry = {
     }>;
     jumpTargetFunction?: string;
     jumpTargetFunctionParams?: string[];
+    jumpResolvedParams?: string[];
     jumpTargetFunctionReturnsValue?: boolean;
+    jumpStack?: string[];
+    jumpMemory?: string[];
 };
 export declare function startTraceWorker(): Promise<void>;
 export declare function buildTraceResultPayload(rpcUrl: string, txHash: string, chainId: number, verbose?: boolean): Promise<{

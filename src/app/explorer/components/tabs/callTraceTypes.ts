@@ -19,6 +19,7 @@ export type CallEntry = {
   storageAddress?: string;
   /** Whether this frame is a DELEGATECALL/CALLCODE */
   isDelegateCall?: boolean;
+  selector?: string;
 };
 
 export type StorageEntry = {
@@ -54,6 +55,9 @@ export type OpcodeEntry = {
   error?: string;
   line?: number;
   file?: string;
+  sourceStart?: number;
+  sourceLength?: number;
+  sourceFileIndex?: number;
   sourceJump?: string;
   jumpTo?: string;
   jumpCondition?: string;
@@ -61,11 +65,14 @@ export type OpcodeEntry = {
   jumpTargetLabel?: string;
   jumpTargetFile?: string;
   jumpTargetLine?: number;
+  jumpTargetParams?: { name: string; type: string }[];
   jumpTargetFunction?: string;
   jumpTargetFunctionParams?: string[];
+  jumpResolvedParams?: string[];
   jumpTargetFunctionReturnsValue?: boolean;
   jumpStack?: string[];
   jumpMemory?: string[];
+  selector?: string;
 };
 
 export type FlatEntry = CallEntry | StorageEntry | EventEntry | OpcodeEntry;

@@ -36,7 +36,7 @@ export default function EventsTab({ logs }: Props) {
           <span>■ EVENTS</span>
           <Badge fontSize={9}>{logs.length}</Badge>
         </div>
-        <div className={styles.sectionBody} style={{ padding: 0 }}>
+        <div className={`${styles.sectionBody} ${styles.sectionBodyScroll}`} style={{ padding: 0 }}>
           {logs.map((log, i) => (
             <EventCard key={i} log={log} />
           ))}
@@ -97,4 +97,3 @@ function EventCard({ log }: { log: EventLog }) {
     </div>
   );
 }
-

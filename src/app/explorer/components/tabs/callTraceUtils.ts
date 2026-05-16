@@ -110,6 +110,30 @@ export function decodeReturn(output: string): string {
   return shortVal(output);
 }
 
+export function decodeJumpReturn(
+  returnStack?: string[],
+  returnsValue?: boolean,
+): string | null {
+  if (!returnsValue || !returnStack || returnStack.length < 2) return null;
+  const raw = returnStack[1];
+  if (!raw || raw === '0x0' || raw === ZERO_WORD) return '0';
+
+  const hex = raw.startsWith('0x') ? raw : `0x${raw}`;
+  try {
+    const n = BigInt(hex);
+    if (n === 0n) return '0';
+    if (n === 1n) return 'true';
+
+    // Internal jump returns sometimes carry memory pointer offsets (0x20/0x40/0x80/0xa0...)
+    // rather than the final value. Skip rendering these misleading pointers.
+    if (n > 0n && n <= 0x200n && n % 32n === 0n) return null;
+
+    return hex;
+  } catch {
+    return hex;
+  }
+}
+
 /**
  * Decode raw ABI-encoded output hex into readable values.
  * Returns array of decoded strings (one per 32-byte word).
@@ -164,34 +188,160 @@ export function decodeEventName(topics: string[]): string {
 /**
  * Derive stack context for JUMP/JUMPI opcodes (internal function calls).
  * Extracts parameter values from the stack based on expected count.
- * stack[0] = dest PC (JUMP) or dest PC (JUMPI), stack[1] = condition (JUMPI only).
+ * stack[0] = dest PC (JUMP/JUMPI), stack[1] = condition (JUMPI only),
+ * stack[2] = return PC for internal function jumps (when params are known).
  */
 export function deriveJumpContext(
   op: string,
   stack?: string[],
   expectedParamCount?: number,
+  expectedParamTypes?: string[],
+  expectedParamNames?: string[],
+  jumpMemory?: string[],
 ): { params: string[] } | null {
+  void expectedParamNames;
   if (!stack || stack.length < 1) return null;
+  const normalizeHex = (value: string): string => {
+    const raw = value.startsWith('0x') ? value.slice(2) : value;
+    return `0x${raw.padStart(64, '0')}`;
+  };
+  const isDynamicType = (typ: string): boolean => {
+    const t = typ.toLowerCase();
+    return t === 'bytes' || t === 'string' || t.endsWith('[]') || t.startsWith('tuple');
+  };
+  const decodeFromMemory = (ptrHex: string, typ: string): string | null => {
+    if (!jumpMemory || jumpMemory.length === 0) return null;
+    try {
+      const ptr = BigInt(ptrHex.startsWith('0x') ? ptrHex : `0x${ptrHex}`);
+      if (ptr < 0n || ptr % 32n !== 0n) return null;
+      const base = Number(ptr / 32n);
+      if (!Number.isFinite(base) || base < 0 || base >= jumpMemory.length) return null;
+
+      const lenWord = normalizeHex(jumpMemory[base]);
+      const len = Number(BigInt(lenWord));
+      if (!Number.isFinite(len) || len < 0) return null;
+
+      if (typ === 'string' || typ === 'bytes') {
+        const words = Math.ceil(len / 32);
+        const chunks: string[] = [];
+        for (let i = 0; i < words; i += 1) {
+          const word = jumpMemory[base + 1 + i];
+          if (!word) break;
+          chunks.push(normalizeHex(word).slice(2));
+        }
+        if (chunks.length === 0) return typ === 'string' ? '""' : '0x';
+        const dataHex = chunks.join('').slice(0, len * 2);
+        if (typ === 'string') {
+          try {
+            return `"${Buffer.from(dataHex, 'hex').toString('utf8').replace(/\0+$/g, '')}"`;
+          } catch {
+            return `0x${dataHex}`;
+          }
+        }
+        return `0x${dataHex}`;
+      }
+
+      if (typ.endsWith('[]')) {
+        return `[len=${len}]`;
+      }
+
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const items = [...stack];
-  // JUMP: [dest, ...rest]  JUMPI: [dest, condition, ...rest]
-  const paramStartIdx = op === 'JUMPI' ? 2 : 1;
-
-  if (items.length <= paramStartIdx) return null;
-
-  let params: string[];
-  if (expectedParamCount !== undefined && expectedParamCount > 0) {
-    params = items.slice(paramStartIdx, paramStartIdx + expectedParamCount);
-  } else {
+  if (expectedParamCount === undefined || expectedParamCount <= 0) {
     // Without known param count, don't guess — avoids showing return_pc as a param
     return null;
   }
+  const starts = op === 'JUMPI' ? [3, 2, 4] : [2, 1, 3, 4];
+  const candidates: string[][] = [];
 
-  const formattedParams = params.reverse().map(v => {
-    if (!v || v === '0x0' || v === ZERO_WORD) return '0';
-    return v.startsWith('0x') ? v : `0x${v}`;
+  for (const start of starts) {
+    if (items.length < start + expectedParamCount) continue;
+    const slice = items.slice(start, start + expectedParamCount);
+    candidates.push(slice);
+    candidates.push([...slice].reverse());
+  }
+  if (candidates.length === 0) return null;
+
+  const score = (values: string[]): number => {
+    let s = 0;
+    for (let i = 0; i < values.length; i += 1) {
+      const typ = (expectedParamTypes?.[i] || '').toLowerCase();
+      const raw = values[i];
+      const hex = raw && raw.startsWith('0x') ? raw : `0x${raw || '0'}`;
+      try {
+        const n = BigInt(hex);
+        if (typ.includes('bool') && n !== 0n && n !== 1n) s += 4;
+        if (typ.includes('address') && n <= 0xfffffn) s += 5;
+        if (isDynamicType(typ)) {
+          if (n < 0n || n % 32n !== 0n) s += 5;
+          if (jumpMemory && jumpMemory.length > 0) {
+            const idx = Number(n / 32n);
+            if (!Number.isFinite(idx) || idx < 0 || idx >= jumpMemory.length) s += 2;
+          }
+        }
+      } catch {
+        s += 6;
+      }
+    }
+    return s;
+  };
+
+  const params = candidates.sort((a, b) => score(a) - score(b))[0];
+  const formattedParams = params.map((value, i) => {
+    if (!value || value === '0x0' || value === ZERO_WORD) return '0';
+    const hex = value.startsWith('0x') ? value : `0x${value}`;
+    const typ = (expectedParamTypes?.[i] || '').toLowerCase();
+    if (typ.includes('bool')) {
+      try {
+        return BigInt(hex) === 0n ? 'false' : 'true';
+      } catch {
+        return hex;
+      }
+    }
+    if (typ.includes('address')) {
+      const raw = hex.slice(2).padStart(64, '0');
+      return `0x${raw.slice(24)}`;
+    }
+    if (isDynamicType(typ)) {
+      const decoded = decodeFromMemory(hex, typ);
+      if (decoded !== null) return decoded;
+      return hex;
+    }
+    if (typ.includes('uint') || typ.includes('int')) {
+      try {
+        return BigInt(hex).toString();
+      } catch {
+        return hex;
+      }
+    }
+    return hex;
   });
 
   return { params: formattedParams };
+}
+
+/**
+ * Extract raw internal-jump argument words without semantic decoding.
+ * Returns hex words exactly as seen in the jump stack window.
+ */
+export function rawJumpParams(
+  op: string,
+  stack?: string[],
+  expectedParamCount?: number,
+): string[] {
+  if (!stack || stack.length === 0) return [];
+  const count = expectedParamCount ?? 0;
+  if (count <= 0) return [];
+  const start = op === 'JUMPI' ? 2 : 1;
+  if (stack.length <= start) return [];
+  return stack
+    .slice(start, start + count)
+    .map((value) => (value.startsWith('0x') ? value : `0x${value}`));
 }
 
 /**

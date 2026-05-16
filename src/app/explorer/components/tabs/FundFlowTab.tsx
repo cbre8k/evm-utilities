@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   ReactFlow,
   Background,
@@ -25,6 +25,7 @@ import type {
   TenderlyBalanceChange,
 } from '@/types/explorer';
 import { copyWithFirework } from '@/utils/copyAnimation';
+import { Badge } from '@/components/ui';
 import styles from '../../explorer.module.scss';
 
 interface Props {
@@ -38,11 +39,26 @@ interface Props {
   tokenLabels?: Record<string, string>;
   addressLabels?: Record<string, string>;
   txSender?: string;
+  transferCount?: number;
 }
 
 function shortAddr(v: string | null | undefined) {
   if (!v) return '—';
   return `${v.slice(0, 8)}…${v.slice(-6)}`;
+}
+
+function addr(v: string | null | undefined) {
+  if (!v) return '—';
+  return `${v.slice(0, 10)}…${v.slice(-8)}`;
+}
+
+function eth(v: string) {
+  try {
+    const n = Number(BigInt(v)) / 1e18;
+    return n === 0 ? '0 ETH' : `${n.toFixed(6)} ETH`;
+  } catch {
+    return v;
+  }
 }
 
 function formatDecimal(raw: string, decimals: number): string {
@@ -755,6 +771,13 @@ function StepDetail({
 }
 
 export default function FundFlowTab(props: Props) {
+  const {
+    nativeTransfers,
+    erc20Transfers,
+    erc721Transfers,
+    erc1155Transfers,
+  } = props;
+
   const [hoveredAddr, setHoveredAddr] = useState<string | null>(null);
   const [selectedStep, setSelectedStep] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -876,7 +899,11 @@ export default function FundFlowTab(props: Props) {
       <div className={styles.tabContent}>
         <div className={styles.section}>
           <div className={styles.sectionHeader}><span>■ FUND FLOW</span></div>
-          <div className={styles.emptyHint} style={{ padding: 16 }}>No fund flows detected in this transaction.</div>
+          <div className={styles.emptyHint} style={{ padding: 16 }}>
+            {props.transferCount === 0
+              ? 'No token or ETH transfers detected in this transaction.'
+              : 'No fund flows detected in this transaction.'}
+          </div>
         </div>
       </div>
     );
@@ -885,6 +912,128 @@ export default function FundFlowTab(props: Props) {
   return (
     <div className={styles.tabContent} ref={containerRef} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {hoverCss && <style>{hoverCss}</style>}
+
+      {/* ── Native Transfers ── */}
+      {nativeTransfers.length > 0 && (
+        <Section
+          title="■ NATIVE ETH TRANSFERS"
+          badge={String(nativeTransfers.length)}
+          className={styles.fundFlowTransferSection}
+        >
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>TYPE</th>
+                <th className={styles.th}>FROM</th>
+                <th className={styles.th}>TO</th>
+                <th className={styles.th} style={{ textAlign: 'right' }}>VALUE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nativeTransfers.map((t, i) => (
+                <tr key={i}>
+                  <td className={styles.td}><span className={`${styles.callBadge} ${styles.CALL}`}>{t.callType}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.from}>{addr(t.from)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.to ?? ''}>{addr(t.to)}</span></td>
+                  <td className={styles.td} style={{ textAlign: 'right', color: '#10b981' }}>{eth(t.value)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* ── ERC-20 Transfers ── */}
+      {erc20Transfers.length > 0 && (
+        <Section
+          title="■ ERC-20 TRANSFERS"
+          badge={String(erc20Transfers.length)}
+          className={styles.fundFlowTransferSection}
+        >
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>TOKEN</th>
+                <th className={styles.th}>FROM</th>
+                <th className={styles.th}>TO</th>
+                <th className={styles.th} style={{ textAlign: 'right' }}>AMOUNT (raw)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {erc20Transfers.map((t, i) => (
+                <tr key={i}>
+                  <td className={styles.td}><span className={styles.mono} title={t.tokenAddress}>{addr(t.tokenAddress)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.from}>{addr(t.from)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.to}>{addr(t.to)}</span></td>
+                  <td className={styles.td} style={{ textAlign: 'right' }}>{t.amount}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* ── ERC-721 Transfers ── */}
+      {erc721Transfers.length > 0 && (
+        <Section
+          title="■ ERC-721 NFT TRANSFERS"
+          badge={String(erc721Transfers.length)}
+          className={styles.fundFlowTransferSection}
+        >
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>CONTRACT</th>
+                <th className={styles.th}>FROM</th>
+                <th className={styles.th}>TO</th>
+                <th className={styles.th} style={{ textAlign: 'right' }}>TOKEN ID</th>
+              </tr>
+            </thead>
+            <tbody>
+              {erc721Transfers.map((t, i) => (
+                <tr key={i}>
+                  <td className={styles.td}><span className={styles.mono} title={t.tokenAddress}>{addr(t.tokenAddress)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.from}>{addr(t.from)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.to}>{addr(t.to)}</span></td>
+                  <td className={styles.td} style={{ textAlign: 'right' }}>#{t.tokenId}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
+
+      {/* ── ERC-1155 Transfers ── */}
+      {erc1155Transfers.length > 0 && (
+        <Section
+          title="■ ERC-1155 TRANSFERS"
+          badge={String(erc1155Transfers.length)}
+          className={styles.fundFlowTransferSection}
+        >
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th className={styles.th}>CONTRACT</th>
+                <th className={styles.th}>FROM</th>
+                <th className={styles.th}>TO</th>
+                <th className={styles.th}>ID</th>
+                <th className={styles.th} style={{ textAlign: 'right' }}>AMOUNT</th>
+              </tr>
+            </thead>
+            <tbody>
+              {erc1155Transfers.map((t, i) => (
+                <tr key={i}>
+                  <td className={styles.td}><span className={styles.mono} title={t.tokenAddress}>{addr(t.tokenAddress)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.from}>{addr(t.from)}</span></td>
+                  <td className={styles.td}><span className={styles.mono} title={t.to}>{addr(t.to)}</span></td>
+                  <td className={styles.td}>{t.isBatch ? '(batch)' : `#${t.id}`}</td>
+                  <td className={styles.td} style={{ textAlign: 'right' }}>{t.isBatch ? '(batch)' : t.value}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Section>
+      )}
       <div className={styles.section} style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
         <div className={styles.sectionHeader}>
           <span>■ FUND FLOW</span>
@@ -925,6 +1074,28 @@ export default function FundFlowTab(props: Props) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function Section({
+  title,
+  badge,
+  children,
+  className,
+}: {
+  title: string;
+  badge?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={[styles.section, className].filter(Boolean).join(' ')}>
+      <div className={styles.sectionHeader}>
+        <span>{title}</span>
+        {badge && <Badge fontSize={9}>{badge}</Badge>}
+      </div>
+      <div className={styles.sectionBody}>{children}</div>
     </div>
   );
 }

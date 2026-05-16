@@ -31,4 +31,8 @@ export const config = {
     job: 3600,        // 1 hour
     share: 0,         // permanent (no TTL)
   },
+
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY || '',
+  },
 } as const;
