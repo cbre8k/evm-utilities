@@ -4,6 +4,9 @@
 const SOURCIFY_URL = 'https://sourcify.dev/server';
 const contractNameCache = new Map<string, string | null>();
 const runtimeDebugCache = new Map<string, RuntimeDebugInfo | null>();
+// In-flight promise cache: prevents duplicate concurrent requests for the same key.
+const contractNameInflight = new Map<string, Promise<string | null>>();
+const runtimeDebugInflight = new Map<string, Promise<RuntimeDebugInfo | null>>();
 
 // ── Response types ────────────────────────────────────────────
 
@@ -119,10 +122,20 @@ export async function getVerifiedContractName(
   const key = `${chainId}:${address.toLowerCase()}`;
   if (contractNameCache.has(key)) return contractNameCache.get(key) ?? null;
 
-  const contract = await getVerifiedSource(chainId, address);
-  const name = getContractName(contract);
-  contractNameCache.set(key, name ?? null);
-  return name ?? null;
+  // Return existing in-flight promise to prevent duplicate concurrent fetches.
+  const inflight = contractNameInflight.get(key);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    const contract = await getVerifiedSource(chainId, address);
+    const name = getContractName(contract);
+    contractNameCache.set(key, name ?? null);
+    contractNameInflight.delete(key);
+    return name ?? null;
+  })();
+
+  contractNameInflight.set(key, promise);
+  return promise;
 }
 
 export async function getRuntimeDebugInfo(
@@ -132,55 +145,62 @@ export async function getRuntimeDebugInfo(
   const key = `${chainId}:${address.toLowerCase()}`;
   if (runtimeDebugCache.has(key)) return runtimeDebugCache.get(key) ?? null;
 
-  try {
-    const fields = [
-      'runtimeBytecode.sourceMap',
-      'runtimeBytecode.recompiledBytecode',
-      'runtimeBytecode.onchainBytecode',
-      'sources',
-      'stdJsonOutput',
-      'compilation.name',
-      'compilation.fullyQualifiedName',
-    ].join(',');
-    const url = `${SOURCIFY_URL}/v2/contract/${chainId}/${address.toLowerCase()}?fields=${encodeURIComponent(fields)}`;
+  // Return existing in-flight promise to prevent duplicate concurrent fetches.
+  const inflight = runtimeDebugInflight.get(key);
+  if (inflight) return inflight;
 
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'evm-utilities/1.0' },
-      signal: AbortSignal.timeout(8000),
-    });
+  const promise = (async () => {
+    try {
+      const fields = [
+        'runtimeBytecode.sourceMap',
+        'runtimeBytecode.recompiledBytecode',
+        'runtimeBytecode.onchainBytecode',
+        'sources',
+        'stdJsonOutput',
+        'compilation.name',
+        'compilation.fullyQualifiedName',
+      ].join(',');
+      const url = `${SOURCIFY_URL}/v2/contract/${chainId}/${address.toLowerCase()}?fields=${encodeURIComponent(fields)}`;
 
-    if (res.status === 404) {
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'evm-utilities/1.0' },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (res.status === 404 || !res.ok) {
+        runtimeDebugCache.set(key, null);
+        return null;
+      }
+
+      const data = await res.json() as any;
+      const runtimeBytecode = data.runtimeBytecode?.recompiledBytecode
+        ?? data.runtimeBytecode?.onchainBytecode
+        ?? '';
+      const runtimeSourceMap = data.runtimeBytecode?.sourceMap ?? '';
+      if (!runtimeBytecode || !runtimeSourceMap) {
+        runtimeDebugCache.set(key, null);
+        return null;
+      }
+
+      const info: RuntimeDebugInfo = {
+        contractName: data.compilation?.name ?? null,
+        fullyQualifiedName: data.compilation?.fullyQualifiedName ?? null,
+        runtimeBytecode,
+        runtimeSourceMap,
+        sources: data.sources ?? {},
+        stdJsonOutput: data.stdJsonOutput ?? {},
+      };
+
+      runtimeDebugCache.set(key, info);
+      return info;
+    } catch {
       runtimeDebugCache.set(key, null);
       return null;
+    } finally {
+      runtimeDebugInflight.delete(key);
     }
-    if (!res.ok) {
-      runtimeDebugCache.set(key, null);
-      return null;
-    }
+  })();
 
-    const data = await res.json() as any;
-    const runtimeBytecode = data.runtimeBytecode?.recompiledBytecode
-      ?? data.runtimeBytecode?.onchainBytecode
-      ?? '';
-    const runtimeSourceMap = data.runtimeBytecode?.sourceMap ?? '';
-    if (!runtimeBytecode || !runtimeSourceMap) {
-      runtimeDebugCache.set(key, null);
-      return null;
-    }
-
-    const info: RuntimeDebugInfo = {
-      contractName: data.compilation?.name ?? null,
-      fullyQualifiedName: data.compilation?.fullyQualifiedName ?? null,
-      runtimeBytecode,
-      runtimeSourceMap,
-      sources: data.sources ?? {},
-      stdJsonOutput: data.stdJsonOutput ?? {},
-    };
-
-    runtimeDebugCache.set(key, info);
-    return info;
-  } catch {
-    runtimeDebugCache.set(key, null);
-    return null;
-  }
+  runtimeDebugInflight.set(key, promise);
+  return promise;
 }
