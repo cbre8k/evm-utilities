@@ -69,10 +69,12 @@ function CallGraphNode({ data, selected }: {
       selected ? styles.callGraphNodeSelected : '',
     ].filter(Boolean).join(' ')}>
       <div className={styles.callGraphTitle}>{data.label}</div>
-      <Handle id="target-left"  type="target" position={Position.Left}  style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
-      <Handle id="source-right" type="source" position={Position.Right} style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
-      <Handle id="source-left"  type="source" position={Position.Left}  style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
-      <Handle id="target-right" type="target" position={Position.Right} style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
+      <Handle id="target-left"   type="target" position={Position.Left}   style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
+      <Handle id="source-right"  type="source" position={Position.Right}  style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
+      <Handle id="source-left"   type="source" position={Position.Left}   style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
+      <Handle id="target-right"  type="target" position={Position.Right}  style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
+      <Handle id="source-bottom" type="source" position={Position.Bottom} style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
+      <Handle id="target-top"    type="target" position={Position.Top}    style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
     </div>
   );
 }
@@ -158,76 +160,13 @@ export default function CallGraphTab({
     return buildTraceTree(entries);
   }, [structLog, root, allLogs, stateDiffs]);
 
-  const hoveredCallEdge = useMemo(() => {
-    if (!selectedNodeId) return null;
-    const visibleCallTypes = new Set<TraceNode['type']>(['CALL', 'STATICCALL']);
-    const frameByNodeId = new Map<string, TraceItem>();
-    // Maps any item ID (CALL node.id or jump-frame id) → nearest enclosing CALL frame node.id.
-    // This lets us resolve a selected jump-frame back to its containing external call.
-    const nodeToCallId = new Map<string, string>();
-
-    const collectFrames = (items: TraceItem[], enclosingCallId?: string) => {
-      for (const item of items) {
-        if (item.kind === 'frame') {
-          frameByNodeId.set(item.entry.node.id, item);
-          nodeToCallId.set(item.entry.node.id, item.entry.node.id);
-          // Only CALL/STATICCALL frames become the new "enclosing visible call".
-          // DELEGATECALL (and others) pass the outer enclosing ID through so that
-          // jump-frames inside them still resolve to the nearest CALL/STATICCALL ancestor.
-          const nextEnclosingId = visibleCallTypes.has(item.entry.node.type)
-            ? item.entry.node.id
-            : enclosingCallId;
-          collectFrames(item.items, nextEnclosingId);
-        } else if (item.kind === 'jump-frame') {
-          if (enclosingCallId) nodeToCallId.set(item.id, enclosingCallId);
-          collectFrames(item.items, enclosingCallId);
-        }
-      }
-    };
-    collectFrames(traceItems);
-
-    // Resolve selectedNodeId: direct CALL frame or jump-frame → enclosing CALL frame.
-    const callFrameId = nodeToCallId.get(selectedNodeId);
-    if (!callFrameId) return null;
-    const current = frameByNodeId.get(callFrameId);
-    if (!current || current.kind !== 'frame') return null;
-    if (!visibleCallTypes.has(current.entry.node.type)) return null;
-
-    let parentNodeId = current.entry.node.parentId;
-    let parent: TraceItem | undefined;
-    while (parentNodeId) {
-      const candidate = frameByNodeId.get(parentNodeId);
-      if (!candidate || candidate.kind !== 'frame') break;
-      if (visibleCallTypes.has(candidate.entry.node.type)) {
-        parent = candidate;
-        break;
-      }
-      parentNodeId = candidate.entry.node.parentId;
-    }
-    if (!parent || parent.kind !== 'frame') {
-      // Root call has no visible CALL/STATICCALL parent — tx-sender is the implicit source.
-      // Compute currentGraph here so we can return the right target id.
-      if (!current.entry.node.parentId) {
-        const rootGraph = getCallGraphIdForFrame(current.entry.node, addressLabels, tokenLabels, tokenAddressSet, true);
-        if (!rootGraph.id) return null;
-        return { source: 'tx-sender', target: rootGraph.id };
-      }
-      return null;
-    }
-
-    const currentGraph = getCallGraphIdForFrame(current.entry.node, addressLabels, tokenLabels, tokenAddressSet, true);
-    const parentGraph = getCallGraphIdForFrame(parent.entry.node, addressLabels, tokenLabels, tokenAddressSet, true);
-    if (!currentGraph.id || !parentGraph.id) return null;
-    return { source: parentGraph.id, target: currentGraph.id };
-  }, [selectedNodeId, traceItems, addressLabels, tokenLabels, tokenAddressSet]);
-
   const { nodes: graphNodes, edges: graphEdges, order, itemMap } = useMemo(
     () => buildCallGraph(traceItems, addressLabels, tokenLabels, tokenAddressSet, {
       includeInternalNodes: true,
-      includeInternalEdges: false,
+      includeInternalEdges: true,
       labelFnOnly: true,
       groupBy: 'address',
-      callTypes: ['CALL', 'STATICCALL'],
+      callTypes: ['CALL', 'STATICCALL', 'DELEGATECALL'],
     }),
     [traceItems, addressLabels, tokenLabels, tokenAddressSet],
   );
@@ -245,6 +184,36 @@ export default function CallGraphTab({
     () => (root ? itemMap.get(root.id) ?? null : null),
     [root, itemMap],
   );
+
+  const hoveredCallEdge = useMemo(() => {
+    if (!selectedNodeId) return null;
+
+    // Build a map: itemKey → parentKey for every frame and jump-frame.
+    // TraceStep items (kind='step') have no children or stable key, so skip them.
+    const parentByKey = new Map<string, string>();
+    const collectParents = (items: TraceItem[], parentKey?: string) => {
+      for (const item of items) {
+        if (item.kind === 'step') continue;
+        const key = item.kind === 'frame' ? item.entry.node.id : item.id;
+        if (parentKey !== undefined) parentByKey.set(key, parentKey);
+        collectParents(item.items, key);
+      }
+    };
+    collectParents(traceItems);
+
+    // Resolve selected item → graph node id via itemMap.
+    const targetGraphId = itemMap.get(selectedNodeId) ?? null;
+    if (!targetGraphId) return null;
+
+    const parentKey = parentByKey.get(selectedNodeId);
+    if (parentKey === undefined) {
+      // Root frame — tx-sender is the implicit source.
+      return targetGraphId === rootGraphId ? { source: 'tx-sender', target: targetGraphId } : null;
+    }
+    const sourceGraphId = itemMap.get(parentKey) ?? null;
+    if (!sourceGraphId) return null;
+    return { source: sourceGraphId, target: targetGraphId };
+  }, [selectedNodeId, traceItems, itemMap, rootGraphId]);
 
   // Derive edge driven by a call-graph node click (selectedId).
   // If the selected node is internal, resolve to its external sibling's incoming edge.
@@ -419,19 +388,33 @@ export default function CallGraphTab({
   const edges: CallGraphEdge[] = useMemo(() => {
     const isSenderEdgeActive = activeEdge?.source === 'tx-sender';
     const hasHoveredContext = !!activeEdge;
+    const gnById = new Map(graphNodes.map((n) => [n.id, n]));
 
     const result: CallGraphEdge[] = graphEdges.map((edge) => {
       const isHoveredEdge = activeEdge && activeEdge.source === edge.source && activeEdge.target === edge.target;
-      // Pick handles based on whether the target contract is to the right or left of the source.
-      const srcCol = nodeColumn.get(edge.source) ?? 0;
-      const tgtCol = nodeColumn.get(edge.target) ?? 0;
-      const rightward = srcCol <= tgtCol;
+      const srcGn = gnById.get(edge.source);
+      const tgtGn = gnById.get(edge.target);
+      // Internal edges connect an external call node to an internal (jump-frame) node
+      // within the same contract group — render them vertically (top → bottom).
+      const isInternalEdge = !!srcGn && !!tgtGn && srcGn.groupKey === tgtGn.groupKey;
+      let sourceHandle: string;
+      let targetHandle: string;
+      if (isInternalEdge) {
+        sourceHandle = 'source-bottom';
+        targetHandle = 'target-top';
+      } else {
+        const srcCol = nodeColumn.get(edge.source) ?? 0;
+        const tgtCol = nodeColumn.get(edge.target) ?? 0;
+        const rightward = srcCol <= tgtCol;
+        sourceHandle = rightward ? 'source-right' : 'source-left';
+        targetHandle = rightward ? 'target-left'  : 'target-right';
+      }
       return {
         id: `${edge.source}=>${edge.target}`,
         source: edge.source,
         target: edge.target,
-        sourceHandle: rightward ? 'source-right' : 'source-left',
-        targetHandle: rightward ? 'target-left'  : 'target-right',
+        sourceHandle,
+        targetHandle,
         type: 'animatedDot',
         data: { count: edge.count },
         animated: !!isHoveredEdge,
@@ -439,12 +422,13 @@ export default function CallGraphTab({
           type: MarkerType.ArrowClosed,
           width: 16,
           height: 16,
-          color: isHoveredEdge ? '#22d3ee' : '#8b97aa',
+          color: isHoveredEdge ? '#22d3ee' : isInternalEdge ? '#64748b' : '#8b97aa',
         },
         style: {
-          stroke: isHoveredEdge ? '#22d3ee' : '#8b97aa',
+          stroke: isHoveredEdge ? '#22d3ee' : isInternalEdge ? '#64748b' : '#8b97aa',
           strokeWidth: isHoveredEdge ? 2 : 1.4,
-          opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.18) : 0.9,
+          strokeDasharray: isInternalEdge ? '4 3' : undefined,
+          opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.18) : isInternalEdge ? 0.65 : 0.9,
         },
       };
     });
@@ -476,7 +460,7 @@ export default function CallGraphTab({
     }
 
     return result;
-  }, [graphEdges, activeEdge, nodeColumn, rootGraphId]);
+  }, [graphEdges, activeEdge, nodeColumn, rootGraphId, graphNodes]);
 
   const onNodeClick = useCallback((_: any, node: CallGraphNode) => {
     const idx = orderedNodeIds.findIndex((item) => item === node.id);
