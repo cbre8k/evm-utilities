@@ -442,9 +442,7 @@ export default function CallGraphTab({
       // Internal edges connect an external call node to an internal (jump-frame) node
       // within the same contract group — render them vertically (top → bottom).
       const isInternalEdge = !!srcGn && !!tgtGn && srcGn.groupKey === tgtGn.groupKey;
-      // Edge idle color = source node's group accent color.
-      const srcColIdx = Math.max(0, (nodeColumn.get(edge.source) ?? 1) - 1);
-      const idleColor = GROUP_COLORS[srcColIdx % GROUP_COLORS.length];
+      const IDLE_GRAY = '#5a6478';
       let sourceHandle: string;
       let targetHandle: string;
       if (isInternalEdge) {
@@ -457,6 +455,9 @@ export default function CallGraphTab({
         sourceHandle = rightward ? 'source-right' : 'source-left';
         targetHandle = rightward ? 'target-left'  : 'target-right';
       }
+      // Derive source group color for active state.
+      const srcColIdx = Math.max(0, (nodeColumn.get(edge.source) ?? 1) - 1);
+      const activeColor = GROUP_COLORS[srcColIdx % GROUP_COLORS.length];
       return {
         id: `${edge.source}=>${edge.target}`,
         source: edge.source,
@@ -470,12 +471,12 @@ export default function CallGraphTab({
           type: MarkerType.ArrowClosed,
           width: 16,
           height: 16,
-          color: isHoveredEdge ? '#22d3ee' : idleColor,
+          color: isHoveredEdge ? activeColor : IDLE_GRAY,
         },
         style: {
-          stroke: isHoveredEdge ? '#22d3ee' : idleColor,
-          strokeWidth: isHoveredEdge ? 2 : 1.4,
-          opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.18) : isInternalEdge ? 0.55 : 0.85,
+          stroke: isHoveredEdge ? activeColor : IDLE_GRAY,
+          strokeWidth: isHoveredEdge ? 2 : 1.2,
+          opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.25) : isInternalEdge ? 0.45 : 0.7,
         },
       };
     });
@@ -496,12 +497,12 @@ export default function CallGraphTab({
           type: MarkerType.ArrowClosed,
           width: 16,
           height: 16,
-          color: isActive ? '#22d3ee' : '#374151',
+          color: isActive ? GROUP_COLORS[0] : '#5a6478',
         },
         style: {
-          stroke: isActive ? '#22d3ee' : '#374151',
+          stroke: isActive ? GROUP_COLORS[0] : '#5a6478',
           strokeWidth: isActive ? 2 : 1.2,
-          opacity: hasHoveredContext ? (isActive ? 1 : 0.18) : 0.7,
+          opacity: hasHoveredContext ? (isActive ? 1 : 0.25) : 0.7,
         },
       });
     }
