@@ -2,7 +2,7 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { ReactFlow, Background, Handle, Position, MarkerType, BaseEdge, getStraightPath, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
+import { ReactFlow, Background, Handle, Position, MarkerType, BaseEdge, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
 import type { AddressStateDiff, FilteredStructLog, TraceNode } from '@/types/explorer';
 import styles from '../../explorer.module.scss';
 import { buildFromStructLog, buildFlatEntries, buildTraceTree } from './callTraceBuild';
@@ -111,15 +111,19 @@ function SectionDividerNode() {
   );
 }
 
-// Fund-flow style animated edge: static line + two dots that travel along the path.
+// Animated edge: static routed line + two dots that travel along the path.
 // The second dot is offset by half the duration so dots flow continuously.
 function AnimatedDotEdge({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, animated, data,
 }: EdgeProps) {
   const isInternal = !!(data as { isInternal?: boolean } | undefined)?.isInternal;
-  const [edgePath] = isInternal
-    ? getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 12 })
-    : getStraightPath({ sourceX, sourceY, targetX, targetY });
+  // All edges use SmoothStep so lines leave/enter at right angles — prevents
+  // diagonal crossing when one source connects to multiple stacked targets.
+  const [edgePath] = getSmoothStepPath({
+    sourceX, sourceY, sourcePosition,
+    targetX, targetY, targetPosition,
+    borderRadius: isInternal ? 12 : 8,
+  });
   const dotColor = (style as { stroke?: string } | undefined)?.stroke ?? '#22d3ee';
   return (
     <>
