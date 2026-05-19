@@ -219,25 +219,29 @@ export default function CallGraphTab({
   }, [selectedNodeId, traceItems, itemMap, rootGraphId]);
 
   // Derive edge driven by a call-graph node click (selectedId).
-  // If the selected node is internal, resolve to its external sibling's incoming edge.
+  // For external nodes: look up their incoming edge.
+  // For internal nodes: use their own direct incoming edge (source = parent external node).
   // If the root call node is selected (no incoming graphEdge), use tx-sender as the source.
   const graphSelectedEdge = useMemo(() => {
     if (!selectedId) return null;
     const gn = graphNodes.find((n) => n.id === selectedId);
     if (!gn) return null;
-    // Determine the external target node to look up.
-    let targetId = selectedId;
-    if (gn.isInternal) {
+    const incomingEdge = graphEdges.find((e) => e.target === selectedId);
+    if (!incomingEdge) {
+      // No incoming edge: either root call or internal node with no direct edge yet.
+      if (!gn.isInternal) {
+        return rootGraphId === selectedId ? { source: 'tx-sender', target: selectedId } : null;
+      }
+      // Internal node with no direct incoming edge — fall back to external sibling's edge.
       const externalSibling = graphNodes.find((n) => n.groupKey === gn.groupKey && !n.isInternal);
       if (!externalSibling) return null;
-      targetId = externalSibling.id;
+      const siblingEdge = graphEdges.find((e) => e.target === externalSibling.id);
+      if (!siblingEdge) {
+        return rootGraphId === externalSibling.id ? { source: 'tx-sender', target: selectedId } : null;
+      }
+      return { source: siblingEdge.source, target: selectedId };
     }
-    const incomingEdge = graphEdges.find((e) => e.target === targetId);
-    if (!incomingEdge) {
-      // Root call has no incoming graphEdge — tx-sender is the implicit source.
-      return rootGraphId === targetId ? { source: 'tx-sender', target: targetId } : null;
-    }
-    return { source: incomingEdge.source, target: incomingEdge.target };
+    return { source: incomingEdge.source, target: selectedId };
   }, [selectedId, graphNodes, graphEdges, rootGraphId]);
 
   // Trace-driven highlighting takes priority; call-graph clicks also drive highlighting.
@@ -515,18 +519,31 @@ export default function CallGraphTab({
     if (selectedId === null) return null;
     const gn = graphNodes.find((n) => n.id === selectedId);
     if (!gn) return null;
-    // Find sender via the edge active when this node is selected.
-    const senderGn = graphSelectedEdge ? graphNodes.find((n) => n.id === graphSelectedEdge.source) : null;
+    // Resolve sender: if source is the synthetic tx-sender node, derive label from root.from.
+    let senderContract: string | null = null;
+    let senderFn: string | null = null;
+    if (graphSelectedEdge) {
+      if (graphSelectedEdge.source === 'tx-sender') {
+        const senderAddr = (root?.from ?? '').toLowerCase();
+        senderContract = addressLabels[senderAddr]
+          || (senderAddr ? `${senderAddr.slice(0, 6)}…${senderAddr.slice(-4)}` : 'Sender');
+        senderFn = null;
+      } else {
+        const senderGn = graphNodes.find((n) => n.id === graphSelectedEdge.source);
+        senderContract = senderGn?.groupLabel ?? null;
+        senderFn = senderGn?.label ?? null;
+      }
+    }
     return {
       contract: gn.groupLabel,
       fn: gn.label,
       isInternal: gn.isInternal,
       step: (selectedIndex ?? 0) + 1,
       total: orderedNodeIds.length,
-      senderContract: senderGn?.groupLabel ?? null,
-      senderFn: senderGn?.label ?? null,
+      senderContract,
+      senderFn,
     };
-  }, [selectedId, graphNodes, selectedIndex, orderedNodeIds, graphSelectedEdge]);
+  }, [selectedId, graphNodes, selectedIndex, orderedNodeIds, graphSelectedEdge, root, addressLabels]);
 
   if (!root) {
     return (
