@@ -9,6 +9,7 @@ import { buildFromStructLog, buildFlatEntries, buildTraceTree } from './callTrac
 import { buildCallGraph, getCallGraphIdForFrame } from './callGraphUtils';
 import type { GraphNode } from './callGraphUtils';
 import type { TraceItem } from './callTraceTypes';
+import { copyWithFirework } from '@/utils/copyAnimation';
 
 type Props = {
   root: TraceNode;
@@ -28,6 +29,7 @@ type CallGraphNode = {
     address?: string | null;
     contract?: string;
     count: number;
+    colorIndex?: number;
   };
   position: { x: number; y: number };
   type: string;
@@ -56,19 +58,29 @@ const CONTRACT_VPAD = 0;
 const ROW_GAP = 0;
 const DIVIDER_H = 22;      // height of the external/internal section divider
 
+// One distinct accent color per contract group.
+const GROUP_COLORS = [
+  '#4f6bff', '#22d3ee', '#a78bfa', '#34d399',
+  '#f59e0b', '#f472b6', '#fb923c', '#60a5fa',
+  '#e879f9', '#4ade80', '#f87171', '#2dd4bf',
+];
 
 function CallGraphNode({ data, selected }: {
   data: CallGraphNode['data'] & { isInternal?: boolean; callRole?: string };
   selected?: boolean;
 }) {
+  const color = GROUP_COLORS[(data.colorIndex ?? 0) % GROUP_COLORS.length];
   return (
-    <div className={[
-      styles.callGraphNode,
-      data.isInternal ? styles.callGraphNodeInternal : '',
-      data.callRole === 'source' ? styles.callGraphNodeSource : '',
-      data.callRole === 'target' ? styles.callGraphNodeTarget : '',
-      selected ? styles.callGraphNodeSelected : '',
-    ].filter(Boolean).join(' ')}>
+    <div
+      className={[
+        styles.callGraphNode,
+        data.isInternal ? styles.callGraphNodeInternal : '',
+        data.callRole === 'source' ? styles.callGraphNodeSource : '',
+        data.callRole === 'target' ? styles.callGraphNodeTarget : '',
+        selected ? styles.callGraphNodeSelected : '',
+      ].filter(Boolean).join(' ')}
+      style={{ '--group-color': color } as React.CSSProperties}
+    >
       <div className={styles.callGraphTitle}>{data.label}</div>
       <Handle id="target-left"   type="target" position={Position.Left}   style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
       <Handle id="source-right"  type="source" position={Position.Right}  style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
@@ -80,11 +92,18 @@ function CallGraphNode({ data, selected }: {
   );
 }
 
-function ContractGroupNode({ data }: { data: { label: string; count: number } }) {
+function ContractGroupNode({ data }: { data: { label: string; count: number; address?: string | null; colorIndex?: number } }) {
+  const color = GROUP_COLORS[(data.colorIndex ?? 0) % GROUP_COLORS.length];
   return (
-    <div className={styles.callGraphGroup}>
+    <div className={styles.callGraphGroup} style={{ '--group-color': color } as React.CSSProperties}>
       <div className={styles.callGraphGroupHeader}>
-        <span>{data.label}</span>
+        <button
+          className={styles.callGraphGroupAddr}
+          title={data.address ?? ''}
+          onClick={(e) => { e.stopPropagation(); if (data.address) copyWithFirework(data.address); }}
+        >
+          {data.label}
+        </button>
       </div>
     </div>
   );
@@ -325,12 +344,13 @@ export default function CallGraphTab({
       const groupHeight = CONTRACT_HEADER + CONTRACT_VPAD * 2 + totalFnRows * NODE_H + dividerH;
 
       const contractLabel = allFns[0]?.groupLabel ?? 'UnknownContract';
+      const contractAddr = allFns[0]?.address ?? null;
       const contractId = `contract:${groupKey}`;
       const totalCount = allFns.reduce((sum, fn) => sum + fn.count, 0);
       builtNodes.push({
         id: contractId,
         type: 'contractGroup',
-        data: { label: contractLabel, count: totalCount },
+        data: { label: contractLabel, count: totalCount, address: contractAddr, colorIndex: colIndex },
         position: { x: cursorX, y: 0 },
         style: { width: contractWidth, height: groupHeight },
       });
@@ -422,6 +442,9 @@ export default function CallGraphTab({
       // Internal edges connect an external call node to an internal (jump-frame) node
       // within the same contract group — render them vertically (top → bottom).
       const isInternalEdge = !!srcGn && !!tgtGn && srcGn.groupKey === tgtGn.groupKey;
+      // Edge idle color = source node's group accent color.
+      const srcColIdx = Math.max(0, (nodeColumn.get(edge.source) ?? 1) - 1);
+      const idleColor = GROUP_COLORS[srcColIdx % GROUP_COLORS.length];
       let sourceHandle: string;
       let targetHandle: string;
       if (isInternalEdge) {
@@ -447,10 +470,10 @@ export default function CallGraphTab({
           type: MarkerType.ArrowClosed,
           width: 16,
           height: 16,
-          color: isHoveredEdge ? '#22d3ee' : '#8b97aa',
+          color: isHoveredEdge ? '#22d3ee' : idleColor,
         },
         style: {
-          stroke: isHoveredEdge ? '#22d3ee' : '#8b97aa',
+          stroke: isHoveredEdge ? '#22d3ee' : idleColor,
           strokeWidth: isHoveredEdge ? 2 : 1.4,
           opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.18) : isInternalEdge ? 0.55 : 0.85,
         },

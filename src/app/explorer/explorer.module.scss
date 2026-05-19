@@ -1124,8 +1124,8 @@
 }
 
 .callGraphNode {
-  background: rgba(35, 39, 89, 0.42);
-  border: 1px solid #4f5bff;
+  background: color-mix(in srgb, var(--group-color, #4f6bff) 8%, rgba(35, 39, 89, 0.42) 92%);
+  border: 1px solid var(--group-color, #4f6bff);
   border-radius: 0;
   padding: 0 12px;
   width: 100%;
@@ -1215,7 +1215,7 @@
 
 .callGraphGroup {
   background: transparent;
-  border: 1px solid #4f5bff;
+  border: 1px solid var(--group-color, #4f6bff);
   border-radius: 0;
   padding: 0;
   width: 100%;
@@ -1226,16 +1226,36 @@
 .callGraphGroupHeader {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: center;
   padding: 0 12px;
   height: 40px;
   font-size: 12px;
   font-weight: 400;
   color: #f4f7ff;
-  background: rgba(26, 30, 74, 0.5);
-  border-bottom: 1px solid #4f5bff;
+  background: color-mix(in srgb, var(--group-color, #4f6bff) 12%, #0e1029 88%);
+  border-bottom: 1px solid var(--group-color, #4f6bff);
   border-radius: 0;
   letter-spacing: 0;
+}
+
+.callGraphGroupAddr {
+  font-family: $font-mono;
+  font-size: 11px;
+  color: var(--group-color, #4f6bff);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  opacity: 0.85;
+  transition: opacity 0.15s;
+  letter-spacing: 0.03em;
+  text-align: center;
+  width: 100%;
+
+  &:hover {
+    opacity: 1;
+    text-decoration: underline;
+  }
 }
 
 .callGraphGroupCount {
@@ -1245,8 +1265,8 @@
 }
 
 .callGraphNodeInternal {
-  background: rgba(18, 22, 55, 0.65);
-  border-color: rgba(79, 91, 255, 0.38);
+  background: color-mix(in srgb, var(--group-color, #4f6bff) 5%, rgba(18, 22, 55, 0.65) 95%);
+  border-color: color-mix(in srgb, var(--group-color, #4f6bff) 38%, transparent 62%);
 }
 
 .callGraphDivider {
