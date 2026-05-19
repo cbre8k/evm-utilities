@@ -445,3 +445,11 @@ code, pre {
     border-color: var(--border-default) !important;
   }
 }
+
+/* Marching-ant animation shared by all call-graph edges (external + internal) */
+@keyframes cgDashFlow {
+  to { stroke-dashoffset: -22; }
+}
+.cgEdgeDash {
+  animation: cgDashFlow 1.4s linear infinite;
+}
