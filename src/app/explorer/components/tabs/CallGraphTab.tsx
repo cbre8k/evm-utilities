@@ -82,6 +82,11 @@ function CallGraphNode({ data, selected }: {
       style={{ '--group-color': color } as React.CSSProperties}
     >
       <div className={styles.callGraphTitle}>{data.label}</div>
+      {/* Corner bracket decorations for active source/target nodes */}
+      {(data.callRole === 'source' || data.callRole === 'target') && <>
+        <span className={styles.cgCornerTR} />
+        <span className={styles.cgCornerBL} />
+      </>}
       <Handle id="target-left"   type="target" position={Position.Left}   style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
       <Handle id="source-right"  type="source" position={Position.Right}  style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
       <Handle id="source-left"   type="source" position={Position.Left}   style={{ opacity: 0, width: 1, height: 1, border: 0 }} />
@@ -147,9 +152,9 @@ function AnimatedDotEdge({
 
   return (
     <>
-      {/* Invisible base path so ReactFlow can render the arrowhead marker */}
+      {/* Invisible base path — strokeOpacity:0 keeps stroke-width so the marker scales correctly */}
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd}
-        style={{ stroke: strokeColor, strokeWidth: 0, fill: 'none' }} />
+        style={{ stroke: strokeColor, strokeWidth, strokeOpacity: 0, fill: 'none' }} />
       {/* Dashed line — static when idle, marching-ant animated when active */}
       <path
         className={animated ? 'cgEdgeDash' : undefined}

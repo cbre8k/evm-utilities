@@ -1124,6 +1124,7 @@
 }
 
 .callGraphNode {
+  position: relative;
   background: color-mix(in srgb, var(--group-color, #4f6bff) 8%, rgba(35, 39, 89, 0.42) 92%);
   border: 1px solid var(--group-color, #4f6bff);
   border-radius: 0;
@@ -1170,18 +1171,40 @@
   .callGraphTitle {
     color: #67e8f9;
   }
+
+  // TL corner via ::before, BR corner via ::after
+  &::before, &::after,
+  .cgCornerTR, .cgCornerBL {
+    content: '';
+    position: absolute;
+    width: 8px;
+    height: 8px;
+    border-color: #22d3ee;
+    border-style: solid;
+    pointer-events: none;
+  }
+
+  &::before {
+    top: -2px; left: -2px;
+    border-width: 2px 0 0 2px;
+  }
+  &::after {
+    bottom: -2px; right: -2px;
+    border-width: 0 2px 2px 0;
+  }
+  .cgCornerTR {
+    top: -2px; right: -2px;
+    border-width: 2px 2px 0 0;
+  }
+  .cgCornerBL {
+    bottom: -2px; left: -2px;
+    border-width: 0 0 2px 2px;
+  }
 }
 
 // Source (sender) node: thick left stripe to identify it as the origin of the call.
 .callGraphNodeSource {
   border-left-width: 3px;
-}
-
-// Internal highlighted nodes: same active color but dashed border to distinguish
-// them from the external entry-point row.
-.callGraphNodeInternal.callGraphNodeSource,
-.callGraphNodeInternal.callGraphNodeTarget {
-  border-style: dashed;
 }
 
 // FROM badge — small label inside the source node row.
