@@ -1,7 +1,8 @@
+
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import { ReactFlow, Background, Handle, Position, MarkerType, BaseEdge, getStraightPath, type EdgeProps } from '@xyflow/react';
+import { ReactFlow, Background, Handle, Position, MarkerType, BaseEdge, getStraightPath, getSmoothStepPath, type EdgeProps } from '@xyflow/react';
 import type { AddressStateDiff, FilteredStructLog, TraceNode } from '@/types/explorer';
 import styles from '../../explorer.module.scss';
 import { buildFromStructLog, buildFlatEntries, buildTraceTree } from './callTraceBuild';
@@ -84,7 +85,6 @@ function ContractGroupNode({ data }: { data: { label: string; count: number } })
     <div className={styles.callGraphGroup}>
       <div className={styles.callGraphGroupHeader}>
         <span>{data.label}</span>
-        <span className={styles.callGraphGroupCount}>×{data.count}</span>
       </div>
     </div>
   );
@@ -114,9 +114,12 @@ function SectionDividerNode() {
 // Fund-flow style animated edge: static line + two dots that travel along the path.
 // The second dot is offset by half the duration so dots flow continuously.
 function AnimatedDotEdge({
-  id, sourceX, sourceY, targetX, targetY, markerEnd, style, animated,
+  id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, animated, data,
 }: EdgeProps) {
-  const [edgePath] = getStraightPath({ sourceX, sourceY, targetX, targetY });
+  const isInternal = !!(data as { isInternal?: boolean } | undefined)?.isInternal;
+  const [edgePath] = isInternal
+    ? getSmoothStepPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition, borderRadius: 12 })
+    : getStraightPath({ sourceX, sourceY, targetX, targetY });
   const dotColor = (style as { stroke?: string } | undefined)?.stroke ?? '#22d3ee';
   return (
     <>
@@ -400,8 +403,8 @@ export default function CallGraphTab({
       let sourceHandle: string;
       let targetHandle: string;
       if (isInternalEdge) {
-        sourceHandle = 'source-bottom';
-        targetHandle = 'target-top';
+        sourceHandle = 'source-right';
+        targetHandle = 'target-right';
       } else {
         const srcCol = nodeColumn.get(edge.source) ?? 0;
         const tgtCol = nodeColumn.get(edge.target) ?? 0;
@@ -416,7 +419,7 @@ export default function CallGraphTab({
         sourceHandle,
         targetHandle,
         type: 'animatedDot',
-        data: { count: edge.count },
+        data: { count: edge.count, isInternal: isInternalEdge },
         animated: !!isHoveredEdge,
         markerEnd: {
           type: MarkerType.ArrowClosed,
