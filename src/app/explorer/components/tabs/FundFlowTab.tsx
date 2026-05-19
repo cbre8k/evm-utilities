@@ -956,7 +956,7 @@ export default function FundFlowTab(props: Props) {
                 <th className={styles.th}>TOKEN</th>
                 <th className={styles.th}>FROM</th>
                 <th className={styles.th}>TO</th>
-                <th className={styles.th} style={{ textAlign: 'right' }}>AMOUNT (raw)</th>
+                <th className={styles.th} style={{ textAlign: 'right' }}>AMOUNT</th>
               </tr>
             </thead>
             <tbody>
@@ -965,7 +965,7 @@ export default function FundFlowTab(props: Props) {
                   <td className={styles.td}><span className={styles.mono} title={t.tokenAddress}>{addr(t.tokenAddress)}</span></td>
                   <td className={styles.td}><span className={styles.mono} title={t.from}>{addr(t.from)}</span></td>
                   <td className={styles.td}><span className={styles.mono} title={t.to}>{addr(t.to)}</span></td>
-                  <td className={styles.td} style={{ textAlign: 'right' }}>{t.amount}</td>
+                  <td className={styles.td} style={{ textAlign: 'right' }}>{formatDecimal(t.amount, t.decimals ?? 18)}</td>
                 </tr>
               ))}
             </tbody>
