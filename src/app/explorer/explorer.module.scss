@@ -1171,33 +1171,37 @@
   .callGraphTitle {
     color: #67e8f9;
   }
+}
 
-  // TL corner via ::before, BR corner via ::after
+// Corner bracket decoration — only on the exact source/target node (not group siblings).
+// Brackets sit 4px outside the node border to create visible breathing room.
+.callGraphNodeExact {
   &::before, &::after,
   .cgCornerTR, .cgCornerBL {
     content: '';
     position: absolute;
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     border-color: #22d3ee;
     border-style: solid;
     pointer-events: none;
+    z-index: 10;
   }
 
   &::before {
-    top: -2px; left: -2px;
+    top: -10px; left: -10px;
     border-width: 2px 0 0 2px;
   }
   &::after {
-    bottom: -2px; right: -2px;
+    bottom: -10px; right: -10px;
     border-width: 0 2px 2px 0;
   }
   .cgCornerTR {
-    top: -2px; right: -2px;
+    top: -10px; right: -10px;
     border-width: 2px 2px 0 0;
   }
   .cgCornerBL {
-    bottom: -2px; left: -2px;
+    bottom: -10px; left: -10px;
     border-width: 0 0 2px 2px;
   }
 }

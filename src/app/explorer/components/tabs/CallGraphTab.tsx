@@ -66,7 +66,7 @@ const GROUP_COLORS = [
 ];
 
 function CallGraphNode({ data, selected }: {
-  data: CallGraphNode['data'] & { isInternal?: boolean; callRole?: string };
+  data: CallGraphNode['data'] & { isInternal?: boolean; callRole?: string; exactMatch?: boolean };
   selected?: boolean;
 }) {
   const color = GROUP_COLORS[(data.colorIndex ?? 0) % GROUP_COLORS.length];
@@ -77,13 +77,14 @@ function CallGraphNode({ data, selected }: {
         data.isInternal ? styles.callGraphNodeInternal : '',
         data.callRole === 'source' ? styles.callGraphNodeSource : '',
         data.callRole === 'target' ? styles.callGraphNodeTarget : '',
+        data.exactMatch ? styles.callGraphNodeExact : '',
         selected ? styles.callGraphNodeSelected : '',
       ].filter(Boolean).join(' ')}
       style={{ '--group-color': color } as React.CSSProperties}
     >
       <div className={styles.callGraphTitle}>{data.label}</div>
-      {/* Corner bracket decorations for active source/target nodes */}
-      {(data.callRole === 'source' || data.callRole === 'target') && <>
+      {/* Corner brackets only on the exact source/target node, not group-highlighted siblings */}
+      {data.exactMatch && (data.callRole === 'source' || data.callRole === 'target') && <>
         <span className={styles.cgCornerTR} />
         <span className={styles.cgCornerBL} />
       </>}
@@ -420,7 +421,7 @@ export default function CallGraphTab({
       // Highlight the tx-sender node when it is the source of the active edge.
       if (n.id === 'tx-sender') {
         return source === 'tx-sender'
-          ? { ...n, data: { ...n.data, callRole: 'source' } }
+          ? { ...n, data: { ...n.data, callRole: 'source', exactMatch: true } }
           : n;
       }
       if (n.type !== 'callGraphNode') return n;
@@ -431,7 +432,8 @@ export default function CallGraphTab({
           : n.id === source || (gn.isInternal && gn.groupKey === sourceGroupKey) ? 'source'
             : '';
       if (!callRole) return n;
-      return { ...n, data: { ...n.data, callRole } };
+      const exactMatch = n.id === source || n.id === target;
+      return { ...n, data: { ...n.data, callRole, exactMatch } };
     });
   }, [nodes, activeEdge, graphNodes]);
 
