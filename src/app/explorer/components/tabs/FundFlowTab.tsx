@@ -95,9 +95,6 @@ const EDGE_COLORS = [
   'hsl(180, 60%, 40%)',
 ];
 
-// Max parallel edges per pair — determines how many handles we create
-const MAX_HANDLES: number = 6;
-
 type FlowEdgeData = {
   color?: string;
   stepNum?: number;
@@ -113,28 +110,14 @@ function AddressNode({ data }: NodeProps) {
     address: string; label: string; isSender?: boolean; isContract?: boolean; logo?: string;
   };
 
-  // Generate handles on both sides for forward and back edges
-  // Right side: s-{i} (source), tr-{i} (target for back-edges)
-  // Left side:  t-{i} (target), sl-{i} (source for back-edges)
-  const handles = [];
-  for (let i = 0; i < MAX_HANDLES; i++) {
-    const pct = MAX_HANDLES === 1 ? 50 : 15 + (i * 70) / (MAX_HANDLES - 1);
-    handles.push(
-      <Handle key={`t-${i}`} type="target" position={Position.Left} id={`t-${i}`}
-        style={{ top: `${pct}%`, opacity: 0 }} />,
-      <Handle key={`s-${i}`} type="source" position={Position.Right} id={`s-${i}`}
-        style={{ top: `${pct}%`, opacity: 0 }} />,
-      <Handle key={`sl-${i}`} type="source" position={Position.Left} id={`sl-${i}`}
-        style={{ top: `${pct}%`, opacity: 0 }} />,
-      <Handle key={`tr-${i}`} type="target" position={Position.Right} id={`tr-${i}`}
-        style={{ top: `${pct}%`, opacity: 0 }} />,
-    );
-  }
-
   return (
     <div className={styles.ffNode}>
       {d.isSender && <div className={styles.ffNodeBadge}>Sender</div>}
-      {handles}
+      {/* Center handles on each side — forward: right→left, back: left→right */}
+      <Handle type="source" position={Position.Right} id="source-right" style={{ top: '50%', opacity: 0 }} />
+      <Handle type="target" position={Position.Left}  id="target-left"  style={{ top: '50%', opacity: 0 }} />
+      <Handle type="source" position={Position.Left}  id="source-left"  style={{ top: '50%', opacity: 0 }} />
+      <Handle type="target" position={Position.Right} id="target-right" style={{ top: '50%', opacity: 0 }} />
       <div className={styles.ffNodeInner}>
         <div className={styles.ffNodeIcon}>
           {d.logo
@@ -162,32 +145,40 @@ function FlowEdge(props: EdgeProps) {
   const { id, sourceX, sourceY, targetX, targetY, style, markerEnd, data } = props;
   const d = data as FlowEdgeData;
   const dotColor = d?.color || 'var(--accent-primary)';
-  const leftX = Math.min(sourceX, targetX);
-  const rightX = Math.max(sourceX, targetX);
-  const direction = sourceX <= targetX ? 1 : -1;
+
+  // Same row: straight horizontal line. Different row: double-cubic bezier that
+  // routes through routeY to avoid intermediate nodes.
+  const sameRow = Math.abs(sourceY - targetY) < 2;
   const routeY = d?.routeY ?? (sourceY + targetY) / 2;
   const labelX = (sourceX + targetX) / 2;
-  const labelY = routeY;
-  const availableX = Math.max(1, rightX - leftX);
-  const edgeGap = Math.min(56, Math.max(20, availableX * 0.16));
-  const minX = leftX + edgeGap;
-  const maxX = rightX - edgeGap;
-  const p1Base = sourceX + direction * availableX * 0.25;
-  const p4Base = sourceX + direction * availableX * 0.75;
-  const p1X = sourceX <= targetX
-    ? Math.min(Math.max(p1Base, minX), maxX)
-    : Math.max(Math.min(p1Base, maxX), minX);
-  const p4X = sourceX <= targetX
-    ? Math.min(Math.max(p4Base, minX), maxX)
-    : Math.max(Math.min(p4Base, maxX), minX);
-  const canBeStraight = Math.abs(sourceY - targetY) < 1 && Math.abs(routeY - sourceY) < 1;
-  const edgePath = canBeStraight
-    ? `M ${sourceX},${sourceY} L ${targetX},${targetY}`
-    : [
-        `M ${sourceX},${sourceY}`,
-        `C ${p1X},${sourceY} ${p1X},${routeY} ${labelX},${routeY}`,
-        `C ${p4X},${routeY} ${p4X},${targetY} ${targetX},${targetY}`,
-      ].join(' ');
+  const labelY = sameRow ? sourceY : routeY;
+
+  let edgePath: string;
+  if (sameRow) {
+    edgePath = `M ${sourceX},${sourceY} L ${targetX},${targetY}`;
+  } else {
+    const leftX = Math.min(sourceX, targetX);
+    const rightX = Math.max(sourceX, targetX);
+    const direction = sourceX <= targetX ? 1 : -1;
+    const availableX = Math.max(1, rightX - leftX);
+    const edgeGap = Math.min(56, Math.max(20, availableX * 0.16));
+    const minX = leftX + edgeGap;
+    const maxX = rightX - edgeGap;
+    const p1Base = sourceX + direction * availableX * 0.25;
+    const p4Base = sourceX + direction * availableX * 0.75;
+    const p1X = sourceX <= targetX
+      ? Math.min(Math.max(p1Base, minX), maxX)
+      : Math.max(Math.min(p1Base, maxX), minX);
+    const p4X = sourceX <= targetX
+      ? Math.min(Math.max(p4Base, minX), maxX)
+      : Math.max(Math.min(p4Base, maxX), minX);
+    edgePath = [
+      `M ${sourceX},${sourceY}`,
+      `C ${p1X},${sourceY} ${p1X},${routeY} ${labelX},${routeY}`,
+      `C ${p4X},${routeY} ${p4X},${targetY} ${targetX},${targetY}`,
+    ].join(' ');
+  }
+
   const labelItems = d?.items?.length
     ? d.items
     : [{ stepNum: d?.stepNum ?? 0, amount: d?.amount ?? '', symbol: d?.symbol ?? '', color: dotColor }];
@@ -375,14 +366,6 @@ type NodeRect = {
   top: number;
   bottom: number;
 };
-
-function handleRatio(handleId: string | null | undefined) {
-  if (!handleId) return 0.5;
-  const index = Number(handleId.split('-')[1]);
-  if (!Number.isFinite(index)) return 0.5;
-  const pct = MAX_HANDLES === 1 ? 50 : 15 + (Math.min(index, MAX_HANDLES - 1) * 70) / (MAX_HANDLES - 1);
-  return pct / 100;
-}
 
 /** Sample the full double-cubic Bezier path at N points and check if ANY sample hits a node rect. */
 function curveCrossesNode(
@@ -614,20 +597,10 @@ function buildGraph(
 
   const stepEdgeIds = Array.from<string>({ length: transfers.length });
 
-  // Track how many edges connect from/to each node to distribute handles
-  const nodeSourceCount = new Map<string, number>();
-  const nodeTargetCount = new Map<string, number>();
-
   const edges: Edge[] = [...groupedTransfers.values()].map((group, groupIndex) => {
     const firstStep = group.steps[0];
     const firstTransfer = transfers[firstStep];
     const edgeId = `e-${firstStep}`;
-
-    // Distribute handles so multiple edges from/to the same node don't overlap
-    const sIdx = nodeSourceCount.get(group.from) ?? 0;
-    const tIdx = nodeTargetCount.get(group.to) ?? 0;
-    nodeSourceCount.set(group.from, sIdx + 1);
-    nodeTargetCount.set(group.to, tIdx + 1);
 
     const color = symbolColors[firstTransfer.symbol];
     const sourceNode = nodeById.get(group.from);
@@ -638,24 +611,19 @@ function buildGraph(
     const tgtX = targetNode ? targetNode.position.x : srcX + NODE_W + GAP_X;
     const isBackEdge = tgtX <= srcX;
 
-    // For forward edges: source right (s-*) → target left (t-*)
-    // For back edges: source left (sl-*) → target right (tr-*)
-    let sourceX: number, targetX: number;
-    let sHandle: string, tHandle: string;
-    if (isBackEdge) {
-      sourceX = sourceNode ? sourceNode.position.x : 0;               // left side
-      targetX = targetNode ? targetNode.position.x + NODE_W : srcX;    // right side
-      sHandle = `sl-${Math.min(sIdx, MAX_HANDLES - 1)}`;
-      tHandle = `tr-${Math.min(tIdx, MAX_HANDLES - 1)}`;
-    } else {
-      sourceX = sourceNode ? sourceNode.position.x + NODE_W : 0;      // right side
-      targetX = targetNode ? targetNode.position.x : sourceX + GAP_X;  // left side
-      sHandle = `s-${Math.min(sIdx, MAX_HANDLES - 1)}`;
-      tHandle = `t-${Math.min(tIdx, MAX_HANDLES - 1)}`;
-    }
+    // All edges connect at the vertical center of the node's left or right edge.
+    // Forward: right-center → left-center. Back: left-center → right-center.
+    const sourceX = isBackEdge
+      ? (sourceNode ? sourceNode.position.x : 0)
+      : (sourceNode ? sourceNode.position.x + NODE_W : 0);
+    const targetX = isBackEdge
+      ? (targetNode ? targetNode.position.x + NODE_W : srcX)
+      : (targetNode ? targetNode.position.x : sourceX + GAP_X);
+    const sHandle = isBackEdge ? 'source-left' : 'source-right';
+    const tHandle = isBackEdge ? 'target-right' : 'target-left';
 
-    const sourceY = sourceNode ? sourceNode.position.y + NODE_H * handleRatio(sHandle) : 0;
-    const targetY = targetNode ? targetNode.position.y + NODE_H * handleRatio(tHandle) : sourceY;
+    const sourceY = sourceNode ? sourceNode.position.y + NODE_H / 2 : 0;
+    const targetY = targetNode ? targetNode.position.y + NODE_H / 2 : sourceY;
     const blockerRects = nodeRects.filter(rect => rect.id !== group.from && rect.id !== group.to);
     const routeY = edgeRouteY(sourceX, sourceY, targetX, targetY, blockerRects, groupIndex);
     const items = group.steps.map((stepNum) => {
