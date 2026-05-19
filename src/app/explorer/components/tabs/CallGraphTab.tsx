@@ -150,9 +150,9 @@ function AnimatedDotEdge({
       {/* Invisible base path so ReactFlow can render the arrowhead marker */}
       <BaseEdge id={id} path={edgePath} markerEnd={markerEnd}
         style={{ stroke: strokeColor, strokeWidth: 0, fill: 'none' }} />
-      {/* Always-on marching-ant dashed line — animated via .cgEdgeDash CSS */}
+      {/* Dashed line — static when idle, marching-ant animated when active */}
       <path
-        className="cgEdgeDash"
+        className={animated ? 'cgEdgeDash' : undefined}
         d={edgePath}
         fill="none"
         stroke={strokeColor}
@@ -359,7 +359,7 @@ export default function CallGraphTab({
         const relY = CONTRACT_HEADER + CONTRACT_VPAD + index * (NODE_H + ROW_GAP);
         builtNodes.push({
           id: fn.id,
-          data: { label: fn.label, address: fn.address, contract: fn.contract, count: fn.count },
+          data: { label: fn.label, address: fn.address, contract: fn.contract, count: fn.count, colorIndex: colIndex },
           position: { x: 0, y: relY },
           type: 'callGraphNode',
           parentId: contractId,
@@ -387,7 +387,7 @@ export default function CallGraphTab({
         const relY = CONTRACT_HEADER + CONTRACT_VPAD + externalFns.length * (NODE_H + ROW_GAP) + dividerH + index * (NODE_H + ROW_GAP);
         builtNodes.push({
           id: fn.id,
-          data: { label: fn.label, address: fn.address, contract: fn.contract, count: fn.count, isInternal: true },
+          data: { label: fn.label, address: fn.address, contract: fn.contract, count: fn.count, isInternal: true, colorIndex: colIndex },
           position: { x: 0, y: relY },
           type: 'callGraphNode',
           parentId: contractId,
