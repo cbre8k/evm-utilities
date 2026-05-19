@@ -12,6 +12,7 @@ import { createTraceShare } from '../services/shareService';
 import {
   buildTxOverview,
   buildTokenLabelMap,
+  enrichErc20Transfers,
   debugTraceTransaction,
   getPrestateTrace,
   getFilteredStructLog,
@@ -826,6 +827,7 @@ export async function buildTraceResultPayload(
     rpcUrl,
     erc20Transfers.map(transfer => transfer.tokenAddress),
   );
+  const enrichedErc20Transfers = await enrichErc20Transfers(rpcUrl, erc20Transfers, tokenLabels);
   const addressLabels = await buildAddressLabelMap(
     chainId,
     collectTraceAddresses(normalizedTree),
@@ -844,7 +846,7 @@ export async function buildTraceResultPayload(
     addressLabels,
     tokenLabels,
     allLogs,
-    erc20Transfers,
+    erc20Transfers: enrichedErc20Transfers,
     erc721Transfers,
     erc1155Transfers,
     nativeTransfers,
@@ -946,6 +948,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
       rpcUrl,
       erc20Transfers.map(transfer => transfer.tokenAddress),
     );
+    const enrichedErc20Transfers = await enrichErc20Transfers(rpcUrl, erc20Transfers, tokenLabels);
     const addressLabels    = await buildAddressLabelMap(
       chainId,
       collectTraceAddresses(normalizedTree),
@@ -983,7 +986,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
       chainId,
       txOverview,
       normalizedTrace: normalizedTree,
-      tokenTransfers: erc20Transfers,
+      tokenTransfers: enrichedErc20Transfers,
       decodedCalldata: decodedCalldata ?? undefined,
       decodedOutput: decodedOutput ?? undefined,
     });
@@ -998,14 +1001,14 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
         txOverview,
         rawCallTree,
         normalizedTree,
-        tokenTransfers: erc20Transfers,
+        tokenTransfers: enrichedErc20Transfers,
         decodedCalldata,
         decodedOutput,
         structLog,
         addressLabels,
         tokenLabels,
         allLogs,
-        erc20Transfers,
+        erc20Transfers: enrichedErc20Transfers,
         erc721Transfers,
         erc1155Transfers,
         nativeTransfers,
@@ -1026,7 +1029,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
       addressLabels,
       tokenLabels,
       allLogs,
-      erc20Transfers,
+      erc20Transfers: enrichedErc20Transfers,
       erc721Transfers,
       erc1155Transfers,
       nativeTransfers,

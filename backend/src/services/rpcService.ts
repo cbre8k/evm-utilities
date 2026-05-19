@@ -126,6 +126,48 @@ export async function buildTokenLabelMap(
   return Object.fromEntries(entries.filter(([, symbol]) => !!symbol)) as Record<string, string>;
 }
 
+export async function getTokenDecimals(rpcUrl: string, address: string): Promise<number | null> {
+  try {
+    const result = await rpcCall<string>(rpcUrl, 'eth_call', [
+      { to: address.toLowerCase(), data: '0x313ce567' }, // decimals()
+      'latest',
+    ]);
+    if (!result || result === '0x') return null;
+    const val = parseInt(result, 16);
+    if (isNaN(val) || val < 0 || val > 77) return null;
+    return val;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Populate `decimals` (on-chain fetch) and `symbol` (from pre-built tokenLabels)
+ * on each ERC-20 transfer. Unique token addresses are fetched in parallel.
+ */
+export async function enrichErc20Transfers(
+  rpcUrl: string,
+  transfers: ERC20Transfer[],
+  tokenLabels: Record<string, string> = {},
+): Promise<ERC20Transfer[]> {
+  const unique = [...new Set(transfers.map(t => t.tokenAddress.toLowerCase()))];
+  const decimalsEntries = await Promise.all(
+    unique.map(async (address) => [address, await getTokenDecimals(rpcUrl, address)] as const)
+  );
+  const decimalsMap = Object.fromEntries(
+    decimalsEntries.filter(([, d]) => d !== null)
+  ) as Record<string, number>;
+
+  return transfers.map(t => {
+    const key = t.tokenAddress.toLowerCase();
+    return {
+      ...t,
+      ...(decimalsMap[key] !== undefined ? { decimals: decimalsMap[key] } : {}),
+      ...(tokenLabels[key] ? { symbol: tokenLabels[key] } : {}),
+    };
+  });
+}
+
 export async function getTransaction(rpcUrl: string, txHash: string): Promise<any> {
   return rpcCall<any>(rpcUrl, 'eth_getTransactionByHash', [txHash]);
 }
