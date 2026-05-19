@@ -4,7 +4,7 @@ import React from 'react';
 import type { AddressContext, TraceItem } from './callTraceTypes';
 import { FrameRow, JumpFrameRow, LeafRow } from './callTraceRows';
 import type { OpcodeEntry } from './callTraceTypes';
-import { nodeContractName, short } from './callTraceUtils';
+import { nodeContractName } from './callTraceUtils';
 import { getOpcodeStyle } from '@/utils/opcodes';
 import styles from '../../explorer.module.scss';
 
@@ -58,14 +58,12 @@ export function TraceTree({
           const hasChildren = item.items.length > 0;
           const childConnectors = [...connectors, !isLast];
 
-          // For DELEGATECALL/CALLCODE, pass the proxy/storage contract name
-          // to children — matches Tenderly's convention of showing the execution
-          // context (proxy) for internal functions, not the implementation.
+          // For DELEGATECALL/CALLCODE, pass the implementation's contract name
+          // to children — the code executing belongs to the logic contract (node.to),
+          // not the proxy (storageAddress).
           const isDelegateCall = node.type === 'DELEGATECALL' || node.type === 'CALLCODE';
           const childContractName = isDelegateCall
-            ? (entry.storageAddress
-                ? short(entry.storageAddress, addressLabels, tokenLabels, tokenAddresses)
-                : nodeContractName(node, addressLabels, tokenLabels, tokenAddresses))
+            ? nodeContractName(node, addressLabels, tokenLabels, tokenAddresses)
             : undefined;
 
           // A frame is reverted if it has an error directly OR any descendant reverted

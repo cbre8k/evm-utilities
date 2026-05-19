@@ -341,12 +341,12 @@ export function buildTraceTree(entries: FlatEntry[]): TraceItem[] {
       };
 
       parent.items.push(frame);
-      // For DELEGATECALL/CALLCODE, children execute the implementation's code
-      // but from the proxy's context. Tenderly shows the proxy name for internal
-      // functions, so inherit the parent's contractName (proxy) instead of the
-      // implementation's contract_name.
-      const isDcall = entry.isDelegateCall;
-      const frameName = isDcall ? parent.contractName : entry.node.contract_name;
+      // Children of a DELEGATECALL/CALLCODE execute the implementation's code.
+      // Use the implementation's contract_name (entry.node.contract_name = the
+      // DELEGATECALL target) so jump-frames and steps show the logic contract,
+      // not the proxy.  Fall back to the parent name only if the implementation
+      // has no label (e.g. unverified contract).
+      const frameName = entry.node.contract_name || parent.contractName;
       stack.push({
         depth: entry.depth,
         items: frame.items,
