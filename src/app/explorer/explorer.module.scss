@@ -3270,6 +3270,16 @@
   min-width: 0;
 }
 
+// Marching-ant animation shared by all call-graph edges (external + internal).
+:global {
+  @keyframes cgDashFlow {
+    to { stroke-dashoffset: -22; }
+  }
+  .cgEdgeDash {
+    animation: cgDashFlow 1.4s linear infinite;
+  }
+}
+
 .callGraphHeader {
   display: flex;
   align-items: center;

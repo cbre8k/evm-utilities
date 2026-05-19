@@ -111,32 +111,46 @@ function SectionDividerNode() {
   );
 }
 
-// Animated edge: static routed line + two dots that travel along the path.
-// The second dot is offset by half the duration so dots flow continuously.
+// Animated edge: dashed marching-ant path always running + bright traveling
+// dots when active. Internal and external edges share the same animation CSS.
 function AnimatedDotEdge({
   id, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, markerEnd, style, animated, data,
 }: EdgeProps) {
   const isInternal = !!(data as { isInternal?: boolean } | undefined)?.isInternal;
-  // All edges use SmoothStep so lines leave/enter at right angles — prevents
-  // diagonal crossing when one source connects to multiple stacked targets.
   const [edgePath] = getSmoothStepPath({
     sourceX, sourceY, sourcePosition,
     targetX, targetY, targetPosition,
     borderRadius: isInternal ? 12 : 8,
   });
-  const dotColor = (style as { stroke?: string } | undefined)?.stroke ?? '#22d3ee';
+  const strokeColor = (style as { stroke?: string } | undefined)?.stroke ?? '#8b97aa';
+  const strokeWidth = (style as { strokeWidth?: number } | undefined)?.strokeWidth ?? 1.4;
+  const opacity = (style as { opacity?: number } | undefined)?.opacity ?? 1;
+
   return (
     <>
-      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd} style={style} />
+      {/* Invisible base path so ReactFlow can render the arrowhead marker */}
+      <BaseEdge id={id} path={edgePath} markerEnd={markerEnd}
+        style={{ stroke: strokeColor, strokeWidth: 0, fill: 'none' }} />
+      {/* Always-on marching-ant dashed line — animated via .cgEdgeDash CSS */}
+      <path
+        className="cgEdgeDash"
+        d={edgePath}
+        fill="none"
+        stroke={strokeColor}
+        strokeWidth={strokeWidth}
+        strokeDasharray="5 6"
+        opacity={opacity}
+      />
+      {/* Traveling dot pair — only when this edge is the active call edge */}
       {animated && (
         <>
-          <circle r="4" fill={dotColor} fillOpacity="0.9">
+          <circle r="4" fill={strokeColor} fillOpacity="0.9">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <animateMotion dur="1.2s" repeatCount="indefinite" calcMode="linear" {...{ path: edgePath } as any} />
+            <animateMotion dur="1.1s" repeatCount="indefinite" calcMode="linear" {...{ path: edgePath } as any} />
           </circle>
-          <circle r="4" fill={dotColor} fillOpacity="0.5">
+          <circle r="4" fill={strokeColor} fillOpacity="0.5">
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-            <animateMotion dur="1.2s" repeatCount="indefinite" calcMode="linear" begin="-0.6s" {...{ path: edgePath } as any} />
+            <animateMotion dur="1.1s" repeatCount="indefinite" calcMode="linear" begin="-0.55s" {...{ path: edgePath } as any} />
           </circle>
         </>
       )}
@@ -433,13 +447,12 @@ export default function CallGraphTab({
           type: MarkerType.ArrowClosed,
           width: 16,
           height: 16,
-          color: isHoveredEdge ? '#22d3ee' : isInternalEdge ? '#64748b' : '#8b97aa',
+          color: isHoveredEdge ? '#22d3ee' : '#8b97aa',
         },
         style: {
-          stroke: isHoveredEdge ? '#22d3ee' : isInternalEdge ? '#64748b' : '#8b97aa',
+          stroke: isHoveredEdge ? '#22d3ee' : '#8b97aa',
           strokeWidth: isHoveredEdge ? 2 : 1.4,
-          strokeDasharray: isInternalEdge ? '4 3' : undefined,
-          opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.18) : isInternalEdge ? 0.65 : 0.9,
+          opacity: hasHoveredContext ? (isHoveredEdge ? 1 : 0.18) : isInternalEdge ? 0.55 : 0.85,
         },
       };
     });
