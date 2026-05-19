@@ -784,7 +784,7 @@ export async function buildTraceResultPayload(
     debugTraceTransaction(rpcUrl, txHash),
     getTransactionReceipt(rpcUrl, txHash),
     getPrestateTrace(rpcUrl, txHash),
-    getFilteredStructLog(rpcUrl, txHash, verbose),
+    getFilteredStructLog(rpcUrl, txHash),
   ]);
 
   const normalizedTree = normalizeCallTree(rawCallTree);
@@ -904,7 +904,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
       debugTraceTransaction(rpcUrl, txHash),
       getTransactionReceipt(rpcUrl, txHash),
       getPrestateTrace(rpcUrl, txHash),
-      getFilteredStructLog(rpcUrl, txHash, verbose),
+      getFilteredStructLog(rpcUrl, txHash),
     ]);
 
     const normalizedTree  = normalizeCallTree(rawCallTree);

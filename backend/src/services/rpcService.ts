@@ -267,7 +267,6 @@ function parseMinimalTrace(entries: unknown[]): import('../types').FilteredStruc
 export async function getFilteredStructLog(
   rpcUrl: string,
   txHash: string,
-  _verbose = false,
 ): Promise<import('../types').FilteredStructLog[]> {
   // Minimal custom JS tracer — captures only the opcode name, PC, depth,
   // and (for JUMP/JUMPI) the jump destination plus a small stack window

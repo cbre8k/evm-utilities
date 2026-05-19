@@ -29,8 +29,8 @@ const ETHERSCAN_API_BY_CHAIN: Record<number, string> = {
   8453: 'https://api.basescan.org/api',
 };
 
-function getApiBase(chainId: number): string {
-  return ETHERSCAN_API_BY_CHAIN[chainId] ?? ETHERSCAN_API_BY_CHAIN[1];
+function getApiBase(chainId: number): string | null {
+  return ETHERSCAN_API_BY_CHAIN[chainId] ?? null;
 }
 
 function normalizeSources(
@@ -77,6 +77,7 @@ export async function getContractSource(
   if (!apiKey) return null;
 
   const base = getApiBase(chainId);
+  if (!base) return null;
   const url = `${base}?module=contract&action=getsourcecode&address=${address}&apikey=${apiKey}`;
 
   try {

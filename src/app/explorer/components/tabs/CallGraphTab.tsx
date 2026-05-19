@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useState, useCallback, useEffect } from 'react';
 import { ReactFlow, Background, Handle, Position, MarkerType, BaseEdge, getStraightPath, type EdgeProps } from '@xyflow/react';
 import type { AddressStateDiff, FilteredStructLog, TraceNode } from '@/types/explorer';
 import styles from '../../explorer.module.scss';
@@ -232,10 +232,12 @@ export default function CallGraphTab({
     [traceItems, addressLabels, tokenLabels, tokenAddressSet],
   );
 
-  const orderedNodeIds = useMemo(() => order.filter((id) => graphNodes.some((node) => node.id === id)), [order, graphNodes]);
+  const orderedNodeIds = useMemo(() => {
+    const nodeIdSet = new Set(graphNodes.map((n) => n.id));
+    return order.filter((id) => nodeIdSet.has(id));
+  }, [order, graphNodes]);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const selectedId = selectedIndex !== null ? orderedNodeIds[selectedIndex] ?? null : null;
-  const flowRef = useRef<any>(null);
 
   // The graph node ID for the root (entry-point) call — used to wire the sender edge
   // and to resolve the root-call highlight case in graphSelectedEdge.
@@ -597,7 +599,6 @@ export default function CallGraphTab({
           }}
           onNodeClick={onNodeClick}
           onInit={(instance) => {
-            flowRef.current = instance;
             setTimeout(() => instance.fitView({ padding: 0.14 }), 50);
           }}
           fitView
