@@ -87,7 +87,7 @@ export default function CallTraceTab({
   };
 
   const handleCollapseAll = () => {
-    setOpenCalls({ [rootNode.id]: true });
+    setOpenCalls({});
   };
 
   useEffect(() => {
@@ -205,19 +205,12 @@ export default function CallTraceTab({
                 <path d="M8 1v3M8 12v3M1 8h3M12 8h3M3.22 3.22l2.12 2.12M10.66 10.66l2.12 2.12M3.22 12.78l2.12-2.12M10.66 5.34l2.12-2.12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
                 <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.6"/>
               </svg>
-              Ask TerrySimon
+              Summary
             </button>
           </div>
         </div>
 
         <div className={styles.traceSplit}>
-          {summaryOpen && (
-            <TraceSummaryDrawer
-              items={treeItems}
-              chainId={chainId}
-              onClose={() => setSummaryOpen(false)}
-            />
-          )}
           <div className={styles.tracePane}>
             <div className={styles.traceList}>
               <div className={styles.traceListInner}>
@@ -262,6 +255,13 @@ export default function CallTraceTab({
           </div>
         </div>
       </div>
+      {summaryOpen && (
+        <TraceSummaryDrawer
+          items={treeItems}
+          chainId={chainId}
+          onClose={() => setSummaryOpen(false)}
+        />
+      )}
     </div>
   );
 }
