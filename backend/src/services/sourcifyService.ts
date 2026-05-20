@@ -2,11 +2,14 @@
 // https://sourcify.dev/server/api-docs/swagger.json
 
 const SOURCIFY_URL = 'https://sourcify.dev/server';
+// Module-level result caches — survive the lifetime of the worker process.
 const contractNameCache = new Map<string, string | null>();
 const runtimeDebugCache = new Map<string, RuntimeDebugInfo | null>();
-// In-flight promise cache: prevents duplicate concurrent requests for the same key.
+const verifiedSourceCache = new Map<string, VerifiedContract | null>();
+// In-flight promise caches: coalesce concurrent requests for the same key.
 const contractNameInflight = new Map<string, Promise<string | null>>();
 const runtimeDebugInflight = new Map<string, Promise<RuntimeDebugInfo | null>>();
+const verifiedSourceInflight = new Map<string, Promise<VerifiedContract | null>>();
 
 // ── Response types ────────────────────────────────────────────
 
@@ -51,61 +54,81 @@ export interface RuntimeDebugInfo {
 /**
  * Fetch verified contract data from Sourcify v2 API.
  * Single call: GET /v2/contract/{chainId}/{address}?fields=...
- * Returns null if the contract is not verified on Sourcify.
+ * Result and in-flight requests are cached so the same address is never
+ * fetched more than once per process lifetime regardless of how many
+ * callers trigger it concurrently.
  */
 export async function getVerifiedSource(
   chainId: number,
   address: string,
 ): Promise<VerifiedContract | null> {
-  try {
-    const fields = 'compilation.name,compilation.fullyQualifiedName,sources,abi,metadata';
-    const url = `${SOURCIFY_URL}/v2/contract/${chainId}/${address.toLowerCase()}?fields=${encodeURIComponent(fields)}`;
+  const key = `${chainId}:${address.toLowerCase()}`;
+  if (verifiedSourceCache.has(key)) return verifiedSourceCache.get(key) ?? null;
 
-    const res = await fetch(url, {
-      headers: { 'User-Agent': 'evm-utilities/1.0' },
-      signal: AbortSignal.timeout(8000),
-    });
+  const inflight = verifiedSourceInflight.get(key);
+  if (inflight) return inflight;
 
-    // 404 = contract not verified on this chain
-    if (res.status === 404) return null;
+  const promise = (async (): Promise<VerifiedContract | null> => {
+    try {
+      const fields = 'compilation.name,compilation.fullyQualifiedName,sources,abi,metadata';
+      const url = `${SOURCIFY_URL}/v2/contract/${chainId}/${address.toLowerCase()}?fields=${encodeURIComponent(fields)}`;
 
-    if (!res.ok) {
-      console.error(`[Sourcify] HTTP ${res.status} for ${address} on chain ${chainId}`);
+      const res = await fetch(url, {
+        headers: { 'User-Agent': 'evm-utilities/1.0' },
+        signal: AbortSignal.timeout(8000),
+      });
+
+      if (res.status === 404) {
+        verifiedSourceCache.set(key, null);
+        return null;
+      }
+
+      if (!res.ok) {
+        console.error(`[Sourcify] HTTP ${res.status} for ${address} on chain ${chainId}`);
+        verifiedSourceCache.set(key, null);
+        return null;
+      }
+
+      const data = await res.json() as any;
+
+      if (data.match === null && data.creationMatch === null && data.runtimeMatch === null) {
+        verifiedSourceCache.set(key, null);
+        return null;
+      }
+
+      const sourcesMap: Record<string, { content?: string }> = data.sources ?? {};
+      const sources: SourceFile[] = Object.entries(sourcesMap).map(([path, val]) => ({
+        name: path.split('/').pop() ?? path,
+        path,
+        content: (val as any).content ?? '',
+      }));
+
+      const result: VerifiedContract = {
+        match:              data.match              ?? null,
+        creationMatch:      data.creationMatch      ?? null,
+        runtimeMatch:       data.runtimeMatch       ?? null,
+        chainId:            String(chainId),
+        address:            address.toLowerCase(),
+        verifiedAt:         data.verifiedAt,
+        contractName:       data.compilation?.name              ?? null,
+        fullyQualifiedName: data.compilation?.fullyQualifiedName ?? null,
+        sources,
+        abi:      data.abi      ?? [],
+        metadata: data.metadata ?? null,
+      };
+      verifiedSourceCache.set(key, result);
+      return result;
+    } catch (err) {
+      console.error(`[Sourcify] Error for ${address} on chain ${chainId}:`, (err as any).message);
+      // Don't cache errors — allow a retry on the next request.
       return null;
+    } finally {
+      verifiedSourceInflight.delete(key);
     }
+  })();
 
-    const data = await res.json() as any;
-
-    // v2 may return 200 with all match fields null when contract is in DB but unverified
-    if (data.match === null && data.creationMatch === null && data.runtimeMatch === null) {
-      return null;
-    }
-
-    // Convert sources map { [filePath]: { content } } → SourceFile[]
-    const sourcesMap: Record<string, { content?: string }> = data.sources ?? {};
-    const sources: SourceFile[] = Object.entries(sourcesMap).map(([path, val]) => ({
-      name: path.split('/').pop() ?? path,
-      path,
-      content: (val as any).content ?? '',
-    }));
-
-    return {
-      match:              data.match              ?? null,
-      creationMatch:      data.creationMatch      ?? null,
-      runtimeMatch:       data.runtimeMatch       ?? null,
-      chainId:            String(chainId),
-      address:            address.toLowerCase(),
-      verifiedAt:         data.verifiedAt,
-      contractName:       data.compilation?.name              ?? null,
-      fullyQualifiedName: data.compilation?.fullyQualifiedName ?? null,
-      sources,
-      abi:      data.abi      ?? [],
-      metadata: data.metadata ?? null,
-    };
-  } catch (err) {
-    console.error(`[Sourcify] Error for ${address} on chain ${chainId}:`, (err as any).message);
-    return null;
-  }
+  verifiedSourceInflight.set(key, promise);
+  return promise;
 }
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -122,20 +145,11 @@ export async function getVerifiedContractName(
   const key = `${chainId}:${address.toLowerCase()}`;
   if (contractNameCache.has(key)) return contractNameCache.get(key) ?? null;
 
-  // Return existing in-flight promise to prevent duplicate concurrent fetches.
-  const inflight = contractNameInflight.get(key);
-  if (inflight) return inflight;
-
-  const promise = (async () => {
-    const contract = await getVerifiedSource(chainId, address);
-    const name = getContractName(contract);
-    contractNameCache.set(key, name ?? null);
-    contractNameInflight.delete(key);
-    return name ?? null;
-  })();
-
-  contractNameInflight.set(key, promise);
-  return promise;
+  // getVerifiedSource handles its own in-flight dedup + result cache.
+  const contract = await getVerifiedSource(chainId, address);
+  const name = getContractName(contract) ?? null;
+  contractNameCache.set(key, name);
+  return name;
 }
 
 export async function getRuntimeDebugInfo(
