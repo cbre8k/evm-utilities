@@ -5,6 +5,8 @@ import AppLayout from '@/components/Layout';
 import AntdRegistry from '@/components/AntdRegistry';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { NetworkProvider } from '@/contexts/NetworkContext';
+import { AgentProvider } from '@/contexts/AgentContext';
+import GlobalAgent from '@/components/GlobalAgent';
 import '@/styles/global.scss';
 
 const inter = Inter({
@@ -45,9 +47,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <ThemeProvider>
           <NetworkProvider>
-            <AntdRegistry>
-              <AppLayout>{children}</AppLayout>
-            </AntdRegistry>
+            <AgentProvider>
+              <AntdRegistry>
+                <AppLayout>{children}</AppLayout>
+              </AntdRegistry>
+              <GlobalAgent />
+            </AgentProvider>
           </NetworkProvider>
         </ThemeProvider>
       </body>

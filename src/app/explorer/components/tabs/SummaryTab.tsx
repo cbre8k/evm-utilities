@@ -59,11 +59,13 @@ interface Props {
   stateDiffs?: AddressStateDiff[];
   chainId?: number;
   shareHash?: string;
+  onOpenAgent?: () => void;
 }
 
 export default function SummaryTab({
   txOverview, decodedCalldata, decodedOutput, rawOutput,
   root, structLog, allLogs, addressLabels, tokenLabels, stateDiffs, chainId = 1,
+  onOpenAgent,
 }: Props) {
   const [inputTab, setInputTab] = useState<IoTab>('raw');
   const [outputTab, setOutputTab] = useState<IoTab>('raw');
@@ -167,6 +169,7 @@ export default function SummaryTab({
           stateDiffs={stateDiffs ?? []}
           chainId={chainId}
           embedded
+          onOpenAgent={onOpenAgent}
         />
       )}
     </div>

@@ -1,3 +1,5 @@
+'use client';
+
 import { TabBar, type TabBarItem } from '@/components/ui';
 import type { TraceResult } from '@/types/explorer';
 import styles from '../explorer.module.scss';
@@ -15,6 +17,7 @@ interface Props {
   tabItems: TabBarItem<ExplorerTab>[];
   totalGas: number;
   onTabChange: (tab: ExplorerTab) => void;
+  onOpenAgent: () => void;
 }
 
 export default function ExplorerResultWorkspace({
@@ -24,6 +27,7 @@ export default function ExplorerResultWorkspace({
   tabItems,
   totalGas,
   onTabChange,
+  onOpenAgent,
 }: Props) {
   return (
     <main className={styles.resultMain}>
@@ -46,6 +50,7 @@ export default function ExplorerResultWorkspace({
             stateDiffs={result.stateDiffs ?? []}
             chainId={result.chainId ?? 1}
             shareHash={shareHash}
+            onOpenAgent={onOpenAgent}
           />
         )}
 

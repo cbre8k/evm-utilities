@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useTheme } from '@/components/ThemeProvider';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useAgent } from '@/contexts/AgentContext';
 import { NETWORKS, APP_VERSION } from '@/lib/constants';
 import { Button } from '@/components/ui';
 import styles from './Layout.module.scss';
@@ -18,8 +19,10 @@ const NAV_ITEMS = [
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { registerHandler } = useAgent();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -32,6 +35,18 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Register global agent actions: navigate + network switch
+  useEffect(() => {
+    return registerHandler(['navigate', 'switch_network'], (action) => {
+      if (action.type === 'navigate') {
+        router.push(action.page);
+      } else if (action.type === 'switch_network') {
+        const net = NETWORKS.find(n => n.id === action.networkId);
+        if (net) setSelectedNetwork(net);
+      }
+    });
+  }, [registerHandler, router, setSelectedNetwork]);
 
   return (
     <div className={styles.layout}>

@@ -5,7 +5,6 @@ import type { AddressStateDiff, FilteredStructLog, TraceNode } from '@/types/exp
 import styles from '../../explorer.module.scss';
 import { buildFromStructLog, buildFlatEntries, buildTraceTree, parseGas, collectAllFrameIds } from './callTraceBuild';
 import { TraceTree } from './callTraceTree';
-import TraceSummaryDrawer from './TraceSummaryDrawer';
 import CallGraphTab from './CallGraphTab';
 import type { ContractSourceBundle, SourceSelection } from './sourceMapTypes';
 import { pickFileByName } from './sourceMapUtils';
@@ -23,6 +22,7 @@ interface Props {
   stateDiffs?: AddressStateDiff[];
   chainId?: number;
   embedded?: boolean;
+  onOpenAgent?: () => void;
 }
 
 type SourceCache = Record<string, ContractSourceBundle | null>;
@@ -37,6 +37,7 @@ export default function CallTraceTab({
   stateDiffs = [],
   chainId = 1,
   embedded = false,
+  onOpenAgent,
 }: Props) {
   const rootNode = useMemo<TraceNode>(() => root ?? {
     id: 'missing-root',
@@ -77,7 +78,6 @@ export default function CallTraceTab({
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hoveredTraceId, setHoveredTraceId] = useState<string | null>(null);
-  const [summaryOpen, setSummaryOpen] = useState(false);
 
   const handleExpandAll = () => {
     const ids = collectAllFrameIds(treeItems);
@@ -198,7 +198,7 @@ export default function CallTraceTab({
             <button
               className={`${styles.traceIconBtn} ${styles.traceAgentBtn}`}
               title="Ask agent for trace summary"
-              onClick={() => setSummaryOpen((v) => !v)}
+              onClick={() => onOpenAgent?.()}
             >
               {/* sparkle / agent */}
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -255,13 +255,6 @@ export default function CallTraceTab({
           </div>
         </div>
       </div>
-      {summaryOpen && (
-        <TraceSummaryDrawer
-          items={treeItems}
-          chainId={chainId}
-          onClose={() => setSummaryOpen(false)}
-        />
-      )}
     </div>
   );
 }

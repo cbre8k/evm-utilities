@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNetwork } from '@/contexts/NetworkContext';
+import { useAgent } from '@/contexts/AgentContext';
+import { NETWORKS } from '@/lib/constants';
 import { type TabBarItem } from '@/components/ui';
 import type { TraceResult, TxOverview } from '@/types/explorer';
+import type { TraceNode } from '@/types/explorer';
 import styles from './explorer.module.scss';
 import ExplorerEmptyState from './components/ExplorerEmptyState';
 import ExplorerInputBar from './components/ExplorerInputBar';
@@ -13,6 +16,63 @@ import ExplorerStatusBar from './components/ExplorerStatusBar';
 import ExplorerTraceLoadingWorkspace from './components/ExplorerTraceLoadingWorkspace';
 import TransactionRail from './components/TransactionRail';
 import type { ExplorerTab, PageState } from './utils';
+
+// ── Trace context builder (for global agent) ──────────────────────────────────
+
+function serializeNode(node: TraceNode, labels: Record<string, string>, depth = 0): string {
+  if (depth > 8) return '';
+  const pad = '  '.repeat(depth);
+  const from = labels[node.from?.toLowerCase()] ?? node.from ?? '?';
+  const to   = node.to ? (labels[node.to.toLowerCase()] ?? node.to) : '?';
+  const gas  = parseInt(node.gasUsed || '0x0', 16);
+  const fn   = node.function_name
+    ? `.${node.function_name}`
+    : node.decodedFunction
+      ? `.${node.decodedFunction.split('(')[0]}`
+      : node.contract_name ? ` [${node.contract_name}]` : '';
+  const val  = node.value && node.value !== '0x0' ? ` ETH:${node.value}` : '';
+  const err  = node.error ? ` [REVERT:${node.revertReason ?? node.error}]` : '';
+  const line = `${pad}${node.type} ${from}→${to}${fn}${val} gas:${gas}${err}`;
+  const kids = node.children.map(c => serializeNode(c, labels, depth + 1)).filter(Boolean).join('\n');
+  return kids ? `${line}\n${kids}` : line;
+}
+
+function buildTraceContext(result: TraceResult): string {
+  const labels: Record<string, string> = {};
+  for (const [k, v] of Object.entries(result.addressLabels ?? {})) labels[k.toLowerCase()] = v;
+  for (const [k, v] of Object.entries(result.tokenLabels ?? {})) labels[k.toLowerCase()] = v;
+
+  const tx = result.txOverview;
+  const gasUsed  = parseInt(tx?.gasUsed ?? '0', 16);
+  const gasLimit = parseInt(tx?.gasLimit ?? '0', 16);
+  const status   = tx?.status === 'success' ? 'SUCCESS' : 'FAILED';
+
+  const events = (result.allLogs ?? [])
+    .filter(l => l.eventName)
+    .slice(0, 15)
+    .map(l => `${l.eventName}@${labels[l.address?.toLowerCase()] ?? l.address}`)
+    .join(', ');
+
+  const transfers = (result.erc20Transfers ?? []).slice(0, 8).map(t => {
+    const sym  = t.symbol ?? 'TOKEN';
+    const amt  = t.amount ?? '?';
+    const from = labels[t.from?.toLowerCase()] ?? t.from;
+    const to   = labels[t.to?.toLowerCase()] ?? t.to;
+    return `${sym} ${amt} ${from}→${to}`;
+  }).join('\n');
+
+  const traceStr = result.normalizedTree ? serializeNode(result.normalizedTree, labels) : '(no trace)';
+
+  return [
+    `Chain: ${result.chainId ?? 1}  Status: ${status}`,
+    `Gas: ${gasUsed.toLocaleString()} used / ${gasLimit.toLocaleString()} limit`,
+    events    ? `Events: ${events}` : null,
+    transfers ? `Transfers:\n${transfers}` : null,
+    `\nCall trace:\n${traceStr}`,
+  ].filter(Boolean).join('\n');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const TABS: TabBarItem<ExplorerTab>[] = [
   { id: 'summary', label: '[ SUMMARY ]' },
@@ -28,8 +88,9 @@ interface Props {
 }
 
 export default function ExplorerClient({ initialResult, initialShareHash }: Props) {
-  const { rpcUrl, setRpcUrl, chainId, selectedNetwork } = useNetwork();
+  const { rpcUrl, setRpcUrl, chainId, selectedNetwork, setSelectedNetwork } = useNetwork();
   const router = useRouter();
+  const { setTraceContext, openAgent, registerHandler } = useAgent();
 
   const [txHash, setTxHash] = useState(initialResult?.txOverview.hash ?? '');
   const [state, setState] = useState<PageState>(initialResult ? 'done' : 'idle');
@@ -50,6 +111,15 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
     setElapsedMs(0);
     setTab('summary');
   }, [initialResult, initialShareHash]);
+
+  // Sync trace result into the global agent context
+  useEffect(() => {
+    if (result) {
+      setTraceContext(buildTraceContext(result), result.chainId ?? 1);
+    } else {
+      setTraceContext(null);
+    }
+  }, [result, setTraceContext]);
 
   const resolvedChainId = Number(chainId) || result?.chainId || 1;
 
@@ -141,6 +211,30 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
     }
   };
 
+  const handleExploreRef = useRef(handleExplore);
+  handleExploreRef.current = handleExplore;
+
+  // Register agent action handlers while on the explorer page
+  useEffect(() => {
+    return registerHandler(
+      ['set_tx_hash', 'switch_network', 'execute_trace', 'switch_tab'],
+      async (action) => {
+        if (action.type === 'set_tx_hash') {
+          setTxHash(action.hash);
+        } else if (action.type === 'switch_network') {
+          const net = NETWORKS.find(n => n.id === action.networkId);
+          if (net) setSelectedNetwork(net);
+        } else if (action.type === 'execute_trace') {
+          // Slight delay to ensure txHash state is flushed
+          await new Promise(r => setTimeout(r, 150));
+          handleExploreRef.current();
+        } else if (action.type === 'switch_tab') {
+          setTab(action.tab as ExplorerTab);
+        }
+      }
+    );
+  }, [registerHandler, setSelectedNetwork]);
+
   const hasResult = state === 'done' && result;
   const hasPendingOverview = state === 'loading' && pendingOverview;
   const totalGas = result ? (() => { try { return Number(BigInt(result.txOverview.gasUsed)); } catch { return 0; } })() : 0;
@@ -181,6 +275,7 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
             tabItems={tabItems}
             totalGas={totalGas}
             onTabChange={setTab}
+            onOpenAgent={openAgent}
           />
         </div>
       )}
