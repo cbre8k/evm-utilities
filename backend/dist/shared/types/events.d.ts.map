@@ -1,1 +1,0 @@
-{"version":3,"file":"events.d.ts","sourceRoot":"","sources":["../../../../shared/types/events.ts"],"names":[],"mappings":"AAIA,MAAM,WAAW,QAAQ;IACvB,OAAO,EAAE,MAAM,CAAC;IAChB,MAAM,EAAE,MAAM,EAAE,CAAC;IACjB,IAAI,EAAE,MAAM,CAAC;IACb,QAAQ,EAAE,MAAM,CAAC;IACjB,SAAS,CAAC,EAAE,MAAM,CAAC;IACnB,OAAO,CAAC,EAAE,MAAM,CAAC,MAAM,EAAE,MAAM,CAAC,CAAC;CAClC"}
