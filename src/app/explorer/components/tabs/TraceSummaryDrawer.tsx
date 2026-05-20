@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import styles from '../../explorer.module.scss';
 import type { TraceItem } from './callTraceTypes';
 
-// ── Trace serialiser ──────────────────────────────────────────────────────────
+// ── Serialiser ────────────────────────────────────────────────────────────────
 
 function serializeTrace(items: TraceItem[], indent = 0): string {
   const lines: string[] = [];
@@ -12,16 +12,11 @@ function serializeTrace(items: TraceItem[], indent = 0): string {
   for (const item of items) {
     if (item.kind === 'frame') {
       const e = item.entry;
-      const op = e.node.type;
-      const from = e.node.from ?? '?';
-      const to = e.node.to ?? '?';
-      const sel = e.selector ? ` .${e.selector}` : '';
-      const gas = e.gasUsed;
+      const value = e.node.value && e.node.value !== '0x0' ? ` value=${e.node.value}` : '';
       const revert = item.returnValue?.reverted
         ? ` [REVERT: ${item.returnValue.value || 'unknown reason'}]`
         : '';
-      const value = e.node.value && e.node.value !== '0x0' ? ` value=${e.node.value}` : '';
-      lines.push(`${pad}${op} ${from}→${to}${sel}${value} (gas: ${gas})${revert}`);
+      lines.push(`${pad}${e.node.type} ${e.node.from ?? '?'}→${e.node.to ?? '?'}${e.selector ? ` .${e.selector}` : ''}${value} (gas: ${e.gasUsed})${revert}`);
       lines.push(...serializeTrace(item.items, indent + 1).split('\n').filter(Boolean));
     } else if (item.kind === 'jump-frame') {
       lines.push(`${pad}JUMP ${item.address ?? '?'} (gas: ${item.gasUsed})`);
@@ -39,62 +34,138 @@ function serializeTrace(items: TraceItem[], indent = 0): string {
   return lines.join('\n');
 }
 
-// ── Typewriter hook ───────────────────────────────────────────────────────────
+// ── Typewriter ────────────────────────────────────────────────────────────────
 
-function useTypewriter(text: string | null, speed = 8): string {
+function useTypewriter(text: string | null, speed: number): string {
   const [displayed, setDisplayed] = useState('');
   const rafRef = useRef<number | null>(null);
   const indexRef = useRef(0);
   const lastTimeRef = useRef<number>(0);
-
   useEffect(() => {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     if (!text) { setDisplayed(''); indexRef.current = 0; return; }
-    const safeText = text;
+    const safe = text;
     indexRef.current = 0;
     setDisplayed('');
-
-    const msPerChar = 1000 / speed;
-
+    const msPer = 1000 / Math.max(1, speed);
     function tick(now: number) {
-      const elapsed = now - lastTimeRef.current;
-      const steps = Math.floor(elapsed / msPerChar);
+      const steps = Math.floor((now - lastTimeRef.current) / msPer);
       if (steps > 0) {
         lastTimeRef.current = now;
-        indexRef.current = Math.min(indexRef.current + steps, safeText.length);
-        setDisplayed(safeText.slice(0, indexRef.current));
+        indexRef.current = Math.min(indexRef.current + steps, safe.length);
+        setDisplayed(safe.slice(0, indexRef.current));
       }
-      if (indexRef.current < safeText.length) {
-        rafRef.current = requestAnimationFrame(tick);
-      }
+      if (indexRef.current < safe.length) rafRef.current = requestAnimationFrame(tick);
     }
-
     lastTimeRef.current = performance.now();
     rafRef.current = requestAnimationFrame(tick);
     return () => { if (rafRef.current !== null) cancelAnimationFrame(rafRef.current); };
   }, [text, speed]);
-
   return displayed;
 }
 
-// ── Component ─────────────────────────────────────────────────────────────────
+// ── Avatar — simple robot ─────────────────────────────────────────────────────
 
-interface Props {
-  items: TraceItem[];
-  chainId: number;
-  onClose: () => void;
+type AvatarState = 'idle' | 'talking' | 'done';
+
+function AgentAvatar({ state }: { state: AvatarState }) {
+  const [blink, setBlink] = useState(false);
+  const [mouthOpen, setMouthOpen] = useState(false);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setBlink(true);
+      setTimeout(() => setBlink(false), 120);
+    }, 3000 + Math.random() * 1500);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (state !== 'talking') { setMouthOpen(false); return; }
+    const t = setInterval(() => setMouthOpen(v => !v), 160);
+    return () => clearInterval(t);
+  }, [state]);
+
+  const isDone = state === 'done';
+  const statusColor = state === 'talking' ? '#34d399' : isDone ? '#818cf8' : '#fbbf24';
+
+  return (
+    <svg viewBox="0 0 80 90" fill="none" xmlns="http://www.w3.org/2000/svg" className={styles.mangaAvatarSvg}>
+      {/* antenna */}
+      <line x1="40" y1="10" x2="40" y2="2" stroke="#818cf8" strokeWidth="2.2"/>
+      <circle cx="40" cy="2" r="3" fill="#818cf8">
+        {state === 'talking' && <animate attributeName="fill" values="#818cf8;#34d399;#818cf8" dur="0.8s" repeatCount="indefinite"/>}
+      </circle>
+
+      {/* head */}
+      <rect x="14" y="10" width="52" height="44" rx="10" fill="#0f172a" stroke="#818cf8" strokeWidth="2.2"/>
+
+      {/* left eye */}
+      {blink
+        ? <rect x="20" y="29" width="16" height="2" rx="1" fill="#818cf8"/>
+        : <rect x="20" y="22" width="16" height={isDone ? 10 : 12} rx="4" fill="#818cf8"/>
+      }
+      {!blink && <rect x="23" y="25" width="5" height="3" rx="1" fill="white" opacity="0.7"/>}
+
+      {/* right eye */}
+      {blink
+        ? <rect x="44" y="29" width="16" height="2" rx="1" fill="#818cf8"/>
+        : <rect x="44" y="22" width="16" height={isDone ? 10 : 12} rx="4" fill="#818cf8"/>
+      }
+      {!blink && <rect x="47" y="25" width="5" height="3" rx="1" fill="white" opacity="0.7"/>}
+
+      {/* mouth */}
+      {isDone
+        /* smile: arc */
+        ? <path d="M26 42 Q40 52 54 42" stroke="#818cf8" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+        : state === 'talking' && mouthOpen
+          /* open rectangle */
+          ? <rect x="28" y="40" width="24" height="10" rx="3" fill="#0a0f1e" stroke="#818cf8" strokeWidth="1.8"/>
+          /* closed line */
+          : <line x1="28" y1="44" x2="52" y2="44" stroke="#818cf8" strokeWidth="2.2" strokeLinecap="round"/>
+      }
+      {/* talking aura */}
+      {state === 'talking' && (
+        <rect x="14" y="10" width="52" height="44" rx="10" fill="none" stroke="#818cf8" strokeWidth="1" opacity="0.2">
+          <animate attributeName="opacity" values="0.1;0.4;0.1" dur="0.8s" repeatCount="indefinite"/>
+        </rect>
+      )}
+
+      {/* done sparkles */}
+      {isDone && (
+        <>
+          <text x="4" y="18" fontSize="9" className={styles.mangaSparkle}>✦</text>
+          <text x="68" y="16" fontSize="7" className={styles.mangaSparkle}>✦</text>
+        </>
+      )}
+    </svg>
+  );
 }
 
-export default function TraceSummaryDrawer({ items, chainId, onClose }: Props) {
+// ── Modal ─────────────────────────────────────────────────────────────────────
+
+interface Props { items: TraceItem[]; chainId: number; onClose: () => void; }
+
+const SPEEDS = [
+  { label: '1×', value: 18 },
+  { label: '2×', value: 40 },
+  { label: '4×', value: 100 },
+  { label: 'MAX', value: 99999 },
+];
+
+export default function TraceSummaryModal({ items, chainId, onClose }: Props) {
   const [summary, setSummary] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const displayed = useTypewriter(summary, 18);
+  const [speedIdx, setSpeedIdx] = useState(0);
+  const speed = SPEEDS[speedIdx].value;
+  const displayed = useTypewriter(summary, speed);
   const isTyping = summary !== null && displayed.length < summary.length;
 
+  const avatarState: AvatarState = loading ? 'idle' : isTyping ? 'talking' : summary ? 'done' : 'idle';
+
   async function fetchSummary() {
-    setLoading(true);
-    setError(null);
-    setSummary(null);
+    setLoading(true); setError(null); setSummary(null);
     try {
       const traceText = serializeTrace(items);
       const res = await fetch('/api/trace-summary', {
@@ -115,32 +186,69 @@ export default function TraceSummaryDrawer({ items, chainId, onClose }: Props) {
   useEffect(() => { fetchSummary(); }, []);
 
   return (
-    <div className={styles.summaryDrawer}>
-      <div className={styles.summaryDrawerHeader}>
-        <span>✦ TRACE SUMMARY</span>
-        <div className={styles.summaryDrawerHeaderRight}>
-          {isTyping && <span className={styles.summaryTypingDot} />}
-          <button className={styles.summaryDrawerClose} onClick={onClose} title="Close">✕</button>
-        </div>
-      </div>
-      <div className={styles.summaryDrawerBody}>
-        {loading && (
-          <div className={styles.summaryLoading}>
-            <span className={styles.summarySpinner} />
-            Analysing trace…
+    <div className={styles.mangaOverlay} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className={styles.mangaModal}>
+
+        {/* agent panel */}
+        <div className={styles.mangaAgentPanel}>
+          <div className={styles.mangaHalftone} aria-hidden />
+          <div className={styles.mangaAgentWrap}>
+            <div className={`${styles.mangaAvatar} ${avatarState === 'talking' ? styles.mangaAvatarActive : ''}`}>
+              <AgentAvatar state={avatarState} />
+            </div>
+            <div className={styles.mangaAgentStatus}>
+              {loading ? '⟳ Analysing…' : isTyping ? '● Speaking' : '◎ Ready'}
+            </div>
           </div>
-        )}
-        {error && <div className={styles.summaryError}>⚠ {error}</div>}
-        {displayed && (
-          <pre className={styles.summaryText}>
-            {displayed}
-            {isTyping && <span className={styles.summaryCursor}>▋</span>}
-          </pre>
-        )}
+        </div>
+
+        {/* speech panel */}
+        <div className={styles.mangaSpeechPanel}>
+          <div className={styles.mangaPanelHeader}>
+            <span className={styles.mangaPanelTitle}>✦ TRACE ANALYSIS</span>
+            <button className={styles.mangaClose} onClick={onClose}>✕</button>
+          </div>
+
+          <div className={styles.mangaBubbleWrap}>
+            <div className={styles.mangaBubbleTail} />
+            <div className={styles.mangaBubble}>
+              {loading && (
+                <div className={styles.mangaThinking}>
+                  <span className={styles.mangaDot} style={{ animationDelay: '0s' }} />
+                  <span className={styles.mangaDot} style={{ animationDelay: '0.2s' }} />
+                  <span className={styles.mangaDot} style={{ animationDelay: '0.4s' }} />
+                </div>
+              )}
+              {error && <p className={styles.mangaError}>⚠ {error}</p>}
+              {displayed && (
+                <pre className={styles.mangaText}>
+                  {displayed}
+                  {isTyping && <span className={styles.mangaCursor}>▋</span>}
+                </pre>
+              )}
+            </div>
+          </div>
+
+          <div className={styles.mangaFooter}>
+            <div className={styles.mangaSpeedBox}>
+              <span className={styles.mangaSpeedLabel}>SPEED</span>
+              {SPEEDS.map((s, i) => (
+                <button
+                  key={s.label}
+                  className={`${styles.mangaSpeedBtn} ${i === speedIdx ? styles.mangaSpeedBtnActive : ''}`}
+                  onClick={() => setSpeedIdx(i)}
+                >{s.label}</button>
+              ))}
+            </div>
+            <button
+              className={styles.mangaRegenBtn}
+              onClick={fetchSummary}
+              disabled={loading || isTyping}
+            >↻ Regenerate</button>
+          </div>
+        </div>
+
       </div>
-      {!loading && !isTyping && (
-        <button className={styles.summaryRetry} onClick={fetchSummary}>↻ Regenerate</button>
-      )}
     </div>
   );
 }
