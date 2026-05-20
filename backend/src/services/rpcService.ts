@@ -217,26 +217,142 @@ export async function buildTxOverview(rpcUrl: string, txHash: string): Promise<T
   };
 }
 
-// ── debug_traceTransaction (callTracer + withLog) ────────────
+// ── Parity trace format → callTracer-compatible tree ─────────
+//
+// trace_transaction / trace_replayTransaction return a flat array of objects
+// where each entry has a `traceAddress: number[]` indicating its position in
+// the call tree (e.g. [] = root, [0] = first child of root, [0,1] = second
+// child of the first child, etc.)
+//
+// This function re-assembles that flat list into the nested callTracer format
+// that normalizeCallTree already understands.
+
+function parityTracesToCallTracer(traces: any[]): any {
+  if (!traces?.length) return null;
+
+  // Sort by traceAddress depth then index so parents are processed before children
+  const sorted = [...traces].sort((a, b) => {
+    const aA: number[] = a.traceAddress ?? [];
+    const bA: number[] = b.traceAddress ?? [];
+    for (let i = 0; i < Math.min(aA.length, bA.length); i++) {
+      if (aA[i] !== bA[i]) return aA[i] - bA[i];
+    }
+    return aA.length - bA.length;
+  });
+
+  const nodeMap = new Map<string, any>();
+
+  for (const trace of sorted) {
+    const addr: number[] = trace.traceAddress ?? [];
+    const key = addr.join(',');
+    const action = trace.action ?? {};
+    const result = trace.result ?? {};
+    const isCreate = trace.type === 'create';
+
+    const node: any = {
+      type: isCreate
+        ? (action.creationMethod === 'create2' ? 'CREATE2' : 'CREATE')
+        : (action.callType ?? 'call').toUpperCase(),
+      from:    (action.from ?? '').toLowerCase(),
+      to:      isCreate
+                 ? (result.address ?? null)
+                 : (action.to ? action.to.toLowerCase() : null),
+      input:   isCreate ? (action.init ?? '0x') : (action.input ?? '0x'),
+      output:  result.output ?? '0x',
+      value:   action.value ?? '0x0',
+      gas:     action.gas ?? '0x0',
+      gasUsed: result.gasUsed ?? '0x0',
+      error:   trace.error ?? undefined,
+      calls:   [],
+    };
+
+    nodeMap.set(key, node);
+
+    if (addr.length > 0) {
+      const parentKey = addr.slice(0, -1).join(',');
+      const parent = nodeMap.get(parentKey);
+      if (parent) parent.calls.push(node);
+    }
+  }
+
+  return nodeMap.get('') ?? null;
+}
+
+// ── debug_traceTransaction with Parity/replay fallbacks ──────────────
+//
+// Fallback order:
+//   1. debug_traceTransaction callTracer+withLog  (Geth ≥1.10, most managed nodes)
+//   2. debug_traceTransaction callTracer           (Geth without withLog)
+//   3. trace_replayTransaction callTracer+withLog  (BSC, Erigon — same output format)
+//   4. trace_replayTransaction callTracer           (BSC, Erigon — without withLog)
+//   5. trace_replayTransaction ['trace']            (Parity flat format fallback)
+//   6. trace_transaction                            (Erigon, Nethermind)
+//   7. null — caller handles graceful degradation
 
 export async function debugTraceTransaction(rpcUrl: string, txHash: string): Promise<any> {
+  // 1. Standard Geth callTracer with inline logs
   try {
     return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
       txHash,
       { tracer: 'callTracer', tracerConfig: { withLog: true } },
     ]);
+  } catch { /* fall through */ }
+
+  // 2. callTracer without withLog
+  try {
+    return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+      txHash,
+      { tracer: 'callTracer' },
+    ]);
   } catch (err: any) {
-    // Some nodes don't support withLog — retry without it
-    try {
-      return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
-        txHash,
-        { tracer: 'callTracer' },
-      ]);
-    } catch (fallbackErr: any) {
-      console.warn(`[rpcService] debugTraceTransaction failed for ${txHash}: ${fallbackErr.message}`);
-      return null;
-    }
+    console.warn(`[rpcService] debug_traceTransaction failed for ${txHash}: ${err.message}`);
   }
+
+  // 3. trace_replayTransaction with callTracer+withLog (BSC, Erigon — same response shape)
+  try {
+    return await rpcCall<any>(rpcUrl, 'trace_replayTransaction', [
+      txHash,
+      { tracer: 'callTracer', tracerConfig: { withLog: true } },
+    ]);
+  } catch { /* fall through */ }
+
+  // 4. trace_replayTransaction with callTracer (without withLog)
+  try {
+    const result = await rpcCall<any>(rpcUrl, 'trace_replayTransaction', [
+      txHash,
+      { tracer: 'callTracer' },
+    ]);
+    if (result?.type) {
+      console.log(`[rpcService] using trace_replayTransaction+callTracer for ${txHash}`);
+      return result;
+    }
+  } catch (err: any) {
+    console.warn(`[rpcService] trace_replayTransaction+callTracer failed for ${txHash}: ${err.message}`);
+  }
+
+  // 5. trace_replayTransaction Parity ['trace'] format
+  try {
+    const result = await rpcCall<any>(rpcUrl, 'trace_replayTransaction', [txHash, ['trace']]);
+    if (result?.trace?.length) {
+      console.log(`[rpcService] using trace_replayTransaction+parityTrace for ${txHash}`);
+      return parityTracesToCallTracer(result.trace);
+    }
+  } catch (err: any) {
+    console.warn(`[rpcService] trace_replayTransaction failed for ${txHash}: ${err.message}`);
+  }
+
+  // 6. trace_transaction (Erigon, Nethermind)
+  try {
+    const traces = await rpcCall<any[]>(rpcUrl, 'trace_transaction', [txHash]);
+    if (traces?.length) {
+      console.log(`[rpcService] using trace_transaction for ${txHash}`);
+      return parityTracesToCallTracer(traces);
+    }
+  } catch (err: any) {
+    console.warn(`[rpcService] trace_transaction failed for ${txHash}: ${err.message}`);
+  }
+
+  return null;
 }
 
 // ── debug_traceTransaction (prestateTracer diffMode) ─────────
