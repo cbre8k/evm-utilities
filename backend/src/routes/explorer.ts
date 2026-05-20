@@ -149,10 +149,11 @@ router.get('/share/:hash', async (req, res, next) => {
 // Returns the lightweight transaction overview before the full trace job finishes.
 router.post('/overview', async (req, res, next) => {
   try {
-    const { txHash, rpcUrl, chainId } = req.body as {
+    const { txHash, rpcUrl, chainId, fallbackRpcUrls = [] } = req.body as {
       txHash: string;
       rpcUrl: string;
       chainId?: number;
+      fallbackRpcUrls?: string[];
     };
 
     if (!txHash || !rpcUrl) {
@@ -160,7 +161,7 @@ router.post('/overview', async (req, res, next) => {
       return;
     }
 
-    const txOverview = await buildTxOverview(rpcUrl, txHash.toLowerCase());
+    const txOverview = await buildTxOverview(rpcUrl, txHash.toLowerCase(), fallbackRpcUrls);
     res.json({ chainId: chainId ?? 1, txOverview });
   } catch (err) {
     next(err);
@@ -172,10 +173,11 @@ router.post('/overview', async (req, res, next) => {
 // Returns: { jobId }
 router.post('/', async (req, res, next) => {
   try {
-    const { txHash, rpcUrl, chainId, verbose = false } = req.body as {
+    const { txHash, rpcUrl, chainId, fallbackRpcUrls = [], verbose = false } = req.body as {
       txHash: string;
       rpcUrl: string;
       chainId?: number;
+      fallbackRpcUrls?: string[];
       verbose?: boolean;
     };
 
@@ -194,6 +196,7 @@ router.post('/', async (req, res, next) => {
       jobId,
       txHash: normalizedHash,
       rpcUrl,
+      fallbackRpcUrls,
       chainId: chainId ?? 1,
       verbose,
     });

@@ -28,7 +28,7 @@ interface Props {
 }
 
 export default function ExplorerClient({ initialResult, initialShareHash }: Props) {
-  const { rpcUrl, setRpcUrl, chainId } = useNetwork();
+  const { rpcUrl, setRpcUrl, chainId, selectedNetwork } = useNetwork();
   const router = useRouter();
 
   const [txHash, setTxHash] = useState(initialResult?.txOverview.hash ?? '');
@@ -77,10 +77,12 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
       }
 
       setStatus('Loading transaction…');
+      // Send fullnode URLs as fallbacks so the backend can retry if the archive RPC returns null
+      const fallbackRpcUrls = selectedNetwork?.fullnodeRpcUrls?.filter(u => u && u !== rpcUrl) ?? [];
       const overviewPromise = fetch('/api/explorer/overview', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txHash: normalizedTxHash, rpcUrl, chainId: resolvedChainId }),
+        body: JSON.stringify({ txHash: normalizedTxHash, rpcUrl, chainId: resolvedChainId, fallbackRpcUrls }),
       })
         .then(async (overviewRes) => {
           const overviewData = await overviewRes.json();
@@ -98,7 +100,7 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
       const res = await fetch('/api/explorer', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ txHash: normalizedTxHash, rpcUrl, chainId: resolvedChainId }),
+        body: JSON.stringify({ txHash: normalizedTxHash, rpcUrl, chainId: resolvedChainId, fallbackRpcUrls }),
       });
       const { jobId, error } = await res.json();
       if (!jobId) throw new Error(error ?? 'Failed to enqueue');

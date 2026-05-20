@@ -183,20 +183,34 @@ export async function getBlockByNumber(rpcUrl: string, blockNumber: string): Pro
   return rpcCall<any>(rpcUrl, 'eth_getBlockByNumber', [blockNumber, false]);
 }
 
-export async function buildTxOverview(rpcUrl: string, txHash: string): Promise<TxOverview> {
+export async function buildTxOverview(rpcUrl: string, txHash: string, fallbackRpcUrls: string[] = []): Promise<TxOverview> {
+  // Try primary + each fallback in order until we get a tx response
+  const urlsToTry = [rpcUrl, ...fallbackRpcUrls.filter(u => u && u !== rpcUrl)];
+  let tx: any = null;
+  let effectiveRpcUrl = rpcUrl;
+
+  for (const url of urlsToTry) {
+    try {
+      tx = await getTransaction(url, txHash);
+      if (tx) { effectiveRpcUrl = url; break; }
+    } catch { /* try next */ }
+  }
+
+  if (!tx) throw new Error(`Transaction not found: ${txHash}`);
+  if (effectiveRpcUrl !== rpcUrl) {
+    console.log(`[rpcService] buildTxOverview: fell back to ${effectiveRpcUrl} for ${txHash}`);
+  }
+
   // Start tx + receipt in parallel; kick off block fetch as soon as tx resolves
   // so block and receipt are fetched concurrently.
-  const txPromise = getTransaction(rpcUrl, txHash);
-  const receiptPromise = getTransactionReceipt(rpcUrl, txHash);
-
-  const tx = await txPromise;
-  if (!tx) throw new Error(`Transaction not found: ${txHash}`);
-
   const blockPromise = tx.blockNumber
-    ? getBlockByNumber(rpcUrl, tx.blockNumber)
+    ? getBlockByNumber(effectiveRpcUrl, tx.blockNumber)
     : Promise.resolve(null);
 
-  const [receipt, block] = await Promise.all([receiptPromise, blockPromise]);
+  const [receipt, block] = await Promise.all([
+    getTransactionReceipt(effectiveRpcUrl, txHash),
+    blockPromise,
+  ]);
   if (!receipt) throw new Error(`Receipt not found: ${txHash}`);
   return {
     hash: tx.hash,
@@ -227,6 +241,15 @@ export async function buildTxOverview(rpcUrl: string, txHash: string): Promise<T
 // This function re-assembles that flat list into the nested callTracer format
 // that normalizeCallTree already understands.
 
+/** Normalise a Parity gas value which may be decimal or hex string → hex string */
+function parityGasToHex(v: any): string {
+  if (v == null) return '0x0';
+  const s = String(v);
+  if (s.startsWith('0x') || s.startsWith('0X')) return s;
+  // decimal integer → hex
+  try { return '0x' + BigInt(s).toString(16); } catch { return '0x0'; }
+}
+
 function parityTracesToCallTracer(traces: any[]): any {
   if (!traces?.length) return null;
 
@@ -243,25 +266,52 @@ function parityTracesToCallTracer(traces: any[]): any {
   const nodeMap = new Map<string, any>();
 
   for (const trace of sorted) {
+    // 'reward' entries (block reward) can appear in trace_block responses but
+    // not in single-tx traces. Skip them defensively to avoid a broken tree.
+    if (trace.type === 'reward') continue;
+
     const addr: number[] = trace.traceAddress ?? [];
     const key = addr.join(',');
     const action = trace.action ?? {};
     const result = trace.result ?? {};
-    const isCreate = trace.type === 'create';
 
+    const isCreate   = trace.type === 'create';
+    const isSuicide  = trace.type === 'suicide';
+
+    // Parity 'suicide' == EVM SELFDESTRUCT.  Its action fields differ:
+    //   action.address      = the contract being destroyed (the "from")
+    //   action.refundAddress = the ETH recipient (the "to")
+    //   action.balance      = balance transferred
+    // There is no action.from / action.to / action.callType / action.input.
     const node: any = {
-      type: isCreate
-        ? (action.creationMethod === 'create2' ? 'CREATE2' : 'CREATE')
-        : (action.callType ?? 'call').toUpperCase(),
-      from:    (action.from ?? '').toLowerCase(),
-      to:      isCreate
-                 ? (result.address ?? null)
-                 : (action.to ? action.to.toLowerCase() : null),
-      input:   isCreate ? (action.init ?? '0x') : (action.input ?? '0x'),
+      type: isSuicide
+        ? 'SELFDESTRUCT'
+        : isCreate
+          ? (action.creationMethod === 'create2' ? 'CREATE2' : 'CREATE')
+          : (action.callType ?? 'call').toUpperCase(),
+
+      from: isSuicide
+        ? (action.address ?? '').toLowerCase()
+        : (action.from ?? '').toLowerCase(),
+
+      to: isSuicide
+        ? (action.refundAddress ? action.refundAddress.toLowerCase() : null)
+        : isCreate
+          ? (result.address ? result.address.toLowerCase() : null)
+          : (action.to ? action.to.toLowerCase() : null),
+
+      input:   isCreate ? (action.init ?? '0x') : (isSuicide ? '0x' : (action.input ?? '0x')),
       output:  result.output ?? '0x',
-      value:   action.value ?? '0x0',
-      gas:     action.gas ?? '0x0',
-      gasUsed: result.gasUsed ?? '0x0',
+
+      // suicide uses action.balance; regular calls use action.value
+      value:   isSuicide
+        ? parityGasToHex(action.balance)
+        : (action.value ?? '0x0'),
+
+      // Gas values may arrive as decimal on some node implementations
+      gas:     parityGasToHex(action.gas),
+      gasUsed: parityGasToHex(result.gasUsed),
+
       error:   trace.error ?? undefined,
       calls:   [],
     };
@@ -272,6 +322,8 @@ function parityTracesToCallTracer(traces: any[]): any {
       const parentKey = addr.slice(0, -1).join(',');
       const parent = nodeMap.get(parentKey);
       if (parent) parent.calls.push(node);
+      // If parent not found (data gap), the node is silently dropped rather
+      // than attached to the wrong place in the tree.
     }
   }
 

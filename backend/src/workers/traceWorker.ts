@@ -882,7 +882,7 @@ export async function buildTraceResultPayload(
 }
 
 async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> {
-  const { jobId, txHash, rpcUrl, chainId: providedChainId, verbose = false } =
+  const { jobId, txHash, rpcUrl, fallbackRpcUrls = [], chainId: providedChainId, verbose = false } =
     JSON.parse(msg.content.toString()) as any;
 
   console.log(`[traceWorker] processing job ${jobId} — tx ${txHash}`);
@@ -901,7 +901,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
     if (cached) {
       console.log(`[traceWorker] cache hit for ${txHash}`);
       const chainId = providedChainId ?? cached.chainId ?? (await getChainId(rpcUrl));
-      let payload = await ensureTxOverviewMetadata(cached, rpcUrl, txHash, chainId);
+      let payload = await ensureTxOverviewMetadata(cached, rpcUrl, txHash, chainId, fallbackRpcUrls);
       payload = await ensureDecodedArtifacts(payload, chainId, rpcUrl);
       if (payload !== cached) await cacheSet(traceKey, payload, config.ttl.trace);
       await redis.setex(statusKey, config.ttl.job, 'done');
@@ -915,7 +915,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
     const dbTrace = await Trace.findOne({ txHash: txHash.toLowerCase(), chainId });
     if (dbTrace) {
       console.log(`[traceWorker] mongo hit for ${txHash}`);
-      let payload = await ensureTxOverviewMetadata(dbTrace.toObject(), rpcUrl, txHash, chainId);
+      let payload = await ensureTxOverviewMetadata(dbTrace.toObject(), rpcUrl, txHash, chainId, fallbackRpcUrls);
       payload = await ensureDecodedArtifacts(payload, chainId, rpcUrl);
       await cacheSet(traceKey, payload, config.ttl.trace);
       await redis.setex(statusKey, config.ttl.job, 'done');
@@ -926,7 +926,7 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
 
     // ── 3. Fetch from RPC (parallel where possible) ───────────
     const [txOverview, rawCallTree, receipt, prestateResult, rawStructLog] = await Promise.all([
-      buildTxOverview(rpcUrl, txHash),
+      buildTxOverview(rpcUrl, txHash, fallbackRpcUrls),
       debugTraceTransaction(rpcUrl, txHash),
       getTransactionReceipt(rpcUrl, txHash),
       getPrestateTrace(rpcUrl, txHash),
@@ -1085,10 +1085,10 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
   }
 }
 
-async function ensureTxOverviewMetadata(payload: any, rpcUrl: string, txHash: string, chainId?: number): Promise<any> {
+async function ensureTxOverviewMetadata(payload: any, rpcUrl: string, txHash: string, chainId?: number, fallbackRpcUrls: string[] = []): Promise<any> {
   if (payload?.txOverview?.timestamp && payload?.txOverview?.txType) return payload;
 
-  const freshOverview = await buildTxOverview(rpcUrl, txHash);
+  const freshOverview = await buildTxOverview(rpcUrl, txHash, fallbackRpcUrls);
   const txOverview = {
     ...payload.txOverview,
     timestamp: payload.txOverview?.timestamp ?? freshOverview.timestamp,
