@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import Image from 'next/image';
 import styles from '../../explorer.module.scss';
 import type { TraceItem } from './callTraceTypes';
 
@@ -70,19 +69,21 @@ function useTypewriter(text: string | null, speed: number): string {
 type AvatarState = 'idle' | 'talking' | 'done';
 
 function AgentAvatar({ state }: { state: AvatarState }) {
-  // talking.webp plays while the agent is speaking; idle.webp otherwise
-  const src = state === 'talking' ? '/talking.webp' : '/idle.webp';
+  const isTalking = state === 'talking';
   return (
-    <div className={`${styles.mangaAvatar} ${state === 'talking' ? styles.mangaAvatarActive : ''}`}>
-      <Image
-        key={src}
-        src={src}
-        alt={state === 'talking' ? 'Agent talking' : 'Agent idle'}
-        width={120}
-        height={120}
-        className={styles.mangaAvatarImg}
-        unoptimized
-        priority
+    <div className={`${styles.mangaAvatar} ${isTalking ? styles.mangaAvatarActive : ''}`}>
+      {/* Both images are always in DOM; CSS opacity crossfades — no remount, no flash */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/idle.webp"
+        alt="Agent"
+        className={`${styles.mangaAvatarImg} ${!isTalking ? styles.mangaAvatarVisible : styles.mangaAvatarHidden}`}
+      />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/talking.webp"
+        alt="Agent talking"
+        className={`${styles.mangaAvatarImg} ${isTalking ? styles.mangaAvatarVisible : styles.mangaAvatarHidden}`}
       />
     </div>
   );

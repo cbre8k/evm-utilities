@@ -1764,14 +1764,29 @@
 .mangaAvatar {
   border-radius: $radius-lg;
   overflow: hidden;
+  position: relative;
   transition: transform 0.3s ease;
   width: 120px;
+  height: 120px;
 }
 
 .mangaAvatarImg {
   display: block;
-  height: auto;
+  height: 100%;
+  left: 0;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  transition: opacity 0.2s ease;
   width: 100%;
+}
+
+.mangaAvatarVisible {
+  opacity: 1;
+}
+
+.mangaAvatarHidden {
+  opacity: 0;
 }
 
 .mangaAvatarActive {
