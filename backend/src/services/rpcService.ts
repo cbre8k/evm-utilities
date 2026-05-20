@@ -33,11 +33,14 @@ const EVENT_NAME_BY_SIG: Record<string, string> = {
 
 // ── Generic JSON-RPC ─────────────────────────────────────────
 
+const RPC_TIMEOUT_MS = 30_000;
+
 async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {
   const res = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(RPC_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`RPC HTTP ${res.status} for ${method}`);
 
@@ -181,13 +184,20 @@ export async function getBlockByNumber(rpcUrl: string, blockNumber: string): Pro
 }
 
 export async function buildTxOverview(rpcUrl: string, txHash: string): Promise<TxOverview> {
-  const [tx, receipt] = await Promise.all([
-    getTransaction(rpcUrl, txHash),
-    getTransactionReceipt(rpcUrl, txHash),
-  ]);
+  // Start tx + receipt in parallel; kick off block fetch as soon as tx resolves
+  // so block and receipt are fetched concurrently.
+  const txPromise = getTransaction(rpcUrl, txHash);
+  const receiptPromise = getTransactionReceipt(rpcUrl, txHash);
+
+  const tx = await txPromise;
   if (!tx) throw new Error(`Transaction not found: ${txHash}`);
+
+  const blockPromise = tx.blockNumber
+    ? getBlockByNumber(rpcUrl, tx.blockNumber)
+    : Promise.resolve(null);
+
+  const [receipt, block] = await Promise.all([receiptPromise, blockPromise]);
   if (!receipt) throw new Error(`Receipt not found: ${txHash}`);
-  const block = tx.blockNumber ? await getBlockByNumber(rpcUrl, tx.blockNumber) : null;
   return {
     hash: tx.hash,
     from: tx.from?.toLowerCase() ?? '',

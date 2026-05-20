@@ -696,6 +696,33 @@ async function annotateStructLogWithSourceLabels(
   }
 
   collectCalls(root);
+
+  // Pre-collect all unique contract addresses that have JUMP/JUMPDEST entries
+  // and build their annotators in parallel — avoids sequential Sourcify fetches.
+  const uniqueAddresses = new Set<string>();
+  const activeFramesScan = [root];
+  let scanCallIdx = 0;
+  for (const entry of annotated) {
+    const frameDepth = Math.max(0, (entry.depth ?? 1) - 1);
+    const rowDepth = Math.max(1, entry.depth ?? 1);
+    activeFramesScan.length = frameDepth + 1;
+    const frame = activeFramesScan[frameDepth] ?? root;
+    if (entry.op === 'CALL' || entry.op === 'CALLCODE' || entry.op === 'STATICCALL' ||
+        entry.op === 'DELEGATECALL' || entry.op === 'CREATE' || entry.op === 'CREATE2') {
+      const node = callQueue[scanCallIdx++] ?? null;
+      if (node) activeFramesScan[rowDepth] = node;
+    }
+    if ((entry.op === 'JUMP' || entry.op === 'JUMPI' || entry.op === 'JUMPDEST')) {
+      const addr = ((frame?.to ?? frame?.from ?? '') as string).toLowerCase();
+      if (addr) uniqueAddresses.add(addr);
+    }
+  }
+  await Promise.all(
+    [...uniqueAddresses].map(async (addr) => {
+      annotatorCache.set(addr, await buildRuntimeAnnotator(chainId, addr));
+    }),
+  );
+
   const activeFrames = [root];
   let callIdx = 0;
 
@@ -716,10 +743,7 @@ async function annotateStructLogWithSourceLabels(
     if (entry.op !== 'JUMP' && entry.op !== 'JUMPI' && entry.op !== 'JUMPDEST') continue;
     if (!currentAddress) continue;
 
-    if (!annotatorCache.has(currentAddress)) {
-      annotatorCache.set(currentAddress, await buildRuntimeAnnotator(chainId, currentAddress));
-    }
-    const annotator = annotatorCache.get(currentAddress);
+    const annotator = annotatorCache.get(currentAddress) ?? null;
     if (!annotator) continue;
 
     const dispatcherKey = `${frameDepth}:${currentAddress}`;
@@ -1046,11 +1070,11 @@ async function handleTraceJob(msg: ConsumeMessage, _ch: Channel): Promise<void> 
     await redis.setex(outputKey, config.ttl.job, JSON.stringify(resultPayload));
     await redis.setex(shareHashKey, config.ttl.job, share.hash);
 
-    // Publish decode jobs for unique selectors in the tree
+    // Publish decode jobs for unique selectors in the tree (in parallel)
     const selectors = collectSelectors(normalizedTree);
-    for (const sel of selectors) {
-      await publishJob(QUEUES.TX_DECODE, { jobId: `${jobId}-${sel}`, selector: sel });
-    }
+    await Promise.all(
+      selectors.map((sel) => publishJob(QUEUES.TX_DECODE, { jobId: `${jobId}-${sel}`, selector: sel })),
+    );
 
     console.log(`[traceWorker] done job ${jobId} — shareHash ${share.hash}`);
   } catch (err: any) {
@@ -1197,9 +1221,11 @@ async function annotateTree(node: any, chainId: number): Promise<boolean> {
       }
     }
   }
-  for (const child of node?.children ?? []) {
-    changed = (await annotateTree(child, chainId)) || changed;
-  }
+  // Process all children concurrently — avoids N+1 sequential decode awaits
+  const childResults = await Promise.all(
+    (node?.children ?? []).map((child: any) => annotateTree(child, chainId)),
+  );
+  changed = childResults.some(Boolean) || changed;
   return changed;
 }
 
