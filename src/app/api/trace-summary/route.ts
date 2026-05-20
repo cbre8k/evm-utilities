@@ -2,6 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export const runtime = 'nodejs';
 
+function ruleBased(traceText: string): string {
+  const lines = traceText.split('\n').filter(Boolean);
+  const callLines = lines.filter((l) => l.match(/^(\s*)(CALL|DELEGATECALL|STATICCALL|CREATE2?)/));
+  const revertLines = lines.filter((l) => l.includes('[REVERT]') || l.includes('reverted'));
+  const contracts = new Set<string>();
+  for (const l of lines) {
+    const m = l.match(/0x[0-9a-fA-F]{40}/g);
+    if (m) m.forEach((a) => contracts.add(a.toLowerCase()));
+  }
+  const bullets: string[] = [
+    `• ${callLines.length} external call(s) detected`,
+    `• ${contracts.size} unique contract address(es) involved`,
+  ];
+  if (revertLines.length > 0) bullets.push(`• ⚠️ ${revertLines.length} revert(s) occurred`);
+  else bullets.push('• No reverts detected');
+  bullets.push('• (AI summary unavailable — set OPENAI_API_KEY for detailed analysis)');
+  return bullets.join('\n');
+}
+
 export async function POST(req: NextRequest) {
   const { traceText, chainId } = await req.json() as { traceText: string; chainId?: number };
   if (!traceText) return NextResponse.json({ error: 'Missing traceText' }, { status: 400 });
@@ -28,31 +47,19 @@ export async function POST(req: NextRequest) {
           ],
         }),
       });
-      if (!res.ok) throw new Error(`OpenAI ${res.status}`);
+      if (!res.ok) {
+        const body = await res.text();
+        throw new Error(`OpenAI ${res.status}: ${body.slice(0, 200)}`);
+      }
       const json = await res.json();
       const content = json.choices?.[0]?.message?.content ?? '';
       return NextResponse.json({ summary: content, source: 'ai' });
-    } catch {
-      // fall through to rule-based
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[trace-summary] OpenAI error:', msg);
+      return NextResponse.json({ summary: `⚠ OpenAI error: ${msg}\n\n${ruleBased(traceText)}`, source: 'rule-based' });
     }
   }
 
-  // Rule-based fallback
-  const lines = traceText.split('\n').filter(Boolean);
-  const callLines = lines.filter((l) => l.match(/^(\s*)(CALL|DELEGATECALL|STATICCALL|CREATE2?)/));
-  const revertLines = lines.filter((l) => l.includes('[REVERT]') || l.includes('reverted'));
-  const contracts = new Set<string>();
-  for (const l of lines) {
-    const m = l.match(/0x[0-9a-fA-F]{40}/g);
-    if (m) m.forEach((a) => contracts.add(a.toLowerCase()));
-  }
-  const bullets: string[] = [
-    `• ${callLines.length} external call(s) detected`,
-    `• ${contracts.size} unique contract address(es) involved`,
-  ];
-  if (revertLines.length > 0) bullets.push(`• ⚠️ ${revertLines.length} revert(s) occurred`);
-  else bullets.push('• No reverts detected');
-  bullets.push('• (AI summary unavailable — set OPENAI_API_KEY for detailed analysis)');
-
-  return NextResponse.json({ summary: bullets.join('\n'), source: 'rule-based' });
+  return NextResponse.json({ summary: ruleBased(traceText), source: 'rule-based' });
 }
