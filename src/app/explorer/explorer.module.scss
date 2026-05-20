@@ -1189,19 +1189,19 @@
   }
 
   &::before {
-    top: -10px; left: -10px;
+    top: 5px; left: 5px;
     border-width: 2px 0 0 2px;
   }
   &::after {
-    bottom: -10px; right: -10px;
+    bottom: 5px; right: 5px;
     border-width: 0 2px 2px 0;
   }
   .cgCornerTR {
-    top: -10px; right: -10px;
+    top: 5px; right: 5px;
     border-width: 2px 2px 0 0;
   }
   .cgCornerBL {
-    bottom: -10px; left: -10px;
+    bottom: 5px; left: 5px;
     border-width: 0 0 2px 2px;
   }
 }
@@ -1668,6 +1668,139 @@
   align-items: center;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+.traceIconBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: $radius-md;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.06em;
+  padding: 3px 6px;
+  transition: color $transition-fast, border-color $transition-fast, background $transition-fast;
+
+  &:hover {
+    background: var(--bg-secondary);
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+
+  svg { flex-shrink: 0; }
+}
+
+.traceAgentBtn {
+  border-color: #6366f1;
+  color: #818cf8;
+
+  &:hover {
+    background: rgba(99, 102, 241, 0.12);
+    border-color: #818cf8;
+    color: #a5b4fc;
+  }
+}
+
+// ── Trace Summary Drawer ──────────────────────────────────────
+
+.summaryDrawer {
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  max-height: 260px;
+  min-height: 80px;
+  overflow: hidden;
+}
+
+.summaryDrawerHeader {
+  align-items: center;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-default);
+  color: #818cf8;
+  display: flex;
+  font-size: 9px;
+  font-weight: $font-bold;
+  justify-content: space-between;
+  letter-spacing: 0.14em;
+  padding: 6px 12px;
+}
+
+.summaryDrawerClose {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color $transition-fast;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.summaryDrawerBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.summaryLoading {
+  align-items: center;
+  color: var(--text-tertiary);
+  display: flex;
+  font-size: 11px;
+  gap: 8px;
+}
+
+.summarySpinner {
+  animation: spin 0.9s linear infinite;
+  border: 2px solid var(--border-default);
+  border-radius: 50%;
+  border-top-color: #818cf8;
+  display: inline-block;
+  height: 14px;
+  width: 14px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.summaryError {
+  color: #f87171;
+  font-size: 11px;
+}
+
+.summaryText {
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.65;
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.summaryRetry {
+  background: transparent;
+  border: none;
+  border-top: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 5px 12px;
+  text-align: left;
+  transition: color $transition-fast;
+
+  &:hover { color: var(--text-primary); }
 }
 
 .traceToggleWrap {

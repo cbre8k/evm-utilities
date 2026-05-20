@@ -506,3 +506,15 @@ export function findItem(items: TraceItem[], id: string): TraceItem | null {
   }
   return null;
 }
+
+/** Recursively collect all frame and jump-frame IDs (collapsible nodes). */
+export function collectAllFrameIds(items: TraceItem[]): string[] {
+  const ids: string[] = [];
+  for (const item of items) {
+    if (item.kind === 'frame' || item.kind === 'jump-frame') {
+      ids.push(item.id);
+      ids.push(...collectAllFrameIds(item.items));
+    }
+  }
+  return ids;
+}

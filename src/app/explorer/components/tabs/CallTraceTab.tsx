@@ -3,8 +3,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import type { AddressStateDiff, FilteredStructLog, TraceNode } from '@/types/explorer';
 import styles from '../../explorer.module.scss';
-import { buildFromStructLog, buildFlatEntries, buildTraceTree, parseGas } from './callTraceBuild';
+import { buildFromStructLog, buildFlatEntries, buildTraceTree, parseGas, collectAllFrameIds } from './callTraceBuild';
 import { TraceTree } from './callTraceTree';
+import TraceSummaryDrawer from './TraceSummaryDrawer';
 import CallGraphTab from './CallGraphTab';
 import type { ContractSourceBundle, SourceSelection } from './sourceMapTypes';
 import { pickFileByName } from './sourceMapUtils';
@@ -76,6 +77,18 @@ export default function CallTraceTab({
   const [sourceLoading, setSourceLoading] = useState(false);
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [hoveredTraceId, setHoveredTraceId] = useState<string | null>(null);
+  const [summaryOpen, setSummaryOpen] = useState(false);
+
+  const handleExpandAll = () => {
+    const ids = collectAllFrameIds(treeItems);
+    const map: Record<string, boolean> = {};
+    for (const id of ids) map[id] = true;
+    setOpenCalls(map);
+  };
+
+  const handleCollapseAll = () => {
+    setOpenCalls({ [rootNode.id]: true });
+  };
 
   useEffect(() => {
     setSelectedOpcodeId(null);
@@ -162,10 +175,49 @@ export default function CallTraceTab({
             <span className={styles.traceStatsText}>
               {callCount} calls · {allEntries.length} steps · {totalGas.toLocaleString()} gas
             </span>
+            <button
+              className={styles.traceIconBtn}
+              title="Expand all"
+              onClick={handleExpandAll}
+            >
+              {/* expand arrows */}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M2 2h4M2 2v4M14 2h-4M14 2v4M2 14h4M2 14v-4M14 14h-4M14 14v-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </button>
+            <button
+              className={styles.traceIconBtn}
+              title="Collapse all"
+              onClick={handleCollapseAll}
+            >
+              {/* collapse arrows */}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M6 2L2 6M10 2l4 4M6 14l-4-4M10 14l4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+              </svg>
+            </button>
+            <button
+              className={`${styles.traceIconBtn} ${styles.traceAgentBtn}`}
+              title="Ask agent for trace summary"
+              onClick={() => setSummaryOpen((v) => !v)}
+            >
+              {/* sparkle / agent */}
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M8 1v3M8 12v3M1 8h3M12 8h3M3.22 3.22l2.12 2.12M10.66 10.66l2.12 2.12M3.22 12.78l2.12-2.12M10.66 5.34l2.12-2.12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
+                <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.6"/>
+              </svg>
+              Ask TerrySimon
+            </button>
           </div>
         </div>
 
         <div className={styles.traceSplit}>
+          {summaryOpen && (
+            <TraceSummaryDrawer
+              items={treeItems}
+              chainId={chainId}
+              onClose={() => setSummaryOpen(false)}
+            />
+          )}
           <div className={styles.tracePane}>
             <div className={styles.traceList}>
               <div className={styles.traceListInner}>
