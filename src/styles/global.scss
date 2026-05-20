@@ -453,3 +453,9 @@ code, pre {
 .cgEdgeDash {
   animation: cgDashFlow 1.4s linear infinite;
 }
+
+/* Agent typewriter block cursor — ▋ appended to ReactMarkdown text */
+@keyframes agentCursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}

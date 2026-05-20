@@ -169,7 +169,6 @@ export default function SummaryTab({
           stateDiffs={stateDiffs ?? []}
           chainId={chainId}
           embedded
-          onOpenAgent={onOpenAgent}
         />
       )}
     </div>

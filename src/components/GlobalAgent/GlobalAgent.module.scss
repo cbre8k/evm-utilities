@@ -1,47 +1,56 @@
 @use '../../styles/variables' as *;
 
-// ── Agent Modal ──────────────────────────────────────────────
+// ====================================================================
+// Global Agent — FAB + Chat modal
+// ====================================================================
 
-// ── Agent Modal ──────────────────────────────────────────────
+// ── Overlay ──────────────────────────────────────────────────────────
 
 .mangaOverlay {
-  align-items: center;
-  background: rgba(0, 0, 0, 0.6);
+  align-items: flex-end;
   bottom: 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   left: 0;
+  padding: 0 24px 80px 0;
+  pointer-events: none;
   position: fixed;
   right: 0;
   top: 0;
-  z-index: 9999;
-  animation: mangaFadeIn 0.15s ease-out;
+  z-index: 9000;
+  animation: agentFadeIn 0.12s ease-out;
+
+  > * { pointer-events: all; }
 }
 
-@keyframes mangaFadeIn {
+@keyframes agentFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
 
-.mangaModal {
-  animation: mangaSlideUp 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
+// ── Chat modal ────────────────────────────────────────────────────────
+
+.agentChatModal {
+  animation: agentSlideUp 0.18s cubic-bezier(0.34, 1.2, 0.64, 1);
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  border-radius: $radius-lg;
   box-shadow: 6px 6px 0 var(--border-default);
   display: flex;
-  max-height: 540px;
-  max-width: 700px;
+  flex-direction: row;
+  font-family: $font-mono;
+  height: 72vh;
+  max-height: 700px;
+  min-height: 400px;
   overflow: hidden;
-  width: 90vw;
+  width: 660px;
 }
 
-@keyframes mangaSlideUp {
-  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+@keyframes agentSlideUp {
+  from { opacity: 0; transform: translateY(14px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-// ── agent panel (left) ────────────────────────────────
+// ── Avatar panel ──────────────────────────────────────────────────────
 
 .mangaAgentPanel {
   align-items: center;
@@ -50,19 +59,18 @@
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  gap: 10px;
-  justify-content: center;
-  padding: 20px 12px;
-  width: 140px;
+  gap: 8px;
+  overflow: hidden;
+  padding: 14px 8px 0;
+  width: 130px;
 }
 
 .mangaAvatar {
-  border-radius: $radius-lg;
+  height: 96px;
   overflow: hidden;
   position: relative;
   transition: transform 0.3s ease;
-  width: 120px;
-  height: 120px;
+  width: 96px;
 }
 
 .mangaAvatarImg {
@@ -72,73 +80,229 @@
   object-fit: cover;
   position: absolute;
   top: 0;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
   width: 100%;
 }
 
-.mangaAvatarVisible {
-  opacity: 1;
-}
-
-.mangaAvatarHidden {
-  opacity: 0;
-}
+.mangaAvatarVisible { opacity: 1; }
+.mangaAvatarHidden  { opacity: 0; }
 
 .mangaAvatarActive {
-  animation: mangaAvatarBob 0.45s ease-in-out infinite alternate;
+  animation: avatarBob 0.5s ease-in-out infinite alternate;
 }
 
-@keyframes mangaAvatarBob {
-  from { transform: translateY(0px); }
-  to   { transform: translateY(-4px); }
+@keyframes avatarBob {
+  from { transform: translateY(0); }
+  to   { transform: translateY(-3px); }
 }
 
 .mangaAgentStatus {
   color: var(--text-tertiary);
-  font-size: 9px;
+  font-size: 8px;
   font-weight: $font-bold;
   letter-spacing: 0.1em;
   text-align: center;
   text-transform: uppercase;
 }
 
-// ── speech panel (right) ──────────────────────────────
+.agentSpeedBox {
+  align-items: center;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 6px;
+  width: 100%;
+}
+
+.mangaSpeedLabel {
+  color: var(--text-tertiary);
+  font-size: 7px;
+  font-weight: $font-bold;
+  letter-spacing: 0.14em;
+  text-align: center;
+}
+
+.mangaSpeedBtn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 8px;
+  font-weight: $font-bold;
+  letter-spacing: 0.06em;
+  padding: 2px 8px;
+  transition: color $transition-fast, background $transition-fast;
+  width: 100%;
+
+  &:hover { color: var(--text-primary); }
+}
+
+.mangaSpeedBtnActive {
+  background: var(--accent-subtle);
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+// ── Sessions list (inside avatar panel) ──────────────────────────────
+
+.sessionsHeader {
+  align-items: center;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  flex-shrink: 0;
+  justify-content: space-between;
+  padding: 6px 0 4px;
+  width: 100%;
+}
+
+.sessionsTitle {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.16em;
+}
+
+.newSessionBtn {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.06em;
+  padding: 1px 5px;
+  transition: background $transition-fast, color $transition-fast;
+
+  &:hover {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-text);
+  }
+}
+
+.sessionsList {
+  flex: 1;
+  margin: 0 -8px;
+  min-height: 0;
+  overflow-y: auto;
+  width: calc(100% + 16px);
+
+  &::-webkit-scrollbar { width: 2px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border-default); }
+}
+
+.sessionsEmpty {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 10px 6px;
+  text-align: center;
+}
+
+.sessionItem {
+  border-bottom: 1px solid var(--border-default);
+  cursor: pointer;
+  padding: 6px 8px 5px;
+  position: relative;
+  transition: background $transition-fast;
+
+  &:hover {
+    background: var(--bg-primary);
+    .sessionDeleteBtn { opacity: 1; }
+  }
+}
+
+.sessionItemActive {
+  background: var(--bg-primary);
+  border-left: 2px solid var(--accent);
+  padding-left: 6px;
+}
+
+.sessionItemTitle {
+  color: var(--text-primary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  line-height: 1.35;
+  overflow: hidden;
+  padding-right: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sessionItemMeta {
+  color: var(--text-tertiary);
+  font-size: 7px;
+  letter-spacing: 0.05em;
+  margin-top: 1px;
+}
+
+.sessionDeleteBtn {
+  background: transparent;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-size: 8px;
+  line-height: 1;
+  opacity: 0;
+  padding: 0;
+  position: absolute;
+  right: 5px;
+  top: 6px;
+  transition: color $transition-fast, opacity $transition-fast;
+
+  &:hover { color: var(--color-danger); }
+}
+
+// ── Speech panel ──────────────────────────────────────────────────────
 
 .mangaSpeechPanel {
   display: flex;
   flex: 1;
   flex-direction: column;
+  min-height: 0;
   min-width: 0;
 }
 
+// ── Header ────────────────────────────────────────────────────────────
+
 .mangaPanelHeader {
   align-items: center;
-  background: var(--bg-primary);
+  background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-default);
   display: flex;
   flex-shrink: 0;
+  height: 36px;
   justify-content: space-between;
-  padding: 8px 14px;
+  padding: 0 12px;
 }
 
 .mangaPanelTitle {
-  color: var(--text-secondary);
+  color: var(--text-tertiary);
   font-size: 9px;
   font-weight: $font-bold;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .mangaClose {
+  align-items: center;
   background: transparent;
   border: 1px solid var(--border-default);
-  border-radius: $radius-md;
   color: var(--text-tertiary);
   cursor: pointer;
-  font-size: 10px;
+  display: flex;
+  font-family: $font-mono;
+  font-size: 9px;
+  height: 20px;
+  justify-content: center;
   line-height: 1;
-  padding: 2px 5px;
   transition: color $transition-fast, border-color $transition-fast;
+  width: 20px;
 
   &:hover {
     border-color: var(--color-danger);
@@ -146,190 +310,379 @@
   }
 }
 
-.mangaBubbleWrap {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  overflow: hidden;
-  padding: 14px 14px 0;
-  position: relative;
-}
+// ── Quick-action chips ────────────────────────────────────────────────
 
-.mangaBubbleTail {
-  border-bottom: 9px solid transparent;
-  border-right: 10px solid var(--border-default);
-  border-top: 9px solid transparent;
-  height: 0;
-  left: -10px;
-  position: absolute;
-  top: 22px;
-  width: 0;
-}
-
-.mangaBubble {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  box-shadow: 3px 3px 0 var(--border-default);
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 12px 14px;
-}
-
-.mangaThinking {
-  align-items: center;
-  display: flex;
-  gap: 6px;
-  padding: 8px 0;
-}
-
-.mangaDot {
-  animation: mangaDotPulse 1s ease-in-out infinite;
-  background: var(--text-tertiary);
-  border-radius: 50%;
-  display: inline-block;
-  height: 6px;
-  width: 6px;
-}
-
-@keyframes mangaDotPulse {
-  0%, 100% { opacity: 0.2; transform: scale(0.8); }
-  50%       { opacity: 1;   transform: scale(1.2); }
-}
-
-.mangaError {
-  color: var(--color-danger);
-  font-size: 11px;
-  margin: 0;
-}
-
-.mangaText {
-  color: var(--text-primary);
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1.75;
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.mangaCursor {
-  animation: mangaCursorBlink 0.6s step-end infinite;
-  color: var(--text-secondary);
-}
-
-@keyframes mangaCursorBlink {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0; }
-}
-
-// ── footer: speed box + regen ─────────────────────────
-
-.mangaFooter {
-  align-items: center;
-  border-top: 1px solid var(--border-default);
+.agentChips {
+  border-bottom: 1px solid var(--border-default);
   display: flex;
   flex-shrink: 0;
-  gap: 10px;
-  justify-content: space-between;
-  padding: 8px 14px;
+  overflow-x: auto;
+
+  &::-webkit-scrollbar { height: 0; }
 }
 
-.mangaSpeedBox {
-  align-items: center;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  display: flex;
-  gap: 2px;
-  padding: 3px 6px;
-}
-
-.mangaSpeedLabel {
-  color: var(--text-tertiary);
-  font-size: 8px;
-  font-weight: $font-bold;
-  letter-spacing: 0.12em;
-  margin-right: 4px;
-}
-
-.mangaSpeedBtn {
+.agentChip {
   background: transparent;
-  border: 1px solid transparent;
-  border-radius: $radius-md;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: 9px;
-  font-weight: $font-bold;
-  letter-spacing: 0.06em;
-  padding: 2px 6px;
-  transition: color $transition-fast, background $transition-fast, border-color $transition-fast;
-
-  &:hover {
-    background: var(--accent-subtle);
-    color: var(--text-primary);
-  }
-}
-
-.mangaSpeedBtnActive {
-  background: var(--accent-subtle);
-  border-color: var(--border-default);
-  color: var(--text-primary);
-}
-
-.mangaRegenBtn {
-  background: transparent;
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
+  border: none;
+  border-right: 1px solid var(--border-default);
   color: var(--text-secondary);
   cursor: pointer;
+  font-family: $font-mono;
   font-size: 9px;
   font-weight: $font-bold;
-  letter-spacing: 0.08em;
-  padding: 4px 10px;
-  transition: background $transition-fast, color $transition-fast, border-color $transition-fast;
+  letter-spacing: 0.04em;
+  padding: 6px 11px;
+  transition: background $transition-fast, color $transition-fast;
+  white-space: nowrap;
 
   &:hover:not(:disabled) {
-    background: var(--accent);
-    border-color: var(--accent);
-    color: var(--accent-text);
+    background: var(--accent-subtle);
+    color: var(--text-primary);
   }
 
   &:disabled {
     color: var(--text-tertiary);
     cursor: not-allowed;
-    opacity: 0.5;
   }
 }
 
-.traceToggleWrap {
-  padding-right: 2px;
+// ── Messages ──────────────────────────────────────────────────────────
+
+.agentMessages {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: var(--border-default); }
 }
 
-// ── Agent FAB (floating action button) ────────────────────────
+.agentEmptyState {
+  color: var(--text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  padding: 24px 0;
+  text-align: center;
+}
+
+.agentMessageRow {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.agentMessageRowUser {
+  justify-content: flex-end;
+}
+
+// ── Bubbles ───────────────────────────────────────────────────────────
+
+.agentBubble {
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.7;
+  max-width: 90%;
+  padding: 8px 11px;
+  word-break: break-word;
+}
+
+.agentBubbleAssistant {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+.agentBubbleUser {
+  background: var(--accent-subtle);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+}
+
+// ── Markdown ──────────────────────────────────────────────────────────
+
+.mangaText {
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.7;
+  margin: 0;
+  word-break: break-word;
+
+  // plain user text
+  &:not(:has(p)) { white-space: pre-wrap; }
+
+  p { margin: 0 0 0.45em; &:last-child { margin-bottom: 0; } }
+
+  strong, b { font-weight: $font-bold; }
+
+  em, i { font-style: italic; opacity: 0.88; }
+
+  code {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    font-family: $font-mono;
+    font-size: 10px;
+    padding: 0 4px;
+  }
+
+  pre {
+    background: var(--bg-primary);
+    border: 1px solid var(--border-default);
+    font-size: 10px;
+    line-height: 1.5;
+    margin: 0.4em 0;
+    overflow-x: auto;
+    padding: 7px 9px;
+    white-space: pre;
+
+    code { background: none; border: none; padding: 0; }
+  }
+
+  ul, ol { margin: 0.2em 0; padding-left: 1.3em; }
+  li { margin: 0.1em 0; }
+
+  h1, h2, h3, h4 {
+    font-size: 10px;
+    font-weight: $font-bold;
+    letter-spacing: 0.1em;
+    margin: 0.5em 0 0.15em;
+    text-transform: uppercase;
+  }
+
+  hr { border: none; border-top: 1px solid var(--border-default); margin: 0.4em 0; }
+
+  blockquote {
+    border-left: 2px solid var(--border-default);
+    color: var(--text-secondary);
+    margin: 0.3em 0;
+    padding: 0 0 0 0.7em;
+  }
+
+  a { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
+
+  // Block cursor appended to displayed text during typewriter
+  .blockCursor {
+    animation: cursorBlink 0.6s step-end infinite;
+    color: var(--text-tertiary);
+  }
+}
+
+// Typing state: plain pre-wrap inline text with inline cursor span
+.mangaTextRaw {
+  color: var(--text-primary);
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mangaCursor {
+  animation: cursorBlink 0.6s step-end infinite;
+  color: var(--text-secondary);
+  font-weight: 100;
+  line-height: 1;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+// ── Thinking ──────────────────────────────────────────────────────────
+
+.mangaThinking {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  padding: 4px 0;
+}
+
+.mangaDot {
+  animation: dotPulse 1s ease-in-out infinite;
+  background: var(--text-tertiary);
+  border-radius: 50%;
+  display: inline-block;
+  height: 5px;
+  width: 5px;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.25; transform: scale(0.8); }
+  50%       { opacity: 1;    transform: scale(1.2); }
+}
+
+// ── Action progress ───────────────────────────────────────────────────
+
+.agentActionBubble {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.agentActionItem {
+  color: var(--text-tertiary);
+  font-family: $font-mono;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  line-height: 1.6;
+}
+
+.agentActionItemActive {
+  color: var(--text-primary);
+  font-weight: $font-bold;
+}
+
+// ── Pending action plan card ──────────────────────────────────────────
+
+.agentPlanCard {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 92%;
+}
+
+.agentPlanTitle {
+  color: var(--text-tertiary);
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.12em;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.agentPlanItem {
+  align-items: baseline;
+  color: var(--text-secondary);
+  display: flex;
+  font-size: 10px;
+  gap: 6px;
+  line-height: 1.6;
+}
+
+.agentPlanIndex {
+  background: var(--bg-primary);
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  display: inline-block;
+  flex-shrink: 0;
+  font-size: 9px;
+  line-height: 1;
+  padding: 1px 4px;
+  text-align: center;
+}
+
+.agentPlanBtns {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.agentPlanAccept {
+  background: var(--accent-subtle);
+  border: 1px solid var(--border-default);
+  color: var(--text-primary);
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.08em;
+  padding: 4px 12px;
+  text-transform: uppercase;
+  transition: background $transition-fast, box-shadow $transition-fast;
+
+  &:hover {
+    background: var(--bg-secondary);
+    box-shadow: 2px 2px 0 var(--border-default);
+  }
+}
+
+.agentPlanDecline {
+  background: transparent;
+  border: 1px solid var(--border-default);
+  color: var(--text-tertiary);
+  cursor: pointer;
+  font-family: $font-mono;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  text-transform: uppercase;
+  transition: color $transition-fast;
+
+  &:hover { color: var(--text-secondary); }
+}
+
+.agentInputRow {
+  align-items: stretch;
+  border-top: 1px solid var(--border-default);
+  display: flex;
+  flex-shrink: 0;
+}
+
+.agentInput {
+  background: var(--bg-primary);
+  border: none;
+  border-right: 1px solid var(--border-default);
+  color: var(--text-primary);
+  flex: 1;
+  font-family: $font-mono;
+  font-size: 11px;
+  line-height: 1.5;
+  outline: none;
+  padding: 8px 11px;
+  resize: none;
+
+  &::placeholder { color: var(--text-tertiary); }
+  &:disabled { color: var(--text-tertiary); cursor: not-allowed; }
+}
+
+.agentSendBtn {
+  background: var(--bg-secondary);
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  font-family: $font-mono;
+  font-size: 9px;
+  font-weight: $font-bold;
+  letter-spacing: 0.1em;
+  padding: 0 16px;
+  transition: background $transition-fast, color $transition-fast;
+
+  &:hover:not(:disabled) {
+    background: var(--accent);
+    color: var(--accent-text);
+  }
+
+  &:disabled { color: var(--text-tertiary); cursor: not-allowed; }
+}
+
+// ── FAB ───────────────────────────────────────────────────────────────
 
 .agentFab {
   align-items: center;
-  animation: mangaSlideUp 0.25s cubic-bezier(0.34, 1.2, 0.64, 1);
+  animation: agentSlideUp 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
   background: var(--bg-primary);
   border: 1px solid var(--border-default);
-  border-radius: 999px;
-  bottom: 28px;
+  bottom: 24px;
   box-shadow: 4px 4px 0 var(--border-default);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
-  font-size: 10px;
+  font-family: $font-mono;
+  font-size: 9px;
   font-weight: $font-bold;
-  gap: 8px;
-  letter-spacing: 0.08em;
-  padding: 8px 16px 8px 8px;
+  gap: 7px;
+  letter-spacing: 0.1em;
+  padding: 6px 14px 6px 6px;
   position: fixed;
-  right: 28px;
+  right: 24px;
   transition: background $transition-fast, color $transition-fast, box-shadow $transition-fast, transform 0.15s ease;
-  z-index: 999;
+  z-index: 8999;
 
   &:hover {
     background: var(--accent-subtle);
@@ -339,8 +692,8 @@
   }
 
   &:active {
-    transform: translateY(1px);
     box-shadow: 2px 2px 0 var(--border-default);
+    transform: translateY(1px);
   }
 }
 
@@ -348,1871 +701,10 @@
   border-radius: 50%;
   display: block;
   flex-shrink: 0;
-  height: 32px;
+  height: 28px;
   overflow: hidden;
   position: relative;
-  width: 32px;
-
-  img {
-    display: block;
-    height: 100%;
-    object-fit: cover;
-    width: 100%;
-  }
-}
-
-// ── Agent chat modal ───────────────────────────────────────────
-
-.agentChatModal {
-  animation: mangaSlideUp 0.2s cubic-bezier(0.34, 1.2, 0.64, 1);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-lg;
-  box-shadow: 6px 6px 0 var(--border-default);
-  display: flex;
-  height: 78vh;
-  max-height: 740px;
-  max-width: 820px;
-  overflow: hidden;
-  width: 92vw;
-}
-
-// ── quick-action chips ─────────────────────────────────────────
-
-.agentChips {
-  border-bottom: 1px solid var(--border-default);
-  display: flex;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  gap: 5px;
-  padding: 7px 12px;
-}
-
-.agentChip {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-size: 10px;
-  font-weight: $font-bold;
-  letter-spacing: 0.04em;
-  padding: 3px 9px;
-  transition: background $transition-fast, color $transition-fast, border-color $transition-fast;
-
-  &:hover:not(:disabled) {
-    background: var(--accent-subtle);
-    border-color: var(--accent);
-    color: var(--text-primary);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.4;
-  }
-}
-
-// ── messages scrollable area ───────────────────────────────────
-
-.agentMessages {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 10px;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 14px 14px 6px;
-
-  // subtle scrollbar
-  &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-track { background: transparent; }
-  &::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 4px; }
-}
-
-.agentMessageRow {
-  display: flex;
-  justify-content: flex-start;
-
-  &.agentMessageRowUser {
-    justify-content: flex-end;
-  }
-}
-
-.agentBubble {
-  border-radius: $radius-md;
-  font-size: 12px;
-  line-height: 1.7;
-  max-width: 85%;
-  padding: 9px 12px;
-}
-
-.agentBubbleAssistant {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-top-left-radius: 2px;
-  box-shadow: 2px 2px 0 var(--border-default);
-}
-
-.agentBubbleUser {
-  background: var(--accent-subtle);
-  border: 1px solid var(--accent);
-  border-top-right-radius: 2px;
-  color: var(--text-primary);
-}
-
-// ── speed controls inside agent panel ─────────────────────────
-
-.agentSpeedBox {
-  align-items: center;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 2px;
-  justify-content: center;
-  margin-top: 4px;
-}
-
-// ── bottom input row ───────────────────────────────────────────
-
-.agentInputRow {
-  align-items: flex-end;
-  border-top: 1px solid var(--border-default);
-  display: flex;
-  flex-shrink: 0;
-  gap: 8px;
-  padding: 9px 12px;
-}
-
-.agentInput {
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  caret-color: var(--text-primary);
-  color: var(--text-primary);
-  flex: 1;
-  font-family: inherit;
-  font-size: 12px;
-  line-height: 1.5;
-  min-height: 0;
-  outline: none;
-  padding: 7px 10px;
-  resize: none;
-  transition: border-color $transition-fast;
-
-  &::placeholder { color: var(--text-tertiary); }
-
-  &:focus { border-color: var(--accent); }
-
-  &:disabled {
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-}
-
-.agentSendBtn {
-  align-self: flex-end;
-  background: var(--accent);
-  border: 1px solid var(--accent);
-  border-radius: $radius-md;
-  color: var(--accent-text);
-  cursor: pointer;
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: $font-bold;
-  letter-spacing: 0.08em;
-  padding: 7px 14px;
-  transition: background $transition-fast, opacity $transition-fast;
-
-  &:hover:not(:disabled) { opacity: 0.85; }
-
-  &:disabled {
-    background: var(--bg-secondary);
-    border-color: var(--border-default);
-    color: var(--text-tertiary);
-    cursor: not-allowed;
-  }
-}
-
-.traceStatsText {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0;
-  font-weight: $font-medium;
-}
-
-// ── (legacy tree kept for compatibility) ──────────────────────
-
-.traceRoot { padding: 8px 4px; font-size: 12px; line-height: 1.5; }
-.traceNode { padding-left: 14px; border-left: 1px dashed var(--border-default); margin-top: 1px; }
-.traceRow  { display: flex; align-items: baseline; gap: 5px; padding: 2px 6px; border-radius: $radius-md; transition: background $transition-fast; &:hover { background: var(--bg-secondary); } }
-.traceToggle { font-size: 9px; color: var(--text-tertiary); min-width: 12px; flex-shrink: 0; cursor: pointer; user-select: none; }
-.callBadge { font-size: 9px; font-weight: $font-bold; padding: 1px 5px; border-radius: $radius-md; flex-shrink: 0; letter-spacing: 0.04em; border: 1px solid transparent; }
-.CALL         { background: #dbeafe; color: #1e40af; border-color: #bfdbfe; }
-.STATICCALL   { background: #f3f4f6; color: #4b5563; border-color: #e5e7eb; }
-.DELEGATECALL { background: #fef3c7; color: #92400e; border-color: #fde68a; }
-.CREATE, .CREATE2 { background: #d1fae5; color: #065f46; border-color: #a7f3d0; }
-.REVERT       { background: #fee2e2; color: #991b1b; border-color: #fecaca; }
-:global([data-theme='dark']) .CALL         { background: #1e3a5f; color: #93c5fd; border-color: #1e4080; }
-:global([data-theme='dark']) .STATICCALL   { background: #2a2a2a; color: #9ca3af; border-color: #374151; }
-:global([data-theme='dark']) .DELEGATECALL { background: #3d2c00; color: #fcd34d; border-color: #78350f; }
-:global([data-theme='dark']) .CREATE,
-:global([data-theme='dark']) .CREATE2      { background: #0c2e1a; color: #6ee7b7; border-color: #064e3b; }
-:global([data-theme='dark']) .REVERT       { background: #3b0f0f; color: #fca5a5; border-color: #7f1d1d; }
-.traceAddr { font-size: 11px; color: var(--text-secondary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
-.traceFn   { color: var(--text-primary); font-weight: $font-bold; margin-right: 4px; }
-.traceValue { font-size: 10px; color: $success; white-space: nowrap; flex-shrink: 0; }
-.traceGas  { font-size: 10px; color: var(--text-tertiary); white-space: nowrap; flex-shrink: 0; }
-.tracePct  { opacity: 0.6; }
-.traceEventDot { font-size: 8px; color: #a78bfa; flex-shrink: 0; }
-
-.rowSelected {
-  background: rgba(79, 140, 255, 0.06) !important;
-  box-shadow: inset 3px 0 0 0 #4f8cff;
-}
-
-// ── Call Analysis Panel ──────────────────────────────────────
-
-.analysisHeader {
-  font-size: 10px;
-  font-weight: $font-bold;
-  color: var(--text-secondary);
-  background: var(--bg-tertiary);
-  padding: 4px 10px;
-  border-bottom: 1px solid var(--border-default);
-  letter-spacing: 0.1em;
-}
-
-.analysisGrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 16px;
-  padding: 12px;
-}
-
-.analysisItem {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.analysisLabel {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  font-weight: $font-bold;
-  letter-spacing: 0.05em;
-}
-
-.analysisValue {
-  font-size: 11px;
-  color: var(--text-primary);
-  word-break: break-all;
-  line-height: 1.4;
-}
-
-.analysisParams {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  margin-top: 4px;
-  background: var(--bg-tertiary);
-  padding: 8px;
-  border-radius: $radius-sm;
-}
-
-.paramRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-}
-
-.paramName {
-  color: var(--text-secondary);
-  min-width: 80px;
-}
-
-.paramType {
-  color: $warning;
-  font-size: 9px;
-  background: rgba(245, 158, 11, 0.1);
-  padding: 0 4px;
-  border-radius: 2px;
-}
-
-.paramValue {
-  color: var(--text-primary);
-  word-break: break-all;
-  flex: 1;
-}
-
-.sourcePlaceholder {
-  padding: 20px;
-  text-align: center;
-  background: var(--bg-tertiary);
-  margin: 12px;
-  border: 1px dashed var(--border-default);
-  border-radius: $radius-md;
-}
-
-// ── Trace detail drawer ───────────────────────────────────────
-
-.traceDetail {
-  margin: 2px 0 6px 20px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  font-size: 11px;
-  overflow: hidden;
-}
-
-.detailRow {
-  display: grid;
-  grid-template-columns: 60px 1fr;
-  border-bottom: 1px dashed var(--border-subtle);
-  &:last-child { border-bottom: none; }
-}
-
-.detailKey {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.08em;
-  padding: 5px 8px;
-  background: var(--bg-tertiary);
-  border-right: 1px solid var(--border-default);
-  display: flex;
-  align-items: flex-start;
-  padding-top: 7px;
-}
-
-.detailVal {
-  padding: 5px 8px;
-  color: var(--text-secondary);
-  word-break: break-all;
-  line-height: 1.5;
-}
-
-.detailError { color: $danger; }
-
-.detailLogs {
-  padding: 4px 8px 8px;
-  border-top: 1px solid var(--border-default);
-}
-
-.detailLogHeader {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.1em;
-  margin-bottom: 4px;
-  font-weight: $font-bold;
-}
-
-.detailLog {
-  display: flex;
-  gap: 6px;
-  font-size: 10px;
-  color: var(--text-secondary);
-  padding: 2px 0;
-}
-
-.topic {
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-default);
-  padding: 0 4px;
-  border-radius: $radius-md;
-  font-size: 9px;
-  color: var(--text-tertiary);
-}
-
-// ── Events ────────────────────────────────────────────────────
-
-.eventCard {
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  margin: 8px;
-  &:first-child { margin-top: 8px; }
-  &:last-child { margin-bottom: 8px; }
-}
-
-.eventHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  background: var(--bg-secondary);
-}
-
-.eventIndex {
-  /* removed — using Badge component */
-}
-
-.eventName {
-  font-size: 12px;
-  font-weight: $font-bold;
-  color: var(--accent);
-  flex: 1;
-}
-
-.eventSigTypes {
-  font-size: 10px;
-  font-weight: $font-normal;
-  color: var(--text-tertiary);
-  margin-left: 4px;
-  letter-spacing: 0.01em;
-}
-
-.eventSigLoading {
-  padding: 8px 14px;
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: var(--font-mono);
-  letter-spacing: 0.04em;
-}
-
-.eventAddr {
-  font-size: 10px;
-  font-family: var(--font-mono);
-  color: var(--text-tertiary);
-}
-
-.eventObjBlock {
-  padding: 8px 14px 10px;
-  border-bottom: 1px dashed var(--border-subtle);
-}
-
-.eventObjPre {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  line-height: 1.7;
-  margin: 0;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-all;
-}
-
-.eventObjRow {
-  padding-left: 0;
-}
-
-.eventObjKey {
-  color: var(--accent);
-}
-
-.eventObjVal {
-  color: var(--text-primary);
-}
-
-.eventRaw {
-  padding: 6px 14px 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  background: var(--bg-tertiary);
-  border-top: 1px solid var(--border-subtle);
-}
-
-.eventRawRow {
-  display: grid;
-  grid-template-columns: 64px 1fr;
-  gap: 8px;
-  font-size: 10px;
-  line-height: 1.5;
-  align-items: baseline;
-}
-
-.eventRawLabel {
-  color: var(--text-tertiary);
-  font-size: 9px;
-  text-align: right;
-}
-
-.eventRawValue {
-  font-family: var(--font-mono);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  word-break: break-all;
-}
-
-.eventTopics {
-  padding: 6px 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.eventTopic {
-  display: grid;
-  grid-template-columns: 56px 1fr;
-  gap: 8px;
-  font-size: 10px;
-  line-height: 1.5;
-}
-
-.eventDecoded {
-  padding: 4px 12px 8px;
-  border-top: 1px dashed var(--border-subtle);
-  background: var(--bg-secondary);
-}
-
-.eventDecodedRow {
-  display: grid;
-  grid-template-columns: 100px 1fr;
-  gap: 8px;
-  font-size: 11px;
-  padding: 2px 0;
-}
-
-// ── State diffs ───────────────────────────────────────────────
-
-.stateCard {
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  margin: 8px;
-}
-
-.stateCardHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-default);
-  font-size: 11px;
-  border-radius: $radius-md $radius-md 0 0;
-}
-
-.stateInlineRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  font-size: 11px;
-  border-bottom: 1px dashed var(--border-subtle);
-  &:last-child { border-bottom: none; }
-}
-
-.stateLabel {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.12em;
-  font-weight: $font-bold;
-  min-width: 80px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stateArrow {
-  color: var(--text-tertiary);
-  font-size: 11px;
-}
-
-.stateStorageBlock {
-  padding: 6px 12px;
-  font-size: 11px;
-}
-
-.stateStorageRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 3px 0 3px 12px;
-  border-bottom: 1px dashed var(--border-subtle);
-  &:last-child { border-bottom: none; }
-}
-
-.stateSection {
-  border-bottom: 1px solid var(--border-default);
-  &:last-child { border-bottom: none; }
-}
-
-.stateSectionTitle {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.12em;
-  padding: 6px 12px 4px;
-  background: var(--bg-secondary);
-  border-bottom: 1px dashed var(--border-subtle);
-  font-weight: $font-bold;
-}
-
-.stateRow {
-  display: grid;
-  grid-template-columns: 60px 1fr;
-  gap: 8px;
-  padding: 5px 12px;
-  font-size: 11px;
-  border-bottom: 1px dashed var(--border-subtle);
-  &:last-child { border-bottom: none; }
-}
-
-// ── Fund flow (React Flow nodes) ──────────────────────────────
-
-.ffNode {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-default);
-  border-radius: 8px;
-  padding: 8px 12px;
-  min-width: 240px;
-  position: relative;
-  transition: border-color 0.2s, box-shadow 0.2s;
-}
-
-.ffNodeHovered .ffNode,
-.ffNode:hover {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 12px color-mix(in srgb, var(--accent-primary) 35%, transparent);
-}
-
-.ffNodeBadge {
-  position: absolute;
-  top: -22px;
-  left: 0;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  padding: 2px 8px;
-  border-radius: 4px 4px 0 0;
-  background: color-mix(in srgb, var(--accent-primary) 15%, transparent);
-  color: var(--accent-primary);
-  border: 1px solid var(--accent-primary);
-  border-bottom: none;
-}
-
-.ffNodeInner {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.ffNodeIcon {
   width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  border: 1px solid var(--border-default);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-  background: var(--bg-secondary);
 
-  img {
-    width: 18px;
-    height: 18px;
-    object-fit: contain;
-  }
-}
-
-.ffNodeInfo {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ffNodeLabel {
-  font-size: 12px;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.ffNodeAddr {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  font-family: $font-mono;
-  cursor: pointer;
-
-  &:hover {
-    color: var(--accent-primary);
-  }
-}
-
-// ── Fund flow nav hint bar ─────────────────────────────────────
-
-.ffNavHint {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  background: none;
-  border: none;
-  margin-left: auto;
-  margin-right: 8px;
-}
-
-.ffNavKey {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 20px;
-  height: 18px;
-  padding: 0 4px;
-  font-size: 10px;
-  font-family: $font-mono;
-  color: var(--text-tertiary);
-  background: var(--bg-primary);
-  border: 1px solid var(--border-default);
-  border-radius: 3px;
-  line-height: 1;
-  box-shadow: 0 1px 0 var(--border-default);
-  user-select: none;
-}
-
-.ffNavText {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.02em;
-  user-select: none;
-}
-
-.ffNavStep {
-  font-size: 10px;
-  color: var(--accent-primary);
-  font-weight: $font-bold;
-  font-family: $font-mono;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
-  margin-left: 4px;
-}
-
-// ── Fund flow edge labels ─────────────────────────────────────
-
-.ffEdgeLabel {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  pointer-events: none;
-}
-
-.ffEdgeBadge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 4px;
-  border-radius: 4px;
-  font-size: 10px;
-  font-weight: $font-bold;
-  font-family: $font-mono;
-  color: #fff;
-  line-height: 1;
-}
-
-.ffEdgeAmount {
-  font-size: 11px;
-  font-weight: $font-bold;
-  font-family: $font-mono;
-  color: var(--text-primary);
-}
-
-.ffEdgeSymbol {
-  font-size: 10px;
-  font-weight: $font-medium;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-}
-
-// ── Fund flow sidebar ─────────────────────────────────────────
-
-.ffSidebar {
-  width: 300px;
-  height: 100%;
-  background: var(--bg-primary);
-  border-left: 1px solid var(--border-default);
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  animation: ffSlideIn 0.2s ease-out;
-}
-
-@keyframes ffSlideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-
-.ffSidebarHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--border-default);
-  flex-shrink: 0;
-}
-
-.ffSidebarTitle {
-  font-size: 13px;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-}
-
-.ffSidebarClose {
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  font-size: 14px;
-  padding: 4px;
-  border-radius: 4px;
-  line-height: 1;
-
-  &:hover {
-    background: var(--bg-secondary);
-    color: var(--text-primary);
-  }
-}
-
-.ffSidebarBody {
-  padding: 16px;
-  overflow-y: auto;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.ffStepBadge {
-  display: inline-flex;
-  align-items: center;
-  align-self: flex-start;
-  gap: 6px;
-  padding: 3px 10px;
-  border-radius: 4px;
-  background: var(--accent-primary, #3b82f6);
-  font-size: 11px;
-  font-weight: $font-bold;
-  font-family: $font-mono;
-  color: #fff;
-  letter-spacing: 0.03em;
-  margin-bottom: 10px;
-}
-
-.ffStepAddr {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
-
-  &:hover {
-    border-color: var(--text-tertiary);
-    background: var(--bg-tertiary, var(--bg-secondary));
-  }
-}
-
-.ffStepAddrIcon {
-  font-size: 14px;
-  flex-shrink: 0;
-  width: 20px;
-  text-align: center;
-}
-
-.ffStepAddrName {
-  font-size: 12px;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-family: $font-mono;
-}
-
-.ffStepConnector {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  color: var(--text-tertiary);
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-.ffStepTransfer {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-}
-
-.ffStepArrowIcon {
-  font-size: 14px;
-  color: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.ffStepTokenLogo {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1px solid var(--border-default);
-}
-
-.ffStepAmountBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.ffStepAmountRow {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
-}
-
-.ffStepAmount {
-  font-size: 14px;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  font-family: $font-mono;
-}
-
-.ffStepSymbol {
-  font-size: 11px;
-  color: var(--text-secondary);
-  font-weight: $font-semibold;
-}
-
-.ffStepUsd {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-family: $font-mono;
-}
-
-.ffStepNav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0 0;
-  border-top: 1px solid var(--border-default);
-  margin-top: auto;
-}
-
-.ffStepNavBtn {
-  background: none;
-  border: 1px solid var(--border-default);
-  color: var(--text-secondary);
-  font-size: 11px;
-  font-family: $font-mono;
-  padding: 5px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-
-  &:hover:not(:disabled) {
-    background: var(--bg-secondary);
-    border-color: var(--text-tertiary);
-    color: var(--text-primary);
-  }
-
-  &:disabled {
-    opacity: 0.3;
-    cursor: not-allowed;
-  }
-}
-
-.ffStepNavCount {
-  font-size: 11px;
-  color: var(--text-tertiary);
-  font-family: $font-mono;
-}
-
-// ── Fund flow (legacy styles kept for compatibility) ──────────
-
-.flowLegend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin: 12px 0 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-default);
-}
-
-.flowTimeline {
-  border: 1px solid var(--border-default);
-  display: flex;
-  flex-direction: column;
-  margin-bottom: 12px;
-}
-
-.flowTimelineRow,
-.flowExposureRow,
-.flowNetRow {
-  align-items: center;
-  border-bottom: 1px dashed var(--border-subtle);
-  display: grid;
-  font-size: 11px;
-  gap: 8px;
-  min-width: 0;
-  padding: 7px 10px;
-
-  &:last-child { border-bottom: none; }
-}
-
-.flowTimelineRow {
-  grid-template-columns: 28px 78px minmax(120px, 1fr) 14px minmax(120px, 1fr) minmax(160px, 1fr) 78px;
-}
-
-.flowExposureList,
-.flowNetList {
-  border: 1px solid var(--border-default);
-  margin-bottom: 12px;
-}
-
-.flowExposureRow {
-  grid-template-columns: 78px minmax(120px, 1fr) 64px minmax(120px, 1fr) minmax(160px, 1fr);
-}
-
-.flowNetRow {
-  grid-template-columns: minmax(160px, 1fr) 90px;
-}
-
-.flowStepIndex {
-  color: var(--text-tertiary);
-  font-size: 9px;
-  font-weight: $font-bold;
-}
-
-.flowChangeType {
-  background: rgba(79, 140, 255, 0.11);
-  border: 1px solid rgba(79, 140, 255, 0.24);
-  border-radius: $radius-md;
-  color: #7ab7ff;
-  font-size: 9px;
-  font-weight: $font-bold;
-  letter-spacing: 0.05em;
-  padding: 1px 6px;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.flowChangeBurn,
-.flowChangeDestruction {
-  background: rgba(255, 107, 122, 0.11);
-  border-color: rgba(255, 107, 122, 0.26);
-  color: #ff8e9b;
-}
-
-.flowChangeTransfer {
-  background: rgba(111, 227, 161, 0.1);
-  border-color: rgba(111, 227, 161, 0.22);
-  color: #92d7a7;
-}
-
-.flowArrowThin {
-  color: var(--text-tertiary);
-  text-align: center;
-}
-
-.flowAmount {
-  color: var(--text-primary);
-  font-family: $font-mono;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.flowUsd {
-  color: var(--text-tertiary);
-  font-family: $font-mono;
-  font-size: 10px;
-  text-align: right;
-}
-
-.flowNode {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  background: var(--bg-secondary);
-  border: 1px solid var(--border-default);
-  padding: 3px 8px;
-  border-radius: $radius-md;
-}
-
-.flowNodeDot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text-tertiary);
-  flex-shrink: 0;
-}
-
-.flowIn  { color: $success; font-size: 10px; }
-.flowOut { color: $danger;  font-size: 10px; }
-
-.flowEdges {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.flowEdge {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 11px;
-  padding: 5px 0;
-  border-bottom: 1px dashed var(--border-subtle);
-  &:last-child { border-bottom: none; }
-}
-
-.flowArrow {
-  font-size: 11px;
-  white-space: nowrap;
-  letter-spacing: 0.02em;
-}
-
-.flowType {
-  font-size: 9px;
-  font-weight: $font-bold;
-  padding: 1px 6px;
-  border-radius: $radius-md;
-  letter-spacing: 0.06em;
-  flex-shrink: 0;
-  margin-left: auto;
-}
-
-// ── Gas profiler ──────────────────────────────────────────────
-
-.gasProfilerHero {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-default);
-  margin-bottom: 14px;
-  min-width: 0;
-  overflow: hidden;
-}
-
-.gasProfilerHeader {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  background: var(--bg-secondary);
-  color: var(--text-primary);
-  font-size: 12px;
-  height: 25px;
-  padding: 0 10px;
-  white-space: nowrap;
-}
-
-.gasFlameGraph {
-  position: relative;
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 420px;
-  background:
-    radial-gradient(circle, color-mix(in srgb, var(--text-tertiary) 22%, transparent) 1px, transparent 1px) 0 0 / 18px 18px,
-    var(--bg-primary);
-}
-
-.gasHoverInfo {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 6;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  max-width: min(360px, calc(100% - 16px));
-  background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
-  border: 1px solid var(--border-default);
-  color: var(--text-primary);
-  font-family: $font-mono;
-  font-size: 11px;
-  line-height: 1.35;
-  padding: 8px 10px;
-  pointer-events: none;
-
-  strong,
-  span {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  span {
-    color: var(--text-secondary);
-  }
-}
-
-.gasFlameGraphInner {
-  min-width: 100%;
-  position: relative;
-}
-
-.gasFlameBlock {
-  position: absolute;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  height: 48px;
-  min-width: 2px;
-  border: 0;
-  cursor: pointer;
-  font-family: $font-mono;
-  font-size: 11px;
-  line-height: 1.2;
-  overflow: hidden;
-  padding: 0 8px;
-  text-align: left;
-  transform-origin: center left;
-  transition:
-    left 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    width 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    filter 180ms ease,
-    opacity 180ms ease,
-    outline-color 180ms ease,
-    transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  white-space: nowrap;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-right: 1px solid rgba(255, 255, 255, 0.26);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.14);
-    pointer-events: none;
-  }
-
-  span {
-    display: block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  small {
-    display: block;
-    font-size: 10px;
-    line-height: 1.15;
-    opacity: 0.82;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  &:hover {
-    filter: brightness(1.22);
-    outline: 2px solid color-mix(in srgb, var(--text-primary) 72%, transparent);
-    outline-offset: -2px;
-    z-index: 2;
-  }
-}
-
-.gasFlameBlockSelected {
-  outline: 2px solid color-mix(in srgb, var(--text-primary) 88%, transparent);
-  outline-offset: -2px;
-  filter: none !important;
-  opacity: 1 !important;
-  transform: none !important;
-  z-index: 3;
-}
-
-.gasProfilerGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 14px;
-}
-
-.gasProfilerPanel {
-  background: var(--bg-primary);
-  border: 1px solid var(--border-default);
-  min-height: 180px;
-  padding: 28px;
-
-  h3 {
-    color: var(--text-primary);
-    font-size: 16px;
-    margin: 0 0 16px;
-  }
-
-  p {
-    color: var(--text-secondary);
-    font-size: 12px;
-    line-height: 1.7;
-    margin: 0 0 16px;
-  }
-}
-
-.gasProfilerPanelWide {
-  grid-column: 1 / 2;
-}
-
-.gasProfilerMetric {
-  display: flex;
-  gap: 10px;
-  color: var(--text-secondary);
-  font-family: $font-mono;
-  font-size: 12px;
-  margin-bottom: 14px;
-}
-
-.gasProgress {
-  width: 360px;
-  max-width: 100%;
-  height: 18px;
-  background: color-mix(in srgb, var(--bg-secondary) 70%, #000);
-  border: 1px solid var(--border-subtle);
-  border-radius: $radius-full;
-  overflow: hidden;
-}
-
-.gasProgressFill {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 100%;
-  min-width: 42px;
-  background: var(--accent);
-  color: var(--bg-primary);
-  font-family: $font-mono;
-  font-size: 11px;
-}
-
-.gasEmptySelection {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  height: 100%;
-  gap: 16px;
-  color: var(--text-tertiary);
-  text-align: center;
-
-  strong {
-    color: var(--text-primary);
-    font-size: 13px;
-  }
-
-  span {
-    color: var(--text-tertiary);
-    font-size: 12px;
-    line-height: 1.7;
-  }
-}
-
-.gasDetailLayout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px;
-  gap: 22px;
-  align-items: center;
-}
-
-.gasDetailGrid {
-  display: grid;
-  grid-template-columns: max-content minmax(0, 1fr);
-  gap: 10px 18px;
-  color: var(--text-secondary);
-  font-family: $font-mono;
-  font-size: 12px;
-  min-width: 0;
-
-  strong {
-    color: var(--text-primary);
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-.gasShareChart {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 10px;
-  min-width: 0;
-
-  small {
-    color: var(--text-tertiary);
-    font-family: $font-mono;
-    font-size: 11px;
-  }
-}
-
-.gasShareDonut {
-  display: grid;
-  place-items: center;
-  width: 118px;
-  height: 118px;
-  border-radius: 50%;
-  position: relative;
-
-  &::after {
-    content: '';
-    position: absolute;
-    inset: 24px;
-    border-radius: 50%;
-    background: var(--bg-primary);
-    border: 1px solid var(--border-subtle);
-  }
-
-  span {
-    position: relative;
-    z-index: 1;
-    color: var(--text-primary);
-    font-family: $font-mono;
-    font-size: 13px;
-    font-weight: $font-bold;
-  }
-}
-
-.gasTotal {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.gasTotalBar {
-  height: 6px;
-  background: linear-gradient(90deg, $success, $info);
-  border-radius: $radius-full;
-}
-
-.gasTreeRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 12px 4px 0;
-  border-bottom: 1px dashed var(--border-subtle);
-  font-size: 11px;
-  cursor: pointer;
-  transition: background $transition-fast;
-  &:hover { background: var(--bg-secondary); }
-  &:last-child { border-bottom: none; }
-}
-
-.gasLabel {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: var(--text-secondary);
-}
-
-.gasBarInline {
-  width: 80px;
-  height: 4px;
-  background: var(--bg-tertiary);
-  border-radius: $radius-full;
-  overflow: hidden;
-  flex-shrink: 0;
-}
-
-.gasBarFill {
-  height: 100%;
-  background: linear-gradient(90deg, $success, $info);
-  border-radius: $radius-full;
-  min-width: 1px;
-}
-
-.gasBar {
-  width: 80px;
-  height: 6px;
-  background: var(--bg-tertiary);
-  border-radius: $radius-full;
-  overflow: hidden;
-}
-
-.gasNum {
-  font-size: 10px;
-  color: var(--text-primary);
-  white-space: nowrap;
-  flex-shrink: 0;
-  min-width: 64px;
-  text-align: right;
-}
-
-.gasPctLabel {
-  font-size: 10px;
-  color: var(--text-tertiary);
-  white-space: nowrap;
-  flex-shrink: 0;
-  min-width: 36px;
-  text-align: right;
-}
-
-// ── Shared utility ────────────────────────────────────────────
-
-.mono    { font-family: $font-mono; }
-.muted   { color: var(--text-tertiary); }
-.statusSuccess { color: var(--color-success) !important; font-weight: $font-bold; }
-.statusFailed  { color: var(--color-danger) !important;  font-weight: $font-bold; }
-
-// ── Transaction header rail ──────────────────────────────────
-
-.txHeader {
-  display: flex;
-  align-items: stretch;
-  background: var(--bg-primary);
-  border-right: 1px solid var(--border-default);
-  flex-direction: column;
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.txHeaderTitle {
-  background: var(--bg-primary);
-  border-bottom: 1px solid var(--border-default);
-  color: var(--text-primary);
-  flex-shrink: 0;
-  font-size: 10px;
-  font-weight: $font-bold;
-  letter-spacing: 0.12em;
-  padding: 10px 16px;
-}
-
-.txHeaderItem {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: 92px minmax(0, 1fr);
-  min-width: 0;
-  padding: 11px 16px;
-  border-bottom: 1px solid var(--border-default);
-  &:last-child { border-bottom: none; }
-}
-
-.txHeaderKey {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.1em;
-  font-weight: $font-bold;
-  white-space: nowrap;
-  padding-top: 2px;
-}
-
-.txHeaderVal {
-  font-size: 11px;
-  color: var(--text-primary);
-  line-height: 1.45;
-  min-width: 0;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.txHeaderValRow {
-  align-items: center;
-  display: flex;
-  gap: 8px;
-  min-width: 0;
-
-  .txHeaderVal {
-    flex: 1;
-  }
-}
-
-.copyBtn {
-  background: transparent;
-  border: 1px solid var(--border-default);
-  color: var(--text-tertiary);
-  cursor: pointer;
-  flex-shrink: 0;
-  font-family: $font-mono;
-  font-size: 9px;
-  font-weight: $font-bold;
-  height: 24px;
-  letter-spacing: 0.08em;
-  padding: 0 8px;
-  transition: border-color $transition-fast, color $transition-fast, background $transition-fast;
-
-  &:hover {
-    background: var(--bg-secondary);
-    border-color: var(--text-primary);
-    color: var(--text-primary);
-  }
-}
-
-.copyBtnCopied {
-  animation: copiedPulse 0.35s ease-out;
-}
-
-@keyframes copiedPulse {
-  0% { transform: scale(0.96); }
-  70% { transform: scale(1.04); }
-  100% { transform: scale(1); }
-}
-
-// ── Input / Output two-panel ──────────────────────────────────
-
-.ioRow {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-top: 4px;
-}
-
-.summaryIoSection {
-  flex: none !important;
-  max-height: 300px;
-}
-
-.fundFlowTransferSection {
-  flex: none !important;
-  max-height: 170px;
-  overflow: hidden;
-}
-
-.fundFlowTransferSection .sectionBody {
-  padding: 8px 10px;
-  overflow: auto;
-}
-
-.ioPanel {
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--bg-primary);
-}
-
-.ioPanelHeader {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 10px;
-  background: var(--bg-secondary);
-  border-bottom: 1px solid var(--border-default);
-  flex-shrink: 0;
-}
-
-.ioPanelLabel {
-  font-size: 11px;
-  font-weight: $font-bold;
-  color: var(--text-primary);
-  flex: 1;
-}
-
-.ioInnerTabs {
-  display: flex;
-  border: 1px solid var(--border-default);
-  border-radius: $radius-md;
-  gap: 0;
-  overflow: hidden;
-  background: var(--bg-tertiary);
-
-  button {
-    padding: 3px 8px;
-  }
-}
-
-.ioInnerBtn {
-  font-size: 9px;
-  letter-spacing: 0.07em;
-  font-weight: $font-bold;
-  padding: 3px 8px;
-  border: none;
-  background: transparent;
-  color: var(--text-tertiary);
-  cursor: pointer;
-  transition: background $transition-fast, color $transition-fast;
-  &:hover { color: var(--text-primary); }
-  &:disabled {
-    color: var(--text-tertiary);
-    cursor: not-allowed;
-    opacity: 0.35;
-  }
-}
-
-.ioInnerActive {
-  background: var(--bg-primary) !important;
-  color: var(--text-primary) !important;
-}
-
-.ioPanelBody {
-  padding: 8px 10px;
-  overflow: auto;
-  max-height: 140px;
-  flex: 1;
-}
-
-.ioPre {
-  margin: 0;
-  font-family: $font-mono;
-  font-size: 11px;
-  color: var(--text-primary);
-  white-space: pre-wrap;
-  word-break: break-all;
-  line-height: 1.5;
-}
-
-.copySmall {
-  font-size: 12px;
-  background: transparent;
-  border: 1px solid var(--border-default);
-  color: var(--text-tertiary);
-  border-radius: $radius-md;
-  cursor: pointer;
-  padding: 2px 6px;
-  transition: all $transition-fast;
-  &:hover { color: var(--text-primary); }
-}
-
-// ── Trace embedded (within summary tab) ──────────────────────
-
-.traceEmbedded {
-  flex: 1;
-  min-height: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  background: var(--bg-secondary);
-
-  .section {
-    flex: 1;
-    min-height: 500px;
-    height: 100%;
-  }
-
-  .traceSplit {
-    height: 100%;
-    grid-template-rows: minmax(120px, 0.55fr) minmax(300px, 1.45fr);
-  }
-}
-
-@media (max-width: 900px) {
-  .inputBar {
-    grid-template-columns: 1fr;
-    height: auto;
-  }
-
-  .inputHero {
-    border-bottom: 1px solid var(--border-default);
-    border-right: none;
-    min-height: 120px;
-  }
-
-  .inputControls {
-    grid-template-columns: 1fr;
-    grid-template-rows: none;
-  }
-
-  .inputWrap {
-    border-bottom: 1px solid var(--border-default);
-    border-right: none;
-    min-height: 42px;
-  }
-
-  .exploreBtn {
-    grid-column: auto;
-    min-height: 44px;
-  }
-
-  .statusBar {
-    align-items: flex-start;
-    flex-direction: column;
-    gap: 8px;
-    height: auto;
-    padding: 8px 14px;
-  }
-
-  .resultLayout {
-    grid-template-columns: 1fr;
-  }
-
-  .gasProfilerGrid {
-    grid-template-columns: 1fr;
-  }
-
-  .txHeader {
-    border-bottom: 1px solid var(--border-default);
-    border-right: none;
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: 220px;
-  }
-
-  .txHeaderItem {
-    border-right: 1px solid var(--border-default);
-  }
-
-  .traceTreeShell {
-    grid-template-columns: 1fr;
-
-    .traceList {
-      border-right: none;
-      max-height: 520px;
-    }
-  }
-
-  .traceInspector {
-    border-top: 1px solid var(--border-default);
-    max-height: 420px;
-  }
-
-  .traceListRow {
-    grid-template-columns: 64px 70px minmax(0, 1fr);
-    gap: 8px;
-  }
-
-  .traceCallMeta,
-  .traceArgList {
-    flex-wrap: wrap;
-  }
-}
-.callGraphPanel {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg-secondary);
-  flex: 1;
-  min-height: 0;
-  height: 100%;
-  min-width: 0;
-}
-
-.callGraphHeader {
-  display: flex;
-  align-items: center;
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-default);
-  background: var(--bg-primary);
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  color: var(--text-tertiary);
-  text-transform: uppercase;
-  gap: 10px;
-}
-
-.callGraphHeader span:first-child {
-  color: var(--text-secondary);
-  font-weight: $font-bold;
-}
-
-// ── Action execution indicator ─────────────────────────────────────────────
-
-.agentActionBubble {
-  background: var(--accent-subtle) !important;
-  border-color: var(--accent) !important;
-  gap: 4px;
-  padding: 8px 12px;
-}
-
-.agentActionItem {
-  color: var(--text-secondary);
-  font-family: $font-mono;
-  font-size: 10px;
-  letter-spacing: 0.05em;
-  line-height: 1.6;
-  opacity: 0.5;
-}
-
-.agentActionItemActive {
-  color: var(--accent-text);
-  font-weight: $font-bold;
-  opacity: 1;
+  img { display: block; height: 100%; object-fit: cover; width: 100%; }
 }

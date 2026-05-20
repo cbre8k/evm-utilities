@@ -55,7 +55,19 @@ export function AgentProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const dispatchActions = useCallback(async (actions: AgentAction[]) => {
-    for (const action of actions) {
+    for (let i = 0; i < actions.length; i++) {
+      const action = actions[i];
+
+      // After a navigate action, the new page must mount and register its handlers.
+      // Poll for up to 3s so subsequent actions (set_tx_hash, execute_trace, etc.) aren't missed.
+      const prevWasNavigate = i > 0 && actions[i - 1].type === 'navigate';
+      if (prevWasNavigate) {
+        for (let attempt = 0; attempt < 30; attempt++) {
+          await new Promise(r => setTimeout(r, 100));
+          if (handlersRef.current.has(action.type)) break;
+        }
+      }
+
       const handler = handlersRef.current.get(action.type);
       if (handler) await handler(action);
       // Small delay between actions so UI transitions are visible

@@ -22,7 +22,6 @@ interface Props {
   stateDiffs?: AddressStateDiff[];
   chainId?: number;
   embedded?: boolean;
-  onOpenAgent?: () => void;
 }
 
 type SourceCache = Record<string, ContractSourceBundle | null>;
@@ -37,7 +36,6 @@ export default function CallTraceTab({
   stateDiffs = [],
   chainId = 1,
   embedded = false,
-  onOpenAgent,
 }: Props) {
   const rootNode = useMemo<TraceNode>(() => root ?? {
     id: 'missing-root',
@@ -194,18 +192,6 @@ export default function CallTraceTab({
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M6 2L2 6M10 2l4 4M6 14l-4-4M10 14l4-4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
-            </button>
-            <button
-              className={`${styles.traceIconBtn} ${styles.traceAgentBtn}`}
-              title="Ask agent for trace summary"
-              onClick={() => onOpenAgent?.()}
-            >
-              {/* sparkle / agent */}
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M8 1v3M8 12v3M1 8h3M12 8h3M3.22 3.22l2.12 2.12M10.66 10.66l2.12 2.12M3.22 12.78l2.12-2.12M10.66 5.34l2.12-2.12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-                <circle cx="8" cy="8" r="2.5" stroke="currentColor" strokeWidth="1.6"/>
-              </svg>
-              Summary
             </button>
           </div>
         </div>
