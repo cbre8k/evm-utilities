@@ -173,8 +173,8 @@ function matchFunctionAbiBySelector(
     return {
       type: 'function',
       name: fragment.name,
-      inputs: fragment.inputs.map((input) => ({ name: input.name, type: input.type })),
-      outputs: fragment.outputs?.map((output) => ({ name: output.name, type: output.type })) ?? [],
+      inputs: fragment.inputs.map((input: { name: string; type: string }) => ({ name: input.name, type: input.type })),
+      outputs: fragment.outputs?.map((output: { name: string; type: string }) => ({ name: output.name, type: output.type })) ?? [],
     };
   } catch {
     return null;
