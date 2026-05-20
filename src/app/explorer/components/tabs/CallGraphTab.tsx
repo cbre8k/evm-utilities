@@ -49,7 +49,7 @@ type CallGraphEdge = {
 };
 
 const NODE_H = 42;
-const CHAR_W = 7.2;        // approx px per char at 11px sans-serif
+const CHAR_W = 7.8;        // approx px per char at 11px sans-serif
 const NODE_PAD_X = 24;     // total horizontal padding inside each function row
 const MIN_FN_W = 120;      // minimum function node / contract box width
 const CONTRACT_GAP = 48;
@@ -342,14 +342,15 @@ export default function CallGraphTab({
         .sort((a, b) => (b.count - a.count) || a.label.localeCompare(b.label));
       const hasBoth = externalFns.length > 0 && internalFns.length > 0;
 
-      const maxLabelLen = allFns.reduce((m, fn) => Math.max(m, fn.label.length), 0);
+      const contractLabel = allFns[0]?.groupLabel ?? 'UnknownContract';
+
+      // Include the group header (contractLabel) in width calculation so it never overflows
+      const maxLabelLen = allFns.reduce((m, fn) => Math.max(m, fn.label.length), contractLabel.length);
       const contractWidth = Math.max(MIN_FN_W, Math.round(maxLabelLen * CHAR_W) + NODE_PAD_X);
 
       const dividerH = hasBoth ? DIVIDER_H : 0;
       const totalFnRows = externalFns.length + internalFns.length;
       const groupHeight = CONTRACT_HEADER + CONTRACT_VPAD * 2 + totalFnRows * NODE_H + dividerH;
-
-      const contractLabel = allFns[0]?.groupLabel ?? 'UnknownContract';
       const contractAddr = allFns[0]?.address ?? null;
       const contractId = `contract:${groupKey}`;
       const totalCount = allFns.reduce((sum, fn) => sum + fn.count, 0);
