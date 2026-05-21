@@ -257,14 +257,17 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
     );
   }, [registerHandler, setSelectedNetwork]);
 
-  const hasResult = state === 'done' && enrichedResult;
+  // Use enrichedResult when ready, fall back to raw result so the workspace
+  // never disappears between setState('done') and the enrichment effect running.
+  const displayResult = enrichedResult ?? result;
+  const hasResult = state === 'done' && displayResult;
   const hasPendingOverview = state === 'loading' && pendingOverview;
-  const totalGas = enrichedResult ? (() => { try { return Number(BigInt(enrichedResult.txOverview.gasUsed)); } catch { return 0; } })() : 0;
-  const badges: Partial<Record<ExplorerTab, number>> = enrichedResult ? {
-    events: enrichedResult.allLogs?.length ?? 0,
-    state: enrichedResult.stateDiffs?.length ?? 0,
-    flow: (enrichedResult.nativeTransfers?.length ?? 0) + (enrichedResult.erc20Transfers?.length ?? 0) +
-      (enrichedResult.erc721Transfers?.length ?? 0) + (enrichedResult.erc1155Transfers?.length ?? 0),
+  const totalGas = displayResult ? (() => { try { return Number(BigInt(displayResult.txOverview.gasUsed)); } catch { return 0; } })() : 0;
+  const badges: Partial<Record<ExplorerTab, number>> = displayResult ? {
+    events: displayResult.allLogs?.length ?? 0,
+    state: displayResult.stateDiffs?.length ?? 0,
+    flow: (displayResult.nativeTransfers?.length ?? 0) + (displayResult.erc20Transfers?.length ?? 0) +
+      (displayResult.erc721Transfers?.length ?? 0) + (displayResult.erc1155Transfers?.length ?? 0),
   } : {};
   const tabItems = TABS.map(item => ({ ...item, badge: badges[item.id] }));
 
@@ -291,10 +294,10 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
 
       {hasResult && (
         <div className={styles.resultLayout}>
-          <TransactionRail result={enrichedResult} />
+          <TransactionRail result={displayResult} />
           <ExplorerResultWorkspace
             activeTab={tab}
-            result={enrichedResult}
+            result={displayResult}
             shareHash={shareHash ?? undefined}
             tabItems={tabItems}
             totalGas={totalGas}
