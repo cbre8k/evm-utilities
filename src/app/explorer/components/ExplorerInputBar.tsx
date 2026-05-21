@@ -59,23 +59,25 @@ export default function ExplorerInputBar({
           />
         </div>
 
-        <Button
-          className={styles.exploreBtn}
-          onClick={onExplore}
-          disabled={state === 'loading'}
-          fontSize={11}
-        >
-          {state === 'loading' ? 'TRACING…' : 'EXPLORE →'}
-        </Button>
+        <div className={styles.buttonCol}>
+          <Button
+            className={styles.exploreBtn}
+            onClick={onExplore}
+            disabled={state === 'loading'}
+            fontSize={11}
+          >
+            {state === 'loading' ? 'TRACING…' : 'EXPLORE →'}
+          </Button>
 
-        <Button
-          className={styles.aliasBtn}
-          onClick={onAliasClick}
-          fontSize={10}
-          title="Private contract aliases — map unverified contracts to their ABI"
-        >
-          🔒 ALIASES{aliasCount > 0 ? ` (${aliasCount})` : ''}
-        </Button>
+          <Button
+            className={styles.aliasBtn}
+            onClick={onAliasClick}
+            fontSize={9}
+            title="Private contract aliases — map unverified contracts to their ABI"
+          >
+            🔒{aliasCount > 0 ? ` ALIASES (${aliasCount})` : ' ALIASES'}
+          </Button>
+        </div>
       </div>
     </div>
   );
