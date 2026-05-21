@@ -72,10 +72,10 @@ export default function ExplorerInputBar({
           <Button
             className={styles.aliasBtn}
             onClick={onAliasClick}
-            fontSize={9}
+            fontSize={11}
             title="Private contract aliases — map unverified contracts to their ABI"
           >
-            🔒{aliasCount > 0 ? ` ALIASES (${aliasCount})` : ' ALIASES'}
+            {aliasCount > 0 ? ` ALIASES (${aliasCount})` : ' ALIASES'}
           </Button>
         </div>
       </div>
