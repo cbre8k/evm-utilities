@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { invalidateAliasCache } from '@/lib/abi-decode';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -62,11 +63,15 @@ export function PrivateAliasProvider({ children }: { children: ReactNode }) {
   }, [aliases, update]);
 
   const removeAlias = useCallback((address: string) => {
-    update(aliases.filter(a => a.address !== address.toLowerCase()));
+    const norm = address.toLowerCase();
+    invalidateAliasCache(norm);
+    update(aliases.filter(a => a.address !== norm));
   }, [aliases, update]);
 
   const updateAlias = useCallback((address: string, patch: Partial<Omit<PrivateAlias, 'address'>>) => {
-    update(aliases.map(a => a.address === address.toLowerCase() ? { ...a, ...patch } : a));
+    const norm = address.toLowerCase();
+    invalidateAliasCache(norm);
+    update(aliases.map(a => a.address === norm ? { ...a, ...patch } : a));
   }, [aliases, update]);
 
   const getAlias = useCallback((address: string) => {

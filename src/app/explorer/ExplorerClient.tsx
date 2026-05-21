@@ -126,7 +126,12 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
     const tree = JSON.parse(JSON.stringify(result.normalizedTree)) as TraceNode;
     const logs = JSON.parse(JSON.stringify(result.allLogs ?? []));
     applyPrivateAliases(tree, aliases, logs);
-    setEnrichedResult({ ...result, normalizedTree: tree, allLogs: logs });
+    // Merge alias labels into addressLabels so nodeContractName shows the alias label
+    const addressLabels: Record<string, string> = { ...result.addressLabels };
+    for (const alias of aliases) {
+      if (alias.label) addressLabels[alias.address] = alias.label;
+    }
+    setEnrichedResult({ ...result, normalizedTree: tree, allLogs: logs, addressLabels });
   }, [result, aliases]);
 
   // Sync trace result into the global agent context (uses enriched/decoded tree)
