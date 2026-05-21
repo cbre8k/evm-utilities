@@ -6,18 +6,22 @@ interface Props {
   rpcUrl: string;
   state: PageState;
   txHash: string;
+  aliasCount: number;
   onExplore: () => void;
   onRpcUrlChange: (value: string) => void;
   onTxHashChange: (value: string) => void;
+  onAliasClick: () => void;
 }
 
 export default function ExplorerInputBar({
   rpcUrl,
   state,
   txHash,
+  aliasCount,
   onExplore,
   onRpcUrlChange,
   onTxHashChange,
+  onAliasClick,
 }: Props) {
   return (
     <div className={styles.inputBar}>
@@ -62,6 +66,15 @@ export default function ExplorerInputBar({
           fontSize={11}
         >
           {state === 'loading' ? 'TRACING…' : 'EXPLORE →'}
+        </Button>
+
+        <Button
+          className={styles.aliasBtn}
+          onClick={onAliasClick}
+          fontSize={10}
+          title="Private contract aliases — map unverified contracts to their ABI"
+        >
+          🔒 ALIASES{aliasCount > 0 ? ` (${aliasCount})` : ''}
         </Button>
       </div>
     </div>

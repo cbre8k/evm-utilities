@@ -146,6 +146,18 @@
   justify-self: center;
 }
 
+.aliasBtn {
+  align-self: center;
+  --ui-height: 36px;
+  --ui-pad-x: 10px;
+  justify-self: center;
+  opacity: 0.75;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
 // ── Status bar ────────────────────────────────────────────────
 
 .statusBar {

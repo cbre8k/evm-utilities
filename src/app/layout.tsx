@@ -6,6 +6,7 @@ import AntdRegistry from '@/components/AntdRegistry';
 import { ThemeProvider } from '@/components/ThemeProvider';
 import { NetworkProvider } from '@/contexts/NetworkContext';
 import { AgentProvider } from '@/contexts/AgentContext';
+import { PrivateAliasProvider } from '@/contexts/PrivateAliasContext';
 import GlobalAgent from '@/components/GlobalAgent';
 import '@/styles/global.scss';
 
@@ -48,10 +49,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <NetworkProvider>
             <AgentProvider>
-              <AntdRegistry>
-                <AppLayout>{children}</AppLayout>
-              </AntdRegistry>
-              <GlobalAgent />
+              <PrivateAliasProvider>
+                <AntdRegistry>
+                  <AppLayout>{children}</AppLayout>
+                </AntdRegistry>
+                <GlobalAgent />
+              </PrivateAliasProvider>
             </AgentProvider>
           </NetworkProvider>
         </ThemeProvider>

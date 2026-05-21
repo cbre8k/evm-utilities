@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useAgent } from '@/contexts/AgentContext';
+import { usePrivateAliases } from '@/contexts/PrivateAliasContext';
+import { applyPrivateAliases } from '@/lib/abi-decode';
 import { NETWORKS } from '@/lib/constants';
 import { type TabBarItem } from '@/components/ui';
 import type { TraceResult, TxOverview } from '@/types/explorer';
@@ -15,6 +17,7 @@ import ExplorerResultWorkspace from './components/ExplorerResultWorkspace';
 import ExplorerStatusBar from './components/ExplorerStatusBar';
 import ExplorerTraceLoadingWorkspace from './components/ExplorerTraceLoadingWorkspace';
 import TransactionRail from './components/TransactionRail';
+import PrivateAliasPanel from './components/PrivateAliasPanel';
 import type { ExplorerTab, PageState } from './utils';
 
 // ── Trace context builder (for global agent) ──────────────────────────────────
@@ -91,15 +94,18 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
   const { rpcUrl, setRpcUrl, chainId, selectedNetwork, setSelectedNetwork } = useNetwork();
   const router = useRouter();
   const { setTraceContext, openAgent, registerHandler } = useAgent();
+  const { aliases } = usePrivateAliases();
 
   const [txHash, setTxHash] = useState(initialResult?.txOverview.hash ?? '');
   const [state, setState] = useState<PageState>(initialResult ? 'done' : 'idle');
   const [status, setStatus] = useState(initialResult ? 'Loaded from database' : '');
   const [result, setResult] = useState<TraceResult | null>(initialResult);
+  const [enrichedResult, setEnrichedResult] = useState<TraceResult | null>(initialResult);
   const [pendingOverview, setPendingOverview] = useState<TxOverview | null>(null);
   const [tab, setTab] = useState<ExplorerTab>('summary');
   const [shareHash, setShareHash] = useState<string | null>(initialShareHash ?? null);
   const [elapsedMs, setElapsedMs] = useState(0);
+  const [aliasOpen, setAliasOpen] = useState(false);
 
   useEffect(() => {
     setResult(initialResult);
@@ -112,14 +118,25 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
     setTab('summary');
   }, [initialResult, initialShareHash]);
 
-  // Sync trace result into the global agent context
+  // Apply private alias decoding whenever the raw result or aliases change
   useEffect(() => {
-    if (result) {
-      setTraceContext(buildTraceContext(result), result.chainId ?? 1);
+    if (!result) { setEnrichedResult(null); return; }
+    if (!aliases.length) { setEnrichedResult(result); return; }
+    // Deep-clone the tree so we don't mutate cached result objects
+    const tree = JSON.parse(JSON.stringify(result.normalizedTree)) as TraceNode;
+    const logs = JSON.parse(JSON.stringify(result.allLogs ?? []));
+    applyPrivateAliases(tree, aliases, logs);
+    setEnrichedResult({ ...result, normalizedTree: tree, allLogs: logs });
+  }, [result, aliases]);
+
+  // Sync trace result into the global agent context (uses enriched/decoded tree)
+  useEffect(() => {
+    if (enrichedResult) {
+      setTraceContext(buildTraceContext(enrichedResult), enrichedResult.chainId ?? 1);
     } else {
       setTraceContext(null);
     }
-  }, [result, setTraceContext]);
+  }, [enrichedResult, setTraceContext]);
 
   const resolvedChainId = Number(chainId) || result?.chainId || 1;
 
@@ -235,14 +252,14 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
     );
   }, [registerHandler, setSelectedNetwork]);
 
-  const hasResult = state === 'done' && result;
+  const hasResult = state === 'done' && enrichedResult;
   const hasPendingOverview = state === 'loading' && pendingOverview;
-  const totalGas = result ? (() => { try { return Number(BigInt(result.txOverview.gasUsed)); } catch { return 0; } })() : 0;
-  const badges: Partial<Record<ExplorerTab, number>> = result ? {
-    events: result.allLogs?.length ?? 0,
-    state: result.stateDiffs?.length ?? 0,
-    flow: (result.nativeTransfers?.length ?? 0) + (result.erc20Transfers?.length ?? 0) +
-      (result.erc721Transfers?.length ?? 0) + (result.erc1155Transfers?.length ?? 0),
+  const totalGas = enrichedResult ? (() => { try { return Number(BigInt(enrichedResult.txOverview.gasUsed)); } catch { return 0; } })() : 0;
+  const badges: Partial<Record<ExplorerTab, number>> = enrichedResult ? {
+    events: enrichedResult.allLogs?.length ?? 0,
+    state: enrichedResult.stateDiffs?.length ?? 0,
+    flow: (enrichedResult.nativeTransfers?.length ?? 0) + (enrichedResult.erc20Transfers?.length ?? 0) +
+      (enrichedResult.erc721Transfers?.length ?? 0) + (enrichedResult.erc1155Transfers?.length ?? 0),
   } : {};
   const tabItems = TABS.map(item => ({ ...item, badge: badges[item.id] }));
 
@@ -255,6 +272,8 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
         onExplore={handleExplore}
         onRpcUrlChange={setRpcUrl}
         onTxHashChange={setTxHash}
+        aliasCount={aliases.length}
+        onAliasClick={() => setAliasOpen(v => !v)}
       />
 
       <ExplorerStatusBar
@@ -267,10 +286,10 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
 
       {hasResult && (
         <div className={styles.resultLayout}>
-          <TransactionRail result={result} />
+          <TransactionRail result={enrichedResult} />
           <ExplorerResultWorkspace
             activeTab={tab}
-            result={result}
+            result={enrichedResult}
             shareHash={shareHash ?? undefined}
             tabItems={tabItems}
             totalGas={totalGas}
@@ -294,6 +313,8 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
           />
         </div>
       )}
+
+      {aliasOpen && <PrivateAliasPanel onClose={() => setAliasOpen(false)} />}
     </div>
   );
 }
