@@ -1,6 +1,9 @@
+import { useEffect, useRef, useState } from 'react';
 import styles from './FormFields.module.scss';
 import { Checkbox, Input, Textarea } from '@/components/ui';
 import { getAddress } from 'ethers';
+
+const SCALE_OPTIONS = [6, 9, 12, 15, 18] as const;
 
 function checksumAddress(value: string): string {
   const trimmed = value.trim();
@@ -10,6 +13,89 @@ function checksumAddress(value: string): string {
   } catch {
     return value;
   }
+}
+
+function scaleDecimalValue(value: string, exponent: number): string {
+  const trimmed = value.trim();
+  if (!trimmed) return value;
+
+  const normalized = trimmed.replaceAll(',', '');
+  if (!/^\d+(?:\.\d*)?$|^\.\d+$/.test(normalized)) return value;
+
+  const [wholePart, fractionalPart = ''] = normalized.split('.');
+  const meaningfulFraction = fractionalPart.replace(/0+$/, '');
+  if (meaningfulFraction.length > exponent) return value;
+
+  const whole = wholePart || '0';
+  const fraction = fractionalPart.padEnd(exponent, '0').slice(0, exponent);
+  const scaled = `${whole}${fraction}`.replace(/^0+(?=\d)/, '');
+
+  return scaled || '0';
+}
+
+interface ScaleSelectorProps {
+  onScale: (value: string) => void;
+  value: string;
+}
+
+function ScaleSelector({ onScale, value }: ScaleSelectorProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsOpen(false);
+    };
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen]);
+
+  return (
+    <div className={styles.scaleSelector} ref={menuRef}>
+      <button
+        type="button"
+        className={styles.scaleButton}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        onClick={() => setIsOpen((open) => !open)}
+      >
+        <span>Scale</span>
+        <span className={styles.scaleChevron} aria-hidden="true" />
+      </button>
+      {isOpen && (
+        <div className={styles.scaleMenu} role="menu">
+          {SCALE_OPTIONS.map((exponent) => (
+            <button
+              key={exponent}
+              type="button"
+              className={styles.scaleOption}
+              role="menuitem"
+              onClick={() => {
+                onScale(scaleDecimalValue(value, exponent));
+                setIsOpen(false);
+              }}
+            >
+              x10<sup>{exponent}</sup>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface TraceInputProps {
@@ -152,6 +238,7 @@ export function SimulateFields({
               placeholder="1000000000000000000"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
+              suffix={<ScaleSelector value={amount} onScale={setAmount} />}
             />
           </div>
           <Input
@@ -186,11 +273,12 @@ export function SimulateFields({
       )}
 
       <Input
-        label="Value (ETH)"
-        hint="Amount of ETH to send with call (msg.value)"
+        label="Value (wei)"
+        hint="Raw ETH value to send with call (msg.value)"
         placeholder="0"
         value={msgValue}
         onChange={(e) => setMsgValue(e.target.value)}
+        suffix={<ScaleSelector value={msgValue} onScale={setMsgValue} />}
       />
 
       <Textarea

@@ -1,6 +1,6 @@
 'use client';
 
-import type { InputHTMLAttributes, ReactNode } from 'react';
+import { useId, type InputHTMLAttributes, type ReactNode } from 'react';
 import styles from './Ui.module.scss';
 import type { UiStyleProps } from './types';
 import { mergeClassName, uiVars } from './types';
@@ -9,6 +9,7 @@ import { Label } from './Text';
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> & UiStyleProps & {
   hint?: ReactNode;
   label?: ReactNode;
+  suffix?: ReactNode;
   wrapperClassName?: string;
 };
 
@@ -18,27 +19,33 @@ export default function Input({
   fontSize,
   fontType,
   hint,
+  id,
   label,
   style,
+  suffix,
   wrapperClassName,
   ...props
 }: Props) {
   const vars = uiVars({ color, fontSize, fontType });
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
 
   return (
-    <label className={mergeClassName(styles.field, wrapperClassName)}>
+    <div className={mergeClassName(styles.field, wrapperClassName)}>
       {label && (
         <span className={styles.labelRow}>
-          <Label hint={hint}>{label}</Label>
+          <Label as="label" htmlFor={inputId} hint={hint}>{label}</Label>
         </span>
       )}
       <span className={styles.inputFrame} style={vars}>
         <input
           {...props}
+          id={inputId}
           className={mergeClassName(styles.input, className)}
           style={{ ...vars, ...style }}
         />
+        {suffix && <span className={styles.inputSuffix}>{suffix}</span>}
       </span>
-    </label>
+    </div>
   );
 }

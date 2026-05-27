@@ -81,7 +81,7 @@ export async function runSimulation(
 
     const child = spawn(
       forge,
-      ['test', '--mt', 'testSimulation', '-vvvv', '--color', 'always'],
+      ['test', '--mt', 'testSimulation', '--decode-internal', '-vvvv', '--color', 'always'],
       {
         cwd: tempDir,
         env: {
