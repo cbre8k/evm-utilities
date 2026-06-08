@@ -324,10 +324,10 @@ function HomeInner() {
       </div>
 
       <div className={styles.workspace}>
-        <TerminalWindow title="SIMULATOR.EXE" status="ONLINE" style={{ margin: '-1px' }}>
+        <TerminalWindow style={{ margin: '-1px' }}>
           <div 
             className={styles.inputPanel}
-            style={{ padding: 0, borderRight: 'none', background: 'transparent', height: '100%', overflowY: 'auto' }}
+            style={{ padding: 0, borderRight: 'none', background: 'transparent', height: '100%', overflowY: 'auto', overflowX: 'hidden' }}
             onFocus={() => {
               if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
                 setPipelineState('PREPARING');
@@ -394,7 +394,7 @@ function HomeInner() {
           </div>
         </TerminalWindow>
 
-        <TerminalWindow title="OUTPUT_CONSOLE" style={{ zIndex: 10, margin: '-1px' }} contentStyle={{ overflow: 'hidden', padding: 0, display: 'flex', flexDirection: 'column' }}>
+        <TerminalWindow style={{ zIndex: 10, margin: '-1px' }} contentStyle={{ overflow: 'hidden', padding: 0, display: 'flex', flexDirection: 'column' }}>
           <div className={styles.outputPanel} style={{ padding: 0, background: 'transparent', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
             <Terminal ref={terminalRef} />
           </div>

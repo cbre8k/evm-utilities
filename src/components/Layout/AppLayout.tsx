@@ -53,7 +53,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <header className={styles.header}>
         <div className={styles.headerLeft}>
           <div className={styles.logoBox} style={{ filter: 'grayscale(100%) contrast(200%)', position: 'relative' }}>
-            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(to bottom, transparent, transparent 1px, var(--border-default) 1px, var(--border-default) 2px)', zIndex: 1, opacity: 0.3 }}></div>
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(to bottom, transparent, transparent 1px, var(--text-tertiary) 1px, var(--text-tertiary) 2px)', zIndex: 1, mixBlendMode: 'multiply' }}></div>
             <Image src="/logo.png" alt="EVM Logo" width={32} height={32} className={styles.logoImage} />
           </div>
           <div className={styles.brandInfo}>

@@ -1,7 +1,7 @@
 import React from 'react';
 
 type TerminalWindowProps = {
-  title: string;
+  title?: string;
   status?: "ONLINE" | "OFFLINE" | "WARNING" | "ERROR" | "online" | "offline" | "warning" | "error";
   children: React.ReactNode;
   footer?: React.ReactNode;
@@ -50,6 +50,7 @@ export const TerminalWindow: React.FC<TerminalWindowProps> = ({
       }}
     >
       {/* Title Bar */}
+      {title && (
       <div
         style={{
           display: 'flex',
@@ -96,7 +97,7 @@ export const TerminalWindow: React.FC<TerminalWindowProps> = ({
           </div>
         )}
       </div>
-
+      )}
       {/* Content */}
       <div
         style={{
