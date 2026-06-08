@@ -1,4 +1,4 @@
-import { Status } from '@/components/ui';
+import { Status, BarcodeDeco } from '@/components/ui';
 import styles from '../explorer.module.scss';
 import type { PageState } from '../utils';
 
@@ -23,8 +23,9 @@ export default function ExplorerStatusBar({
     : `✖ ${status}`;
 
   return (
-    <div className={styles.statusBar}>
+    <div className={styles.statusBar} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <Status tone={tone} fontSize={10}>{statusText}</Status>
+      {state === 'loading' && <BarcodeDeco height={10} style={{ color: 'var(--color-warning)' }} />}
     </div>
   );
 }

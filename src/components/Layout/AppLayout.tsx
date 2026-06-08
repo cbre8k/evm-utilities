@@ -8,7 +8,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useNetwork } from '@/contexts/NetworkContext';
 import { useAgent } from '@/contexts/AgentContext';
 import { NETWORKS, APP_VERSION } from '@/lib/constants';
-import { Button } from '@/components/ui';
+import { Button, ScanlineOverlay } from '@/components/ui';
 import styles from './Layout.module.scss';
 
 const NAV_ITEMS = [
@@ -21,7 +21,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { selectedNetwork, setSelectedNetwork } = useNetwork();
+  const { selectedNetwork, setSelectedNetwork, chainId, latency } = useNetwork();
   const { registerHandler } = useAgent();
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -52,11 +52,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <div className={styles.layout}>
       <header className={styles.header}>
         <div className={styles.headerLeft}>
-          <div className={styles.logoBox}>
+          <div className={styles.logoBox} style={{ filter: 'grayscale(100%) contrast(200%)', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(to bottom, transparent, transparent 1px, var(--border-default) 1px, var(--border-default) 2px)', zIndex: 1, opacity: 0.3 }}></div>
             <Image src="/logo.png" alt="EVM Logo" width={32} height={32} className={styles.logoImage} />
           </div>
           <div className={styles.brandInfo}>
-            <div className={styles.brandSub}>{APP_VERSION}</div>
+            <div className={styles.brandSub}>v{APP_VERSION}</div>
             <div className={styles.brandName}>EVM UTILITIES</div>
           </div>
         </div>
@@ -101,10 +102,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               )}
             </div>
           </div>
-          <div className={styles.statGroup}>
-            <span className={styles.statLabel}>STATUS</span>
-            <span className={styles.statValueSuccess}>ONLINE</span>
-          </div>
           <div className={styles.themeToggleBox}>
             <Button className={styles.themeBtn} onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
               {theme === 'dark' ? 'LIGHT' : 'DARK'}
@@ -113,7 +110,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      <main className={styles.content}>{children}</main>
+      <main className={styles.content}>
+        <ScanlineOverlay />
+        {children}
+      </main>
 
       <div className={styles.mobileFallback}>
         <Image src="/please.png" alt="Please use Desktop" width={960} height={720} className={styles.mobileImage} />

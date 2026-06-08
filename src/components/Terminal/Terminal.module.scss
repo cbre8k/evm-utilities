@@ -4,46 +4,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  border-radius: $radius-md;
-  overflow: hidden;
-  border: 1px solid var(--terminal-border);
   background: var(--terminal-bg);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  padding: $space-2 $space-4;
-  background: var(--terminal-header);
-  border-bottom: 1px solid var(--terminal-border);
-}
-
-.controls {
-  display: flex;
-  gap: 4px;
-}
-
-.square {
-  width: 8px;
-  height: 8px;
-  background: var(--terminal-title);
-  opacity: 0.5;
-}
-
-.title {
-  flex: 1;
-  text-align: right;
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  color: var(--terminal-title);
-  font-family: $font-mono;
-}
-
-.body {
-  flex: 1;
-  padding: $space-3;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  min-height: 300px;
+  padding: $space-3;
 }

@@ -8,6 +8,8 @@
   font-family: $font-mono;
   background-color: var(--bg-secondary);
   min-height: 0;
+  border: 1px solid var(--border-default);
+  overflow: hidden;
 }
 
 // ----------------------------------------
@@ -113,6 +115,10 @@
 
 .statusDanger {
   color: var(--color-danger);
+}
+
+.statusWarning {
+  color: var(--color-warning);
 }
 
 .statusBlink {
@@ -260,6 +266,7 @@
   display: grid;
   grid-template-columns: 400px 1fr;
   min-height: 0;
+  margin-top: -1px;
 }
 
 .inputPanel {

@@ -10,60 +10,58 @@
 
 :root,
 [data-theme='light'] {
-  --bg-primary: #ffffff;
-  --bg-secondary: #f4f4f5;
-  --bg-tertiary: #e4e4e7;
-  --bg-inverse: #18181b;
-  --text-primary: #18181b;
-  --text-secondary: #52525b;
-  --text-tertiary: #a1a1aa;
-  --border-default: #d4d4d8;
-  --border-subtle: #e4e4e7;
+  --bg-primary: #F4F4F0;       // Brutalist light panel
+  --bg-secondary: #EBEBE6;     // Brutalist light base
+  --bg-tertiary: #DADBDB;      // Brutalist light raised
+  --bg-inverse: #101510;
+  --text-primary: #1A1C1A;     // High contrast dark text
+  --text-secondary: #5C625C;
+  --text-tertiary: #808680;
+  --border-default: #1A1C1A;   // Thick brutalist borders
+  --border-subtle: #5C625C;
   --surface-shadow: none;
-  --accent: #18181b;
-  --accent-hover: #3f3f46;
-  --accent-subtle: #f4f4f5;
-  --accent-text: #ffffff;
-  --terminal-bg: #f8f9fa;
-  --terminal-header: #e9ecef;
-  --terminal-border: #dee2e6;
-  --terminal-fg: #212529;
-  --terminal-title: #495057;
-  --terminal-selection: rgba(0, 0, 0, 0.1);
-  --color-success: #10b981;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-  --color-info: #3b82f6;
+  --accent: #0A5C0A;           // Dark forest green
+  --accent-hover: #084C08;
+  --accent-subtle: rgba(10, 92, 10, 0.1);
+  --accent-text: #F4F4F0;
+  --terminal-bg: #F4F4F0;
+  --terminal-header: #EBEBE6;
+  --terminal-border: #1A1C1A;
+  --terminal-fg: #1A1C1A;
+  --terminal-title: #1A1C1A;
+  --terminal-selection: rgba(10, 92, 10, 0.2);
+  --color-success: #0A5C0A;
+  --color-warning: #B38600;
+  --color-danger: #C20000;
+  --color-info: #005F73;
   --color-black: #000000;
 }
 
 [data-theme='dark'] {
-  // Keeping dark mode but making it more terminal/hacker-like 
-  // as the original design was light, we'll keep dark structured similarly
-  --bg-primary: #1c1c1c;
-  --bg-secondary: #0e0e0e;
-  --bg-tertiary: #282828;
-  --bg-inverse: #f4f4f5;
-  --text-primary: #fafafa;
-  --text-secondary: #a3a3a3;
-  --text-tertiary: #636363;
-  --border-default: #333333;
-  --border-subtle: #262626;
+  --bg-primary: #101510;       // BACKGROUND_PANEL
+  --bg-secondary: #0C100C;     // BACKGROUND_BASE
+  --bg-tertiary: #151A15;      // BACKGROUND_RAISED
+  --bg-inverse: #E5E5E5;
+  --text-primary: #E5E5E5;     // TEXT_PRIMARY
+  --text-secondary: #9CA39C;   // TEXT_MUTED
+  --text-tertiary: #6B726B;    // TEXT_DIM
+  --border-default: #3A423A;   // BORDER_MUTED
+  --border-subtle: #151A15;
   --surface-shadow: none;
-  --accent: #ffffff;
-  --accent-hover: #d4d4d8;
-  --accent-subtle: rgba(255, 255, 255, 0.1);
-  --accent-text: #000000;
-  --terminal-bg: #0e0e0e;
-  --terminal-header: #161616;
-  --terminal-border: #262626;
-  --terminal-fg: #e5e5e5;
-  --terminal-title: #525252;
-  --terminal-selection: rgba(255, 255, 255, 0.1);
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-danger: #f87171;
-  --color-info: #60a5fa;
+  --accent: #8AFF80;           // ACCENT_GREEN
+  --accent-hover: #7CFF6B;
+  --accent-subtle: rgba(138, 255, 128, 0.1);
+  --accent-text: #0C100C;
+  --terminal-bg: #0C100C;
+  --terminal-header: #101510;
+  --terminal-border: #3A423A;
+  --terminal-fg: #E5E5E5;
+  --terminal-title: #E5E5E5;
+  --terminal-selection: rgba(138, 255, 128, 0.25);
+  --color-success: #7CFF6B;
+  --color-warning: #F5C542;
+  --color-danger: #FF4D4D;
+  --color-info: #7DF9FF;
   --color-black: #000000;
 }
 
@@ -93,7 +91,7 @@ body {
   background: var(--bg-secondary);
   line-height: 1.5;
   min-height: 100vh;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  transition: none;
 }
 
 a {

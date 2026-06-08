@@ -13,3 +13,11 @@ export type { TabBarItem } from './TabBar';
 export { default as TopStatsBar } from './TopStatsBar';
 export type { TopStatItem } from './TopStatsBar';
 export type { UiFont, UiStyleProps, UiVariant } from './types';
+export * from './TerminalWindow';
+export * from './BinaryDeco';
+export * from './AsciiDivider';
+export * from './GlitchText';
+export * from './ScanlineOverlay';
+export * from './BarcodeDeco';
+export * from './SlotStatus';
+

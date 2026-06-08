@@ -116,6 +116,7 @@ export function TraceFields({ rpcUrl, setRpcUrl, txHash, setTxHash, quick, setQu
         placeholder="https://rpc.ankr.com/eth"
         value={rpcUrl}
         onChange={(e) => setRpcUrl(e.target.value)}
+        sensitive
       />
       <Input
         label="Transaction Hash"
@@ -192,6 +193,7 @@ export function SimulateFields({
         placeholder="https://rpc.ankr.com/eth"
         value={rpcUrl}
         onChange={(e) => setRpcUrl(e.target.value)}
+        sensitive
       />
 
       <div className={styles.row}>

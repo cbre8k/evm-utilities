@@ -8,7 +8,7 @@ import { useNetwork } from '@/contexts/NetworkContext';
 import { TraceFields, SimulateFields } from '@/components/FormFields';
 import Terminal, { TerminalHandle } from '@/components/Terminal';
 import CommonTabs, { type CommonTabItem } from '@/components/CommonTabs';
-import { Button, CopyButton } from '@/components/ui';
+import { Button, CopyButton, TerminalWindow, BarcodeDeco, SlotStatus, Badge } from '@/components/ui';
 import { copyWithFirework } from '@/utils/copyAnimation';
 import styles from './simulator.module.scss';
 
@@ -218,7 +218,7 @@ function HomeInner() {
             <div className={styles.mainInfo}>
               <div className={styles.statsHeader}>
                 <span className={styles.username} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
-                <span className={styles.badge}>{selectedNetwork.name}</span>
+                <Badge fontSize={9}>{selectedNetwork.name}</Badge>
               </div>
               <div 
                 className={styles.addressBox}
@@ -231,22 +231,35 @@ function HomeInner() {
 
             <div className={styles.bigStatContainer}>
               <span className={styles.bigStatLabel}>■ STATUS:</span>
-              <div className={styles.bigStatValue}>
-                {isRunning ? (
-                  pipelineState === 'ABORTING' ? (
-                    <span className={styles.statusWarning}>CANCELING</span>
-                  ) : (
-                    <span className={styles.statusBlink}>EXECUTING</span>
-                  )
-                ) : pipelineState === 'CRASHING' ? (
-                  <span className={styles.statusDanger}>FAILED</span>
-                ) : pipelineState === 'RESULTING' ? (
-                  <span className={styles.statusSuccess}>SUCCESS</span>
-                ) : pipelineState === 'ABORTING' ? (
-                  <span className={styles.statusWarning}>CANCELLED</span>
-                ) : (
-                  <span className={styles.statusSuccess}>READY</span>
-                )}
+              <div className={styles.bigStatValue} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <SlotStatus
+                  text={
+                    isRunning
+                      ? pipelineState === 'ABORTING'
+                        ? 'CANCELING'
+                        : 'EXECUTING'
+                      : pipelineState === 'CRASHING'
+                      ? 'FAILED'
+                      : pipelineState === 'RESULTING'
+                      ? 'SUCCESS'
+                      : pipelineState === 'ABORTING'
+                      ? 'CANCELLED'
+                      : 'READY'
+                  }
+                  className={
+                    !isRunning && pipelineState === 'CRASHING'
+                      ? styles.statusDanger
+                      : !isRunning && pipelineState === 'RESULTING'
+                      ? styles.statusSuccess
+                      : !isRunning && pipelineState === 'ABORTING'
+                      ? styles.statusWarning
+                      : isRunning
+                      ? styles.statusWarning
+                      : styles.statusSuccess
+                  }
+                  blinkOnSettle={isRunning}
+                  settledClassName={styles.statusBlink}
+                />
               </div>
             </div>
           </div>
@@ -279,15 +292,24 @@ function HomeInner() {
           
           <div className={styles.pipelineSteps}>
             <div className={`${styles.step} ${pipelineState === 'PREPARING' ? styles.stepActive : ''}`}>
-              <span className={styles.stepNum}>01</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <span className={styles.stepNum}>01</span>
+                {pipelineState === 'PREPARING' && <BarcodeDeco height={8} />}
+              </div>
               <span className={styles.stepName}>Preparing</span>
             </div>
             <div className={`${styles.step} ${pipelineState === 'EXECUTING' ? styles.stepActive : ''}`}>
-              <span className={styles.stepNum}>02</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <span className={styles.stepNum}>02</span>
+                {pipelineState === 'EXECUTING' && <BarcodeDeco height={8} />}
+              </div>
               <span className={styles.stepName}>Executing</span>
             </div>
             <div className={`${styles.step} ${pipelineState === 'RESULTING' ? styles.stepActive : (pipelineState === 'CRASHING' ? styles.stepCrash : (pipelineState === 'ABORTING' ? styles.stepAbort : ''))}`}>
-              <span className={styles.stepNum}>03</span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <span className={styles.stepNum}>03</span>
+                {(pipelineState === 'RESULTING' || pipelineState === 'CRASHING' || pipelineState === 'ABORTING') && <BarcodeDeco height={8} />}
+              </div>
               <span className={styles.stepName}>{pipelineState === 'CRASHING' ? 'Crashing' : pipelineState === 'ABORTING' ? 'Aborting' : 'Resulting'}</span>
             </div>
           </div>
@@ -302,76 +324,81 @@ function HomeInner() {
       </div>
 
       <div className={styles.workspace}>
-        <div 
-          className={styles.inputPanel}
-          onFocus={() => {
-            if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
-              setPipelineState('PREPARING');
-              terminalRef.current?.clear();
-              terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
-            }
-          }}
-          onClick={() => {
-            if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
-              setPipelineState('PREPARING');
-              terminalRef.current?.clear();
-              terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
-            }
-          }}
-        >
-          {activeTab === 'TRACE' ? (
-            <TraceFields
-              rpcUrl={rpcUrl} setRpcUrl={setRpcUrl}
-              txHash={txHash} setTxHash={setTxHash}
-              quick={quick} setQuick={setQuick}
-            />
-          ) : (
-            <SimulateFields
-              rpcUrl={rpcUrl} setRpcUrl={setRpcUrl}
-              sender={sender} setSender={setSender}
-              shouldDealToken={shouldDealToken} setShouldDealToken={setShouldDealToken}
-              tokenAddress={tokenAddress} setTokenAddress={setTokenAddress}
-              spender={spender} setSpender={setSpender}
-              amount={amount} setAmount={setAmount}
-              calldata={calldata} setCalldata={setCalldata}
-              to={to} setTo={setTo}
-              msgValue={msgValue} setMsgValue={setMsgValue}
-              shouldForkBlock={shouldForkBlock} setShouldForkBlock={setShouldForkBlock}
-              blockNumber={blockNumber} setBlockNumber={setBlockNumber}
-            />
-          )}
-
-          <div className={styles.actions}>
-            <Button
-              className={styles.runBtn}
-              onClick={handleRun}
-              disabled={isRunning}
-            >
-              {isRunning ? 'EXECUTING' : 'EXECUTE SEQUENCE'}
-            </Button>
-            {isRunning && (
-              <Button
-                className={styles.cancelBtn}
-                variant="danger"
-                onClick={handleCancel}
-              >
-                ABORT
-              </Button>
-            )}
-            {!isRunning && shareHash && activeTab === 'SIMULATE' && (
-              <CopyButton
-                className={styles.cancelBtn}
-                text={`${window.location.origin}/s/${shareHash}`}
-                label="⎘ SHARE"
-                copiedLabel="✓ COPIED"
+        <TerminalWindow title="SIMULATOR.EXE" status="ONLINE" style={{ margin: '-1px' }}>
+          <div 
+            className={styles.inputPanel}
+            style={{ padding: 0, borderRight: 'none', background: 'transparent', height: '100%', overflowY: 'auto' }}
+            onFocus={() => {
+              if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
+                setPipelineState('PREPARING');
+                terminalRef.current?.clear();
+                terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
+              }
+            }}
+            onClick={() => {
+              if (pipelineState === 'CRASHING' || pipelineState === 'RESULTING' || pipelineState === 'ABORTING') {
+                setPipelineState('PREPARING');
+                terminalRef.current?.clear();
+                terminalRef.current?.write('\x1b[2J\x1b[3J\x1b[H');
+              }
+            }}
+          >
+            {activeTab === 'TRACE' ? (
+              <TraceFields
+                rpcUrl={rpcUrl} setRpcUrl={setRpcUrl}
+                txHash={txHash} setTxHash={setTxHash}
+                quick={quick} setQuick={setQuick}
+              />
+            ) : (
+              <SimulateFields
+                rpcUrl={rpcUrl} setRpcUrl={setRpcUrl}
+                sender={sender} setSender={setSender}
+                shouldDealToken={shouldDealToken} setShouldDealToken={setShouldDealToken}
+                tokenAddress={tokenAddress} setTokenAddress={setTokenAddress}
+                spender={spender} setSpender={setSpender}
+                amount={amount} setAmount={setAmount}
+                calldata={calldata} setCalldata={setCalldata}
+                to={to} setTo={setTo}
+                msgValue={msgValue} setMsgValue={setMsgValue}
+                shouldForkBlock={shouldForkBlock} setShouldForkBlock={setShouldForkBlock}
+                blockNumber={blockNumber} setBlockNumber={setBlockNumber}
               />
             )}
-          </div>
-        </div>
 
-        <div className={styles.outputPanel}>
-          <Terminal ref={terminalRef} />
-        </div>
+            <div className={styles.actions}>
+              <Button
+                className={styles.runBtn}
+                onClick={handleRun}
+                disabled={isRunning}
+              >
+                {isRunning ? 'EXECUTING' : 'EXECUTE SEQUENCE'}
+              </Button>
+              {isRunning && (
+                <Button
+                  className={styles.cancelBtn}
+                  variant="danger"
+                  onClick={handleCancel}
+                >
+                  ABORT
+                </Button>
+              )}
+              {!isRunning && shareHash && activeTab === 'SIMULATE' && (
+                <CopyButton
+                  className={styles.cancelBtn}
+                  text={`${window.location.origin}/s/${shareHash}`}
+                  label="⎘ SHARE"
+                  copiedLabel="✓ COPIED"
+                />
+              )}
+            </div>
+          </div>
+        </TerminalWindow>
+
+        <TerminalWindow title="OUTPUT_CONSOLE" style={{ zIndex: 10, margin: '-1px' }} contentStyle={{ overflow: 'hidden', padding: 0, display: 'flex', flexDirection: 'column' }}>
+          <div className={styles.outputPanel} style={{ padding: 0, background: 'transparent', flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+            <Terminal ref={terminalRef} />
+          </div>
+        </TerminalWindow>
       </div>
     </div>
   );

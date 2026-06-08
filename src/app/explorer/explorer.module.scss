@@ -12,6 +12,7 @@
   background-color: var(--bg-primary);
   min-height: 0;
   overflow: hidden;
+  border: 1px solid var(--border-default);
 }
 
 // ── Input bar ─────────────────────────────────────────────────
@@ -33,7 +34,7 @@
   gap: $space-2;
   min-width: 0;
   min-height: 110px;
-  padding: $space-3;
+  padding: $space-4;
   border-right: 1px solid var(--border-default);
 }
 
@@ -145,8 +146,7 @@
   align-items: stretch;
   justify-content: center;
   gap: 6px;
-  padding: 12px;
-  border-left: 1px solid var(--border-default);
+  padding: $space-4;
 }
 
 .exploreBtn {
@@ -207,6 +207,7 @@
   flex: 1;
   grid-template-columns: max(280px, 20vw) minmax(0, 1fr);
   min-height: 0;
+  margin-top: -1px;
 }
 
 .resultMain {
@@ -224,6 +225,7 @@
   flex-shrink: 0;
   min-height: 42px;
   padding: 0 16px;
+  border-top: 1px solid var(--border-default);
 }
 
 // ── Body ──────────────────────────────────────────────────────
@@ -309,6 +311,7 @@
   height: 100%;
   flex: 1;
   min-height: 0;
+  padding: 0 12px 12px;
 }
 
 .tracePane {
@@ -316,7 +319,7 @@
   flex-direction: column;
   min-height: 0;
   background: var(--bg-primary);
-  border: none;
+  border: 1px solid var(--border-default);
   border-radius: 0;
   overflow: hidden;
 }
@@ -335,7 +338,7 @@
 
 .callGraphPane {
   background: var(--bg-primary);
-  border: none;
+  border: 1px solid var(--border-default);
   border-radius: 0;
   overflow: hidden;
   display: flex;
@@ -3039,6 +3042,7 @@
   align-items: stretch;
   background: var(--bg-primary);
   border-right: 1px solid var(--border-default);
+  border-top: 1px solid var(--border-default);
   flex-direction: column;
   min-height: 0;
   overflow-y: auto;
@@ -3052,7 +3056,10 @@
   font-size: 10px;
   font-weight: $font-bold;
   letter-spacing: 0.12em;
-  padding: 10px 16px;
+  padding: 0 16px;
+  height: 42px;
+  display: flex;
+  align-items: center;
 }
 
 .txHeaderItem {
@@ -3246,7 +3253,6 @@
 .traceEmbedded {
   flex: 1;
   min-height: 0;
-  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 12px;

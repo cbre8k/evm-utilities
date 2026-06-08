@@ -526,19 +526,10 @@ function AgentDrawer({ onClose }: {
 // ── FAB ───────────────────────────────────────────────────────────────────────
 
 export default function GlobalAgent() {
-  const { isOpen, openAgent, closeAgent } = useAgent();
+  const { isOpen, closeAgent } = useAgent();
 
   return (
     <>
-      {!isOpen && (
-        <button className={styles.agentFab} onClick={openAgent}>
-          <span className={styles.agentFabAvatar}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/idle.webp" alt="" />
-          </span>
-          AI AGENT
-        </button>
-      )}
       {isOpen && (
         <AgentDrawer
           onClose={closeAgent}

@@ -117,17 +117,7 @@ const Terminal = forwardRef<TerminalHandle, object>((_, ref) => {
 
   return (
     <div className={styles.terminal}>
-      <div className={styles.header}>
-        <div className={styles.controls}>
-          <div className={styles.square} />
-          <div className={styles.square} />
-          <div className={styles.square} />
-        </div>
-        <span className={styles.title}>TERMINAL OUTPUT</span>
-      </div>
-      <div className={styles.body}>
-        <div ref={containerRef} style={{ width: '100%', height: '100%', flex: 1 }} />
-      </div>
+      <div ref={containerRef} style={{ width: '100%', flex: 1, minHeight: 0 }} />
     </div>
   );
 });

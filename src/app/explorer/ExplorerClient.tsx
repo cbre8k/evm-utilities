@@ -14,7 +14,6 @@ import styles from './explorer.module.scss';
 import ExplorerEmptyState from './components/ExplorerEmptyState';
 import ExplorerInputBar from './components/ExplorerInputBar';
 import ExplorerResultWorkspace from './components/ExplorerResultWorkspace';
-import ExplorerStatusBar from './components/ExplorerStatusBar';
 import ExplorerTraceLoadingWorkspace from './components/ExplorerTraceLoadingWorkspace';
 import TransactionRail from './components/TransactionRail';
 import PrivateAliasPanel from './components/PrivateAliasPanel';
@@ -81,8 +80,8 @@ const TABS: TabBarItem<ExplorerTab>[] = [
   { id: 'summary', label: '[ SUMMARY ]' },
   { id: 'events',  label: '[ EVENTS ]' },
   { id: 'state',   label: '[ STATE ]' },
-  { id: 'flow',    label: '[ FUND FLOW ]' },
-  { id: 'gas',     label: '[ GAS PROFILER ]' },
+  { id: 'flow',    label: '[ FUND_FLOW ]' },
+  { id: 'gas',     label: '[ GAS_PROFILER ]' },
 ];
 
 interface Props {
@@ -284,11 +283,7 @@ export default function ExplorerClient({ initialResult, initialShareHash }: Prop
         onAliasClick={() => setAliasOpen(v => !v)}
       />
 
-      <ExplorerStatusBar
-        elapsedMs={elapsedMs}
-        state={state}
-        status={status}
-      />
+
 
       {!hasResult && !hasPendingOverview && <ExplorerEmptyState state={state} status={status} />}
 

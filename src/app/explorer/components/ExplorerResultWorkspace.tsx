@@ -32,7 +32,7 @@ export default function ExplorerResultWorkspace({
   return (
     <main className={styles.resultMain}>
       <div className={styles.toolbar}>
-        <TabBar items={tabItems} activeTab={activeTab} onChange={onTabChange} fontSize={12} />
+        <TabBar items={tabItems} activeTab={activeTab} onChange={onTabChange} fontSize={10} />
       </div>
 
       <div className={styles.body}>

@@ -42,29 +42,41 @@
   --ui-bg: var(--text-primary);
   --ui-border: var(--text-primary);
   --ui-color: var(--bg-primary);
-  --ui-hover-bg: var(--bg-inverse);
-  --ui-hover-border: var(--bg-inverse);
-  --ui-hover-color: var(--text-inverse);
+  --ui-hover-bg: var(--bg-secondary);
+  --ui-hover-border: var(--text-primary);
+  --ui-hover-color: var(--text-primary);
 }
 
 .buttonDanger {
   --ui-border: var(--color-danger);
   --ui-color: var(--color-danger);
+  --ui-hover-bg: var(--color-danger);
+  --ui-hover-border: var(--color-danger);
+  --ui-hover-color: var(--bg-primary);
 }
 
 .buttonWarning {
   --ui-border: var(--color-warning);
   --ui-color: var(--color-warning);
+  --ui-hover-bg: var(--color-warning);
+  --ui-hover-border: var(--color-warning);
+  --ui-hover-color: var(--bg-primary);
 }
 
 .buttonSuccess {
   --ui-bg: var(--color-success);
   --ui-border: var(--color-success);
-  --ui-color: #fff;
+  --ui-color: var(--bg-primary);
+  --ui-hover-bg: var(--text-primary);
+  --ui-hover-border: var(--text-primary);
+  --ui-hover-color: var(--bg-primary);
 }
 
 .buttonGhost {
   --ui-bg: transparent;
+  --ui-hover-bg: var(--bg-secondary);
+  --ui-hover-border: var(--border-default);
+  --ui-hover-color: var(--text-primary);
 }
 
 .buttonCopied {
@@ -318,6 +330,11 @@
 
   &:hover:not(:disabled) {
     color: var(--text-primary);
+
+    .badge {
+      border-color: var(--text-secondary);
+      color: var(--text-primary);
+    }
   }
 
   &:disabled {
@@ -328,15 +345,25 @@
 
 .tabActive {
   color: var(--text-primary);
+
+  .badge {
+    border-color: var(--text-primary);
+    color: var(--text-primary);
+    background: var(--accent-subtle);
+  }
 }
 
 .badge {
-  background: var(--text-primary);
-  color: var(--bg-primary);
-  font-size: 9px;
-  padding: 2px 6px;
+  background: var(--ui-bg, transparent);
+  border: 1px solid var(--ui-border, var(--border-default));
+  color: var(--ui-color, var(--text-secondary));
+  font-size: var(--ui-size, 9px);
+  padding: 1px 4px;
   font-weight: $font-bold;
-  border-radius: $radius-md;
+  font-family: var(--ui-font, #{$font-mono});
+  display: inline-flex;
+  align-items: center;
+  line-height: 1;
 }
 
 .badgeSuccess {

@@ -1,4 +1,5 @@
 import { Badge, Button, Input } from '@/components/ui';
+import { AUTHOR, GITHUB } from '@/lib/constants';
 import styles from '../explorer.module.scss';
 import type { PageState } from '../utils';
 
@@ -27,7 +28,7 @@ export default function ExplorerInputBar({
     <div className={styles.inputBar}>
       <div className={styles.inputHero}>
         <div className={styles.heroHeader}>
-          <span className={styles.heroName}>@jim</span>
+          <span className={styles.heroName} style={{ cursor: 'pointer' }} onClick={() => window.open(GITHUB, '_blank')}>{AUTHOR}</span>
           <Badge fontSize={9}>EXPLORER</Badge>
         </div>
         <div className={styles.heroSub}>TRANSACTIONS EXPLORER</div>
@@ -53,6 +54,7 @@ export default function ExplorerInputBar({
             label="RPC URL"
             hint="Archive node endpoint for historical state"
             placeholder="https://rpc.ankr.com/eth"
+            sensitive
             value={rpcUrl}
             onChange={e => onRpcUrlChange(e.target.value)}
             spellCheck={false}
