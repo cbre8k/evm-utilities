@@ -20,6 +20,7 @@ import selectorsRouter from './routes/selectors';
 import sourcifyRouter from './routes/sourcify';
 import etherscanRouter from './routes/etherscan';
 import runRouter from './routes/run';
+import metricsRouter from './routes/metrics';
 import { config } from './config';
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/selectors', selectorsRouter);
 app.use('/sourcify', sourcifyRouter);
 app.use('/etherscan', etherscanRouter);
 app.use('/run', runRouter);
+app.use('/metrics', metricsRouter);
 
 // ── Error handler (must be last) ─────────────────────────────
 app.use(errorHandler);

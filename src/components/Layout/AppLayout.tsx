@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { href: '/', label: 'Simulator' },
   { href: '/explorer', label: 'Explorer' },
   { href: '/misc', label: 'Misc' },
+  { href: '/metrics', label: 'Metrics' },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {

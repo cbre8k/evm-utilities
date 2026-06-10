@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DEX Aggregator Metrics - Implementation Plan</title>
+  <style>
+    :root {
+      --bg-color: #06090a;
+      --panel-bg: #0c0f12;
+      --text-primary: #00ff66;
+      --text-secondary: #88a090;
+      --text-white: #ffffff;
+      --border-color: #00ff66;
+      --border-dim: #006622;
+      --accent-color: #ff9900;
+      --danger-color: #ff3333;
+      --font-mono: 'Courier New', Courier, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-white);
+      font-family: var(--font-mono);
+      padding: 40px 20px;
+      line-height: 1.6;
+      position: relative;
+    }
+
+    /* Scanline effect */
+    body::before {
+      content: " ";
+      display: block;
+      position: fixed;
+      top: 0; left: 0; bottom: 0; right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      z-index: 9999;
+      background-size: 100% 4px, 6px 100%;
+      pointer-events: none;
+      opacity: 0.4;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      border: 1px solid var(--border-color);
+      background-color: var(--panel-bg);
+      box-shadow: 0 0 20px rgba(0, 255, 102, 0.15);
+    }
+
+    header {
+      border-bottom: 1px solid var(--border-color);
+      padding: 30px;
+      background-color: rgba(0, 255, 102, 0.03);
+      position: relative;
+    }
+
+    .header-logo {
+      font-size: 10px;
+      line-height: 1.1;
+      white-space: pre;
+      color: var(--text-primary);
+      margin-bottom: 20px;
+    }
+
+    h1 {
+      font-size: 2.2rem;
+      color: var(--text-primary);
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 0.95rem;
+      border-left: 3px solid var(--border-color);
+      padding-left: 15px;
+    }
+
+    .meta-bar {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed var(--border-dim);
+      padding: 15px 30px;
+      font-size: 0.85rem;
+      color: var(--text-secondary);
+    }
+
+    .meta-item span {
+      color: var(--text-primary);
+      font-weight: bold;
+    }
+
+    main {
+      padding: 30px;
+    }
+
+    section {
+      margin-bottom: 40px;
+    }
+
+    h2 {
+      font-size: 1.4rem;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 8px;
+      margin-bottom: 20px;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    h2::before {
+      content: ">";
+      color: var(--text-primary);
+    }
+
+    h3 {
+      font-size: 1.1rem;
+      color: var(--text-white);
+      margin: 25px 0 10px 0;
+      border-left: 2px solid var(--border-color);
+      padding-left: 10px;
+    }
+
+    p {
+      margin-bottom: 15px;
+      color: #ccd7d0;
+    }
+
+    ul, ol {
+      margin-bottom: 20px;
+      padding-left: 25px;
+      color: #ccd7d0;
+    }
+
+    li {
+      margin-bottom: 8px;
+    }
+
+    li strong {
+      color: var(--text-primary);
+    }
+
+    code {
+      background-color: rgba(255, 255, 255, 0.05);
+      color: var(--accent-color);
+      padding: 2px 6px;
+      font-size: 0.9rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    pre {
+      background-color: #030506;
+      border: 1px solid var(--border-dim);
+      padding: 20px;
+      overflow-x: auto;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    pre::before {
+      content: "CODE BLOCK";
+      position: absolute;
+      top: 0;
+      right: 15px;
+      font-size: 0.7rem;
+      color: var(--border-dim);
+      background-color: #030506;
+      padding: 2px 6px;
+      border-bottom: 1px solid var(--border-dim);
+      border-left: 1px solid var(--border-dim);
+    }
+
+    pre code {
+      background: none;
+      border: none;
+      color: #a0c0b0;
+      padding: 0;
+      font-size: 0.85rem;
+    }
+
+    /* Warning box */
+    .alert-box {
+      border: 1px solid var(--border-color);
+      background-color: rgba(0, 255, 102, 0.03);
+      padding: 20px;
+      margin-bottom: 30px;
+    }
+
+    .alert-box.danger {
+      border-color: var(--danger-color);
+      background-color: rgba(255, 51, 51, 0.03);
+    }
+
+    .alert-box.warning {
+      border-color: var(--accent-color);
+      background-color: rgba(255, 153, 0, 0.03);
+    }
+
+    .alert-title {
+      font-weight: bold;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .alert-box.danger .alert-title { color: var(--danger-color); }
+    .alert-box.warning .alert-title { color: var(--accent-color); }
+
+    /* Layout wireframe */
+    .wireframe {
+      border: 1px dashed var(--border-dim);
+      padding: 20px;
+      background-color: rgba(0, 0, 0, 0.2);
+      margin-bottom: 30px;
+    }
+
+    .wireframe-title {
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      margin-bottom: 15px;
+      text-transform: uppercase;
+      text-align: center;
+      border-bottom: 1px dashed var(--border-dim);
+      padding-bottom: 5px;
+    }
+
+    .layout-grid {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: 15px;
+    }
+
+    .layout-panel {
+      border: 1px solid var(--border-dim);
+      padding: 15px;
+      background-color: rgba(255, 255, 255, 0.02);
+      min-height: 180px;
+      position: relative;
+    }
+
+    .layout-panel::after {
+      content: attr(data-label);
+      position: absolute;
+      top: 5px;
+      right: 8px;
+      font-size: 0.65rem;
+      color: var(--border-dim);
+      text-transform: uppercase;
+    }
+
+    .layout-full {
+      grid-column: span 2;
+      min-height: 120px;
+      margin-top: 15px;
+    }
+
+    /* Comparison Table Styling */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 25px;
+      font-size: 0.85rem;
+    }
+
+    th, td {
+      border: 1px solid var(--border-dim);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    th {
+      background-color: rgba(0, 255, 102, 0.05);
+      color: var(--text-primary);
+      text-transform: uppercase;
+      font-weight: bold;
+    }
+
+    tr:hover {
+      background-color: rgba(0, 255, 102, 0.02);
+    }
+
+    .text-best {
+      color: var(--text-primary);
+      font-weight: bold;
+    }
+
+    .text-worse {
+      color: var(--danger-color);
+    }
+
+    .text-neutral {
+      color: var(--text-secondary);
+    }
+
+    /* Footer styling */
+    footer {
+      border-top: 1px solid var(--border-color);
+      padding: 20px 30px;
+      background-color: rgba(0, 255, 102, 0.03);
+      font-size: 0.8rem;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 2px 6px;
+      background-color: var(--border-dim);
+      color: var(--text-primary);
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .badge.ready {
+      background-color: rgba(0, 255, 102, 0.2);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <header>
+      <div class="header-logo">
+███████ ████████  ██████  ██████  ███    ███ ██      ██ ███    ██ ██   ██ 
+██         ██    ██    ██ ██   ██ ████  ████ ██      ██ ████   ██ ██  ██  
+███████    ██    ██    ██ ██████  ██ ████ ██ ██      ██ ██ ██  ██ █████   
+     ██    ██    ██    ██ ██   ██ ██  ██  ██ ██      ██ ██  ██ ██ ██  ██  
+███████    ██     ██████  ██   ██ ██      ██ ███████ ██ ██   ████ ██   ██ 
+      </div>
+      <h1>DEX Aggregator Metrics</h1>
+      <div class="subtitle">Detailed Specification & Integration Plan for Meta-Aggregator Swap Metrics Dashboard</div>
+    </header>
+
+    <div class="meta-bar">
+      <div class="meta-item">PROJECT: <span>evm-utilities</span></div>
+      <div class="meta-item">TARGET: <span>/metrics</span></div>
+      <div class="meta-item">DB STORAGE: <span>Upstash Redis</span></div>
+      <div class="meta-item">STATUS: <span class="badge ready">Awaiting Approval</span></div>
+    </div>
+
+    <main>
+
+      <div class="alert-box warning">
+        <div class="alert-title">▲ ACTION REQUIRED: API Credentials & Setup</div>
+        <p>This implementation fetches live quotes from external aggregators. To verify quotes and bypass CORS, we will proxy requests through a server-side Next.js route. The following environment variables must be appended to <code>.env.local</code>:</p>
+        <ul>
+          <li><code>ZEROX_API_KEY</code> (0x API Key)</li>
+          <li><code>ONEINCH_API_KEY</code> (1inch Developer Portal Key)</li>
+          <li><code>OKX_API_KEY</code> (OKX Aggregator Client API Key)</li>
+          <li><code>KYBERSWAP_API_KEY</code> (KyberSwap Aggregator Partner Key)</li>
+          <li><code>STORMLINK_API_URL</code> & <code>STORMLINK_API_KEY</code> (Your custom project credentials)</li>
+        </ul>
+      </div>
+
+      <section>
+        <h2>1. The Core Challenge: Standardization (Adapter Pattern)</h2>
+        <p>As highlighted in reviews, the biggest technical difficulty is standardizing the outputs of each DEX aggregator API so that quotes align. Providers represent tokens, amounts, decimals, and gas estimates in vastly different structures.</p>
+        
+        <p>To solve this, we will introduce a strict <strong>Adapter Architecture</strong>. The server-side request flow will wrap each aggregator-specific response in a unified parser module.</p>
+
+        <h3>Aggregator Inconsistencies & Unification Strategy:</h3>
+        <ul>
+          <li><strong>Native Gas Token Representing:</strong> 
+            <ul>
+              <li><strong>0x:</strong> Uses <code>0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee</code>.</li>
+              <li><strong>1inch:</strong> Uses <code>0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee</code>.</li>
+              <li><strong>OKX:</strong> Uses <code>0x0000000000000000000000000000000000000000</code> or <code>"ETH"</code> depending on API version.</li>
+              <li><strong>KyberSwap:</strong> Uses <code>0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee</code>.</li>
+              <li><em>Solution:</em> Normalize native token addresses to a standard identifier internally before executing queries.</li>
+            </ul>
+          </li>
+          <li><strong>Decimals & BigNumber Safety:</strong>
+            Some APIs return strings, some return numbers, and some return Hex values. We will shift raw amounts to formatted decimals using token registry data:
+            <pre><code>outputAmountFormatted = new BigNumber(outputAmountRaw).dividedBy(new BigNumber(10).pow(tokenOutDecimals)).toFixed(6);</code></pre>
+          </li>
+          <li><strong>Gas Estimates Mapping:</strong>
+            Different aggregators specify gas differently (e.g. gas limit vs total gas cost). We will normalize this to <code>estimatedGasLimit</code>, and compute the estimated gas cost in Wei using the current network gas price fetched in real-time.
+          </li>
+        </ul>
+
+        <h3>Unified Quote Type Structure</h3>
+        <pre><code>export interface StandardizedQuote {
+  provider: '0x' | '1inch' | 'okx' | 'kyber' | 'stormlink';
+  success: boolean;
+  outputAmountRaw: string;       // e.g. "1200500000" for 1200.5 USDC
+  outputAmountFormatted: string;  // e.g. "1200.5000" (decimals-adjusted)
+  estimatedGas: string;          // gas units limit (e.g. "115000")
+  gasCostWei?: string;           // (estimatedGas * currentGasPrice)
+  error?: string;                // Error details if API request fails
+  latencyMs: number;             // Response time
+}</code></pre>
+      </section>
+
+      <section>
+        <h2>2. Data Adapters Specifications</h2>
+        
+        <h3>A. 0x Adapter</h3>
+        <ul>
+          <li><strong>Endpoint:</strong> <code>https://api.0x.org/swap/v1/quote</code></li>
+          <li><strong>Mapping Logic:</strong> Parse response parameter <code>buyAmount</code> as the output amount, and <code>estimatedGas</code> as gas.</li>
+        </ul>
+
+        <h3>B. 1inch Adapter</h3>
+        <ul>
+          <li><strong>Endpoint:</strong> <code>https://api.1inch.dev/swap/v6.0/1/quote</code></li>
+          <li><strong>Mapping Logic:</strong> Parse response parameter <code>toAmount</code> as output, and <code>gas</code> as gas. Requires header <code>Authorization: Bearer [KEY]</code>.</li>
+        </ul>
+
+        <h3>C. OKX Adapter</h3>
+        <ul>
+          <li><strong>Endpoint:</strong> <code>https://www.okx.com/api/v5/dex/aggregator/quote</code></li>
+          <li><strong>Mapping Logic:</strong> Parse response parameter <code>data[0].toTokenAmount</code> as output, and <code>data[0].gas</code> as gas.</li>
+        </ul>
+
+        <h3>D. KyberSwap Adapter</h3>
+        <ul>
+          <li><strong>Endpoint:</strong> <code>https://aggregator-api.kyberswap.com/v1/routes</code></li>
+          <li><strong>Mapping Logic:</strong> Parse response <code>data.routeSummary.outputAmount</code> as output, and <code>data.routeSummary.totalGas</code> as gas.</li>
+        </ul>
+
+        <h3>E. Stormlink Adapter</h3>
+        <ul>
+          <li><strong>Endpoint:</strong> Configurable via environment variables.</li>
+          <li><strong>Mapping Logic:</strong> Standardized parser conforming to the custom API specs you provide. Falls back to a mock adapter generating variance rates if endpoint vars are missing.</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>3. Upstash Redis Schema</h2>
+        <p>To compile metrics on which aggregator is overquoting (providing the best output rate) or underquoting (worse rate), we save a summary of each search query.</p>
+
+        <h3>Recent Swaps Log (List)</h3>
+        <p>Stores the last 50 queries for UI display. Key: <code>aggregator:history</code>. Value: JSON string array containing:</p>
+        <pre><code>{
+  "id": "q_17928492048",
+  "timestamp": 1780946535201,
+  "chainId": "1",
+  "tokenIn": "0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2", // WETH
+  "tokenOut": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", // USDC
+  "amountIn": "1000000000000000000", // 1 ETH
+  "quotes": {
+    "0x": { "amountOut": "2840500000", "gas": "120000", "success": true },
+    "1inch": { "amountOut": "2843100000", "gas": "115000", "success": true },
+    "okx": { "amountOut": "2842000000", "gas": "130000", "success": true },
+    "kyber": { "amountOut": "2839000000", "gas": "125000", "success": true },
+    "stormlink": { "amountOut": "2845200000", "gas": "110000", "success": true }
+  },
+  "bestProvider": "stormlink"
+}</code></pre>
+
+        <h3>Aggregator Performance Matrix (Hashes)</h3>
+        <p>Rolling counters to compute ratios quickly. Keys: <code>aggregator:stats:{provider}</code> (e.g. <code>aggregator:stats:0x</code>):</p>
+        <ul>
+          <li><code>total_queries</code>: Incrementing integer of requested quotes.</li>
+          <li><code>success_queries</code>: Count of valid quotes returned successfully.</li>
+          <li><code>best_quote_count</code>: Count of times this provider delivered the best quote (highest rate).</li>
+          <li><code>cumulative_deviation</code>: Cumulative percentage points below the best quote (used to calculate average underquote deviation).</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2>4. UI Wireframe & Layout Design</h2>
+        <p>Adhering to the Brutalist style of the existing EVM Utilities platform, the metrics page is divided into two panels, utilizing sharp borders, custom monospace fonts, and a split layout container.</p>
+
+        <div class="wireframe">
+          <div class="wireframe-title">Wireframe Draft - Route: /metrics</div>
+          <div class="layout-grid">
+            <div class="layout-panel" data-label="Swap Inputs Panel" style="height: 250px;">
+              <p><strong>NETWORK:</strong> [MAINNET v]</p>
+              <p><strong>TOKEN IN (Address/Ticker):</strong><br>[ 0xc02aaa39... / ETH ]</p>
+              <p><strong>TOKEN OUT (Address/Ticker):</strong><br>[ 0xa0b86991... / USDC ]</p>
+              <p><strong>AMOUNT:</strong><br>[ 1.0000 ]</p>
+              <p>[ COMPARE QUOTES BUTTON ]</p>
+            </div>
+            <div class="layout-panel" data-label="Live Quotes Matrix" style="height: 250px;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>AGGREGATOR</th>
+                    <th>QUOTE AMOUNT</th>
+                    <th>DEVIATION</th>
+                    <th>GAS FEE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="text-best">
+                    <td>STORMLINK</td>
+                    <td>2,845.20 USDC</td>
+                    <td>BEST RATE</td>
+                    <td>~110k gas</td>
+                  </tr>
+                  <tr>
+                    <td>1INCH</td>
+                    <td>2,843.10 USDC</td>
+                    <td class="text-worse">-0.07%</td>
+                    <td>~115k gas</td>
+                  </tr>
+                  <tr>
+                    <td>0X</td>
+                    <td>2,840.50 USDC</td>
+                    <td class="text-worse">-0.16%</td>
+                    <td>~120k gas</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div class="layout-panel layout-full" data-label="Aggregators Performance & Leaderboard">
+              <p><strong>HISTORICAL LEADERBOARD (Compiled across Redis History logs)</strong></p>
+              <table>
+                <thead>
+                  <tr>
+                    <th>AGGREGATOR</th>
+                    <th>BEST RATE % (OVERQUOTE)</th>
+                    <th>AVG UNDERQUOTE DEVIATION</th>
+                    <th>API SUCCESS RATE</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>STORMLINK</td>
+                    <td class="text-best">45.2%</td>
+                    <td class="text-neutral">-0.08%</td>
+                    <td>98.9%</td>
+                  </tr>
+                  <tr>
+                    <td>1INCH</td>
+                    <td>31.4%</td>
+                    <td>-0.12%</td>
+                    <td>99.2%</td>
+                  </tr>
+                  <tr>
+                    <td>OKX</td>
+                    <td>14.1%</td>
+                    <td>-0.24%</td>
+                    <td>97.5%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>5. Mathematical Models & Metrics Formulation</h2>
+        <p>The core objective is to analyze underquotes and overquotes. These terms are defined and computed mathematically as follows:</p>
+
+        <h3>A. Best Quote Identification</h3>
+        <p>For any query $q$, the set of successful quotes is $Q_q = \{A_{p,q} \mid p \in \text{Providers}\}$. The best quote output amount is defined as:</p>
+        <p>$$M_q = \max(Q_q)$$</p>
+        
+        <h3>B. Overquote / Best Quote Rate ($OR_p$)</h3>
+        <p>Measures how frequently aggregator $p$ wins the best rate race over $N$ total queries:</p>
+        <p>$$OR_p = \frac{\sum_{q=1}^N \mathbb{I}(A_{p,q} = M_q)}{N} \times 100\%$$</p>
+        <p><em>(where $\mathbb{I}$ is the indicator function, returning 1 if true, 0 otherwise)</em></p>
+
+        <h3>C. Underquote Deviation ($UD_{p,q}$)</h3>
+        <p>For a query $q$, if provider $p$'s quote $A_{p,q}$ is not the best, the underquote percentage indicates the deviation loss:</p>
+        <p>$$UD_{p,q} = \frac{A_{p,q} - M_q}{M_q} \times 100\%$$</p>
+        <p>The average underquote deviation ($AUD_p$) across all queries where the provider failed to win is:
+        $$AUD_p = \frac{\sum_{q \in \{q \mid A_{p,q} < M_q\}} UD_{p,q}}{\text{Count}(A_{p,q} < M_q)}$$</p>
+      </section>
+
+      <section>
+        <h2>6. Execution Steps</h2>
+        <ol>
+          <li><strong>Redis Client Setup</strong>: Establish <code>src/lib/redis.ts</code> wrapper importing Upstash Redis client.</li>
+          <li><strong>API Development</strong>: Create Next.js handlers at <code>/api/aggregator</code> and <code>/api/aggregator/history</code>. Implement API query clients for 0x, OKX, 1inch, Kyber, and Stormlink.</li>
+          <li><strong>Layout Linkage</strong>: Modify <code>src/components/Layout/AppLayout.tsx</code> to include the new page link.</li>
+          <li><strong>Frontend Page Coding</strong>: Build the responsive 2-column brutalist panel at <code>src/app/metrics/page.tsx</code> containing forms, table metrics, and live quotes lists.</li>
+          <li><strong>Styling polishing</strong>: Update SCSS classes to implement custom high-contrast borders and character spin triggers.</li>
+        </ol>
+      </section>
+
+    </main>
+
+    <footer>
+      <div>EVM Utilities platform - Design Review Doc</div>
+      <div>2026-06-09</div>
+    </footer>
+  </div>
+
+</body>
+</html>
