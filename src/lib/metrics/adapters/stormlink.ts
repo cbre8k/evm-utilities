@@ -5,6 +5,32 @@ import { formatUnits, parseUnits } from "ethers";
 
 const DEFAULT_STORMLINK_SWAP_URL = "https://superlink-v2-router.coin98.tech/v1/routes/swap";
 const STORMLINK_TIMEOUT_MS = 15000;
+const STORMLINK_MAX_RETRIES = 3;
+
+type StormlinkRoute = {
+  exchange?: string;
+  pool?: string;
+};
+
+type StormlinkMethodParameters = {
+  calldata?: string;
+  value?: string;
+  to?: string;
+};
+
+type StormlinkSwapResult = {
+  quote?: string | number;
+  gasUsed?: string | number;
+  routes?: StormlinkRoute[];
+  bestRoute?: StormlinkRoute[];
+  methodParameters?: StormlinkMethodParameters;
+};
+
+type StormlinkSwapResponse = {
+  status?: string;
+  message?: string;
+  result?: StormlinkSwapResult;
+};
 
 function resolveSwapUrl(apiUrl?: string): string {
   const configuredUrl = apiUrl?.trim() || DEFAULT_STORMLINK_SWAP_URL;
@@ -64,31 +90,52 @@ export class StormlinkAdapter implements QuoteAdapter {
         "Content-Type": "application/json",
       };
 
-      const res = await fetch(queryUrl, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(requestBody),
-        signal: AbortSignal.timeout(STORMLINK_TIMEOUT_MS),
-      });
+      let data: StormlinkSwapResponse | undefined;
+      let lastError: Error | undefined;
+
+      for (let attempt = 1; attempt <= STORMLINK_MAX_RETRIES; attempt++) {
+        try {
+          const res = await fetch(queryUrl, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(requestBody),
+            signal: AbortSignal.timeout(STORMLINK_TIMEOUT_MS),
+          });
+
+          const responseText = await res.text();
+          let parsed: StormlinkSwapResponse | undefined;
+          try {
+            parsed = JSON.parse(responseText) as StormlinkSwapResponse;
+          } catch {
+            parsed = undefined;
+          }
+
+          if (!res.ok) {
+            const message = parsed?.message || responseText || `HTTP ${res.status}`;
+            throw new Error(`HTTP ${res.status}: ${message}`);
+          }
+
+          if (parsed?.status !== "OK") {
+            throw new Error(parsed?.message || "Failed status from Stormlink");
+          }
+
+          data = parsed;
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error(String(err));
+          if (attempt < STORMLINK_MAX_RETRIES) {
+            await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          }
+        }
+      }
 
       const latencyMs = Date.now() - startedAt;
 
-      if (!res.ok) {
-        const errText = await res.text().catch(() => "");
-        throw new Error(`HTTP Error ${res.status}${errText ? `: ${errText}` : ""}`);
-      }
-
-      const data = await res.json() as {
-        status?: string;
-        message?: string;
-        result?: {
-          quote?: string | number;
-          gasUsed?: string | number;
-        };
-      };
-
-      if (data.status !== "OK") {
-        throw new Error(data.message || "Failed status from Stormlink");
+      if (!data) {
+        throw new Error(
+          `${lastError?.message || "Stormlink request failed"} ` +
+          `(tokenIn=${normalizedIn}, tokenOut=${normalizedOut}, amount=${requestBody.amount})`
+        );
       }
 
       const result = data.result;
@@ -98,7 +145,10 @@ export class StormlinkAdapter implements QuoteAdapter {
 
       const rawOutput = result.quote;
       if (rawOutput === undefined || rawOutput === null || rawOutput === "") {
-        throw new Error(data.message || "Not found route or missing output amount");
+        throw new Error(
+          `${data.message || "Not found route or missing output amount"} ` +
+          `(tokenIn=${normalizedIn}, tokenOut=${normalizedOut}, amount=${requestBody.amount})`
+        );
       }
 
       let rawOutputStr = String(rawOutput);

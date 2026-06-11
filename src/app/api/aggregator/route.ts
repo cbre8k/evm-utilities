@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ADAPTERS } from "@/lib/metrics/adapters";
 import { AGGREGATOR_PROVIDERS } from "@/lib/metrics/providers";
 import { findBestOutputRaw, calculateDeviationPct, determineQuoteDirection } from "@/lib/metrics/math";
-import { saveQuoteComparisonEvent, updateProviderStats, getComputedMetrics, getMetricsStorageStatus } from "@/lib/metrics/redis";
+import { getComputedMetrics, getMetricsStorageStatus } from "@/lib/metrics/redis";
 import type { QuoteRequest, StandardizedQuote, QuoteComparisonEvent, AggregatorProvider } from "@/lib/metrics/types";
 import { getRandomTopHolder } from "@/lib/metrics/holders";
 import { NETWORKS } from "@/lib/constants";
@@ -28,9 +28,9 @@ async function withTimeout<T>(
 }
 
 /**
- * Fetches the current gas price for the blockchain network via JSON-RPC
+ * Fetches the current gas price and block number for the blockchain network via JSON-RPC
  */
-async function getChainGasPrice(chainId: number): Promise<string> {
+async function getChainState(chainId: number): Promise<{ gasPrice: string; blockNumber?: string }> {
   // Translate chainId to network
   const network = NETWORKS.find(
     (n) =>
@@ -55,24 +55,28 @@ async function getChainGasPrice(chainId: number): Promise<string> {
       const res = await fetch(rpcUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "eth_gasPrice",
-          params: [],
-        }),
+        body: JSON.stringify([
+          { jsonrpc: "2.0", id: 1, method: "eth_gasPrice", params: [] },
+          { jsonrpc: "2.0", id: 2, method: "eth_blockNumber", params: [] }
+        ]),
         signal: AbortSignal.timeout(3000), // 3 seconds timeout
       });
-      const data = (await res.json()) as { result?: string };
-      if (data.result) {
-        return BigInt(data.result).toString();
+      const data = (await res.json()) as Array<{ result?: string }>;
+      if (Array.isArray(data) && data.length === 2) {
+        return {
+          gasPrice: data[0].result ? BigInt(data[0].result).toString() : getDefaultGasPrice(chainId),
+          blockNumber: data[1].result ? BigInt(data[1].result).toString() : undefined,
+        };
       }
     } catch {
-      // Fallback
+      // Fallback below
     }
   }
 
-  // Common defaults in Wei
+  return { gasPrice: getDefaultGasPrice(chainId) };
+}
+
+function getDefaultGasPrice(chainId: number): string {
   switch (chainId) {
     case 1:
       return "25000000000"; // 25 Gwei
@@ -147,8 +151,8 @@ export async function POST(req: NextRequest) {
       baselineProvider,
     };
 
-    // 2. Fetch current gas price
-    const gasPrice = await getChainGasPrice(chainId);
+    // 2. Fetch network state (gas price & block number) concurrently with API execution
+    const statePromise = getChainState(chainId);
 
     // 3. Query all adapters in parallel. Stormlink can take 7-10s on large routes.
     const TIMEOUT_MS = 15000;
@@ -169,7 +173,10 @@ export async function POST(req: NextRequest) {
       return withTimeout(adapter.quote(request), TIMEOUT_MS, fallbackResult);
     });
 
-    const quotes = await Promise.all(quotePromises);
+    const results = await Promise.all([statePromise, ...quotePromises]);
+    const state = results[0] as { gasPrice: string; blockNumber?: string };
+    const quotes = results.slice(1) as StandardizedQuote[];
+    const { gasPrice, blockNumber } = state;
 
     // 4. Determine best output, lowest gas, and fastest quotes
     const bestOutputRaw = findBestOutputRaw(quotes);
@@ -280,14 +287,10 @@ export async function POST(req: NextRequest) {
       lowestGasProvider,
       fastestProvider,
       quotes: finalQuotes,
+      blockNumber,
     };
 
-    // 7. Write history log & update provider stats in Upstash Redis
-    await saveQuoteComparisonEvent(event);
-    
-    // Run stat updates in parallel
-    await Promise.all(finalQuotes.map((q) => updateProviderStats(q)));
-
+    // 7. (Removed) Database commits are now handled post-simulation in /api/aggregator/save-sim
     // 8. Fetch updated rolling stats
     const metrics = await getComputedMetrics(chainId);
 

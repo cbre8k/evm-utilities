@@ -21,6 +21,7 @@ export const TOKEN_REGISTRY: Record<number, TokenInfo[]> = {
     { address: "0xdac17f958d2ee523a2206206994597c13d831ec7", symbol: "USDT", decimals: 6, name: "Tether USD" },
     { address: "0x6b175474e89094c44da98b954eedeac495271d0f", symbol: "DAI", decimals: 18, name: "Dai Stablecoin" },
     { address: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599", symbol: "WBTC", decimals: 8, name: "Wrapped BTC" },
+    { address: "0x514910771af9ca656af840dff83e8264ecf986ca", symbol: "LINK", decimals: 18, name: "Link" },
   ],
   56: [
     { address: NATIVE_TOKEN_ADDRESS, symbol: "BNB", decimals: 18, name: "Binance Chain Native Token" },
@@ -82,7 +83,6 @@ export function normalizeTokenForProvider(params: {
       case "okx":
       case "0x":
       case "1inch":
-      case "kyber":
       default:
         // Use 0xeeee... for native
         return NATIVE_TOKEN_ADDRESS;

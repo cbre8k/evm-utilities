@@ -8,8 +8,9 @@ import { getRedis } from '../db/redis';
 import { Simulation } from '../models/Simulation';
 import { createSimulateShare } from '../services/shareService';
 import { runSimulation } from '../services/foundryService';
+import { runTraceCallManySimulation } from '../services/traceCallManySimulationService';
 import { config } from '../config';
-import type { SimulateJobMessage } from '../types';
+import type { SimulateJobMessage, SimulationInputs } from '../types';
 
 export async function startSimulateWorker(): Promise<void> {
   await consumeQueue(QUEUES.TX_SIMULATE, handleSimulateJob);
@@ -32,27 +33,38 @@ async function handleSimulateJob(msg: ConsumeMessage, _ch: Channel): Promise<voi
 
     let accumulatedOutput = '';
 
-    const result = await runSimulation(
-      inputs.scriptContent,
-      async (chunk: string) => {
-        accumulatedOutput += chunk;
-        // Write chunk to Redis for SSE streaming
-        await redis.setex(
-          outputKey,
-          config.ttl.job,
-          JSON.stringify({ status: 'running', output: accumulatedOutput })
-        );
-      }
-    );
+    const appendOutput = async (chunk: string) => {
+      accumulatedOutput += chunk;
+      // Write chunk to Redis for SSE streaming
+      await redis.setex(
+        outputKey,
+        config.ttl.job,
+        JSON.stringify({ status: 'running', output: accumulatedOutput })
+      );
+    };
+
+    const result = inputs.mode === 'traceCallMany'
+      ? await runTraceCallManySimulation(inputs, appendOutput)
+      : await runSimulation(inputs.scriptContent, appendOutput);
 
     // ── Persist result ────────────────────────────────────────
+    const legacyInputs = inputs as Partial<SimulationInputs> & { rpcUrl: string };
     const { from, to, calldata, value, blockNumber,
-      shouldDealToken, tokenAddress, spender, amount, rpcUrl } = inputs;
+      shouldDealToken, tokenAddress, spender, amount, rpcUrl } = legacyInputs;
 
     const share = await createSimulateShare({
       rpcUrl,
-      inputs: { from, to, calldata, value, blockNumber,
-        shouldDealToken, tokenAddress, spender, amount },
+      inputs: {
+        from: from || ('userAddress' in inputs ? inputs.userAddress : ''),
+        to: to || ('quotes' in inputs ? inputs.quotes[0]?.to || '' : ''),
+        calldata: calldata || ('quotes' in inputs ? inputs.quotes[0]?.data || '' : ''),
+        value: value || ('quotes' in inputs ? inputs.quotes[0]?.value || '0' : '0'),
+        blockNumber: blockNumber || ('blockNumber' in inputs ? inputs.blockNumber || '' : ''),
+        shouldDealToken: shouldDealToken ?? false,
+        tokenAddress: tokenAddress || ('tokenIn' in inputs ? inputs.tokenIn : ''),
+        spender: spender || ('quotes' in inputs ? inputs.quotes[0]?.approveSpender || '' : ''),
+        amount: amount || ('amountInRaw' in inputs ? inputs.amountInRaw : ''),
+      },
       output: result.output,
       exitCode: result.exitCode,
       success: result.success,

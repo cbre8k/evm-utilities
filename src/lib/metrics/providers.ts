@@ -4,7 +4,5 @@ export const AGGREGATOR_PROVIDERS: AggregatorProvider[] = [
   "0x",
   "okx",
   "1inch",
-  "kyber",
   "stormlink",
-  "lifi",
 ];

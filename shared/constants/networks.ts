@@ -13,7 +13,7 @@ export const NETWORKS: Network[] = [
   {
     id: 'mainnet',
     name: 'MAINNET',
-    fullnodeRpcUrls: ['https://mainnet.rpc.sentio.xyz', 'https://ethereum-rpc.publicnode.com', 'https://eth.blockrazor.xyz', 'https://api.zan.top/eth-mainnet', 'https://ethereum.public.blockpi.network/v1/rpc/public'],
+    fullnodeRpcUrls: ['https://eth.blockrazor.xyz', 'https://mainnet.rpc.sentio.xyz', 'https://ethereum-rpc.publicnode.com', 'https://api.zan.top/eth-mainnet', 'https://ethereum.public.blockpi.network/v1/rpc/public'],
     archiveRpcUrls: ['https://mainnet.chainnodes.org/9b5faff0-f503-47d3-982e-5fcacadd3e9a'],
   },
   {

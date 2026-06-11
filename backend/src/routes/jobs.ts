@@ -13,6 +13,9 @@ const POLL_INTERVAL_MS = 500;
 router.get('/:jobId/stream', async (req, res) => {
   const { jobId } = req.params;
   const redis = getRedis();
+  let poller: NodeJS.Timeout | undefined;
+  let closed = false;
+  let lastOutputText = '';
 
   // SSE headers
   res.setHeader('Content-Type', 'text/event-stream');
@@ -22,19 +25,20 @@ router.get('/:jobId/stream', async (req, res) => {
   res.flushHeaders();
 
   const send = (data: object) => {
+    if (closed || res.writableEnded) return;
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
   const cleanup = () => {
-    clearInterval(poller);
-    res.end();
+    if (closed) return;
+    closed = true;
+    if (poller) clearInterval(poller);
+    if (!res.writableEnded) res.end();
   };
 
   req.on('close', cleanup);
 
-  let lastOutput = '';
-
-  const poller = setInterval(async () => {
+  const poll = async () => {
     try {
       const [status, rawOutput, shareHash] = await Promise.all([
         redis.get(`job:${jobId}:status`),
@@ -44,9 +48,17 @@ router.get('/:jobId/stream', async (req, res) => {
 
       // Parse output chunk to stream incrementally
       let parsed: any = null;
-      if (rawOutput && rawOutput !== lastOutput) {
-        lastOutput = rawOutput;
+      let outputDelta = '';
+      if (rawOutput) {
         try { parsed = JSON.parse(rawOutput); } catch {}
+        const outputText = typeof parsed?.output === 'string' ? parsed.output : '';
+        if (outputText.length > lastOutputText.length) {
+          outputDelta = outputText.slice(lastOutputText.length);
+          lastOutputText = outputText;
+        } else if (outputText !== lastOutputText) {
+          outputDelta = outputText;
+          lastOutputText = outputText;
+        }
       }
 
       if (!status) {
@@ -58,7 +70,7 @@ router.get('/:jobId/stream', async (req, res) => {
       if (status === 'queued' || status === 'running') {
         send({
           status,
-          output: parsed?.output ?? '',
+          output: outputDelta,
           shareHash: shareHash ?? undefined,
         });
         return;
@@ -82,7 +94,12 @@ router.get('/:jobId/stream', async (req, res) => {
       console.error('[jobs/stream] poll error:', err);
       cleanup();
     }
-  }, POLL_INTERVAL_MS);
+  };
+
+  await poll();
+  if (!closed) {
+    poller = setInterval(poll, POLL_INTERVAL_MS);
+  }
 });
 
 // GET /jobs/:jobId — simple status poll (non-SSE fallback)

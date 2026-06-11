@@ -25,8 +25,8 @@ export class OneInchAdapter implements QuoteAdapter {
     });
 
     try {
-      // 1inch v6.0 quote endpoint
-      const url = `https://api.1inch.dev/swap/v6.0/${chainId}/quote?src=${normalizedIn}&dst=${normalizedOut}&amount=${amountInRaw}`;
+      const slippage = 50;
+      const url = `https://api.1inch.dev/swap/v6.0/${chainId}/swap?src=${normalizedIn}&dst=${normalizedOut}&amount=${amountInRaw}&from=${params.userAddress}&slippage=${slippage}&protocols=UNISWAP_V2,BASE_UNISWAP_V2,ETHEREUM_PANCAKESWAP_V2,PANCAKESWAP_V2,BASE_PANCAKESWAP_V2,SHIBASWAP,FRAXSWAP,SUSHI,BASE_SUSHI_V2,VERSE,UNISWAP_V3,BSC_UNISWAP_V3,BASE_UNISWAP_V3,PANCAKESWAP_V3,BSC_PANCAKESWAP_V3,BASE_PANCAKESWAP_V3,SUSHISWAP_V3,BASE_SUSHI_V3,SOLIDLY_V3,BASE_SOLIDLY_V3,CURVE,CURVE_3CRV,BASE_CURVE,CURVE_STABLE_NG,BSC_PANCAKESWAP_STABLE,CURVE_V2,CURVE_V2_TWO_CRYPTO,CURVE_V2_TWOCRYPTO_META,CURVE_V2_SPELL_2_ASSET,CURVE_V2_SGT_2_ASSET,CURVE_V2_THRESHOLDNETWORK_2_ASSET,CURVE_V2_EURS_2_ASSET,CURVE_V2_ETH_CRV,CURVE_V2_ETH_CVX,CURVE_V2_YFI_2_ASSET,CURVE_V2_ETH_PAL,BASE_CURVE_V2_TWO_CRYPTO,CURVE_V2_TWOCRYPTO_NG,CURVE_V2_TRICRYPTO_NG,BASE_CURVE_V2_TRICRYPTO_NG,CURVE_V2_LLAMMA,PANCAKESWAP,APESWAP,ELLIPSIS_FINANCE,BASE_SWAP,BASE_BASESWAP_V3,BASE_ALIEN_BASE,BASE_AERODROME_V3,UNISWAP_V4,BSC_UNISWAP_V4,BASE_UNISWAP_V4,BSC_PANCAKESWAP_V4,BASE_PANCAKESWAP_V4,FLUID_DEX_LITE,BASE_FLUID_DEX_T1,FLUID_DEX_T1,LITEPSM_USDC,BASE_SPARK_PSM,RINGSWAP_V2,BSC_RINGSWAP_V2,BASE_RINGSWAP_V2,BALANCER_V3,BASE_BALANCER_V3%DODO%DODO_V2%BALANCER_V2%BALANCER%SYNAPSE%ST_ETH&disableEstimate=true&includeProtocols=true`;
       
       const res = await fetch(url, {
         headers: {
@@ -43,7 +43,12 @@ export class OneInchAdapter implements QuoteAdapter {
         throw new Error(errData?.description || errData?.message || `HTTP Error ${res.status}`);
       }
 
-      const data = await res.json() as { dstAmount?: string; toAmount?: string; gas?: number | string };
+      const data = await res.json() as { 
+        dstAmount?: string; 
+        toAmount?: string; 
+        gas?: number | string;
+        protocols?: any[];
+      };
       const outputAmountRaw = data.dstAmount || data.toAmount;
 
       if (!outputAmountRaw) {

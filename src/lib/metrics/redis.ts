@@ -88,6 +88,16 @@ const inMemoryHistory: QuoteComparisonEvent[] = [];
 const inMemoryStats: Record<string, ProviderStats> = {};
 
 const SUPPORTED_CHAINS = [1, 56, 42161, 10, 8453];
+const ACTIVE_PROVIDER_SET = new Set<string>(AGGREGATOR_PROVIDERS);
+
+function filterActiveProviderHistory(events: QuoteComparisonEvent[]): QuoteComparisonEvent[] {
+  return events
+    .map((event) => ({
+      ...event,
+      quotes: event.quotes.filter((quote) => ACTIVE_PROVIDER_SET.has(quote.provider)),
+    }))
+    .filter((event) => event.quotes.length > 0);
+}
 
 /**
  * Saves a comparison event to the history list (retaining the latest 50 events)
@@ -278,7 +288,7 @@ export async function getRecentHistory(chainId?: number): Promise<QuoteCompariso
     try {
       const query = chainId ? `?chainId=${chainId}` : "";
       const data = await fetchBackendJson<{ history: QuoteComparisonEvent[] }>(`/metrics/history${query}`);
-      return data.history || [];
+      return filterActiveProviderHistory(data.history || []);
     } catch (err) {
       console.error("[Backend Mongo] Error loading recent history:", err);
     }
@@ -287,9 +297,9 @@ export async function getRecentHistory(chainId?: number): Promise<QuoteCompariso
   if (!redis) {
     const list = [...inMemoryHistory];
     if (chainId) {
-      return list.filter((e) => e.chainId === chainId);
+      return filterActiveProviderHistory(list.filter((e) => e.chainId === chainId));
     }
-    return list;
+    return filterActiveProviderHistory(list);
   }
 
   try {
@@ -302,9 +312,9 @@ export async function getRecentHistory(chainId?: number): Promise<QuoteCompariso
 
     const events = rawEvents.map((r) => (typeof r === "string" ? JSON.parse(r) : r) as QuoteComparisonEvent);
     if (chainId) {
-      return events.filter((e) => e.chainId === chainId);
+      return filterActiveProviderHistory(events.filter((e) => e.chainId === chainId));
     }
-    return events;
+    return filterActiveProviderHistory(events);
   } catch (err) {
     console.error("[Redis] Error loading recent history:", err);
     return [];

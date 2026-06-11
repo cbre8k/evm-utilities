@@ -36,6 +36,27 @@ type SimulationSkip = {
   reason: string;
 };
 
+type SimulationResult = {
+  gas: string;
+  output: string;
+  error?: string;
+  exactQuoteFormatted?: string;
+  simDevPct?: string;
+  type?: QuoteDirection;
+  gasCostFormatted?: string;
+};
+
+const SIM_FAILURE_REASONS = new Set([
+  "revert",
+  "exception",
+  "approve_failed",
+  "build_failed",
+  "missing_calldata",
+]);
+
+const HEADER_SLOT_LABELS = ["METRICS", "BENCHMARKS", "STATISTICS", "ANALYTICS"];
+const RADAR_PROVIDER_COLORS = ["#8aff80", "#7df9ff", "#f5c542", "#ff4d4d"];
+
 function formatPct(value: number, digits = 1): string {
   return `${Number.isFinite(value) ? (value * 100).toFixed(digits) : "0.0"}%`;
 }
@@ -63,6 +84,26 @@ function formatQuoteAmount(value?: string): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 4,
   });
+}
+
+function isValidSimulationResult(result?: SimulationResult): result is SimulationResult {
+  return !!result && !result.error && result.output !== "0" && result.gas !== "0";
+}
+
+function normalizeProviderKey(provider: string): string {
+  return provider.replace(/[^a-zA-Z0-9]/g, '');
+}
+
+function extractSimulationStage(output: string): string {
+  const plain = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+  if (plain.includes("[SIM_RESULT]")) return "RESULTS";
+  if (plain.includes("[TRACE_CALL_MANY] simulate")) return "TRACE";
+  if (plain.includes("[TRACE_CALL_MANY] rpc=")) return "RPC";
+  if (plain.includes("Compiler run successful")) return "RUNNING";
+  if (plain.includes("Compiling") || plain.includes("[FOUNDRY] compile_and_test_started")) return "COMPILE";
+  if (plain.includes("[FOUNDRY] spawn")) return "SPAWN";
+  if (plain.includes("[FOUNDRY] workspace_init")) return "WORKSPACE";
+  return "QUEUE";
 }
 
 export default function MetricsPage() {
@@ -95,10 +136,13 @@ export default function MetricsPage() {
   const [expandedHistoryId, setExpandedHistoryId] = useState<string | null>(null);
 
   const [localBaseline, setLocalBaseline] = useState<AggregatorProvider | "best">("best");
+  const [headerSlotIndex, setHeaderSlotIndex] = useState<number>(0);
+  const [hoveredRadarProvider, setHoveredRadarProvider] = useState<string | null>(null);
   
   // Simulation State
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
-  const [simulatedResults, setSimulatedResults] = useState<Record<string, { gas: string, output: string, error?: string }>>({});
+  const [simulationStage, setSimulationStage] = useState<string>("IDLE");
+  const [simulatedResults, setSimulatedResults] = useState<Record<string, SimulationResult>>({});
   const [simulatedProviders, setSimulatedProviders] = useState<Set<string>>(new Set());
   const [skippedSimulation, setSkippedSimulation] = useState<Record<string, SimulationSkip>>({});
 
@@ -151,6 +195,14 @@ export default function MetricsPage() {
   useEffect(() => {
     fetchHistoryAndStats(chainId);
   }, [chainId]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setHeaderSlotIndex((index) => (index + 1) % HEADER_SLOT_LABELS.length);
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, []);
 
   // Update token selections when changing chain
   useEffect(() => {
@@ -226,6 +278,7 @@ export default function MetricsPage() {
         setSimulatedResults({});
         setSimulatedProviders(new Set());
         setSkippedSimulation({});
+        setSimulationStage("QUEUE");
         if (data.metrics) {
           setMetrics(data.metrics);
         }
@@ -236,8 +289,6 @@ export default function MetricsPage() {
         // ── AUTOMATICALLY RUN SIMULATION IN BACKGROUND ──
         runSimulation(data.event);
 
-        // Refresh history
-        await fetchHistoryAndStats(chainId);
       } catch (err) {
         setErrorMsg(err instanceof Error ? err.message : String(err));
       }
@@ -246,17 +297,18 @@ export default function MetricsPage() {
 
   const runSimulation = async (event: QuoteComparisonEvent) => {
     setIsSimulating(true);
+    setSimulationStage("QUEUE");
     setSimulatedResults({});
     setSimulatedProviders(new Set());
     setSkippedSimulation({});
 
     const parseSimulationResults = (text: string) => {
       const matches = text.matchAll(/\[SIM_RESULT\]\s+provider=([^\s]+)\s+gas=(\d+)\s+output=(\d+)(?:\s+error=([^\n\r"]+))?/g);
-      const parsed: Record<string, { gas: string, output: string, error?: string }> = {};
+      const parsed: Record<string, SimulationResult> = {};
 
       for (const match of matches) {
         const provider = match[1];
-        const normalizedProvider = provider.replace(/[^a-zA-Z0-9]/g, '');
+        const normalizedProvider = normalizeProviderKey(provider);
         const result = { gas: match[2], output: match[3], error: match[4] };
         parsed[provider] = result;
         parsed[normalizedProvider] = result;
@@ -265,13 +317,58 @@ export default function MetricsPage() {
       return parsed;
     };
 
+    const enrichSimulationResults = (parsed: Record<string, SimulationResult>) => {
+      const enriched = { ...parsed };
+
+      for (const quote of event.quotes) {
+        const sim = enriched[quote.provider] || enriched[normalizeProviderKey(quote.provider)];
+        if (!isValidSimulationResult(sim)) continue;
+
+        const exactOutputRaw = sim.output;
+        const quotedOutputRaw = quote.outputAmountRaw;
+        let type: QuoteDirection = "equal";
+        let simDevPct = "0.0000";
+
+        if (quotedOutputRaw && parseFloat(quotedOutputRaw) !== 0) {
+          simDevPct = ((parseFloat(exactOutputRaw) - parseFloat(quotedOutputRaw)) / parseFloat(quotedOutputRaw) * 100).toFixed(4);
+          const simVal = new BigNumber(exactOutputRaw);
+          const quoteVal = new BigNumber(quotedOutputRaw);
+          if (quoteVal.lt(simVal)) type = "underquote";
+          else if (quoteVal.gt(simVal)) type = "overquote";
+        }
+
+        const gasCostFormatted = quote.gasPriceWei
+          ? formatUnits((BigInt(sim.gas) * BigInt(quote.gasPriceWei)).toString(), 18)
+          : undefined;
+
+        const result: SimulationResult = {
+          ...sim,
+          exactQuoteFormatted: formatUnits(exactOutputRaw, event.tokenOutDecimals),
+          simDevPct,
+          type,
+          gasCostFormatted,
+        };
+
+        enriched[quote.provider] = result;
+        enriched[normalizeProviderKey(quote.provider)] = result;
+      }
+
+      return enriched;
+    };
+
+    const localSimResults: Record<string, SimulationResult> = {};
+
     const mergeSimulationResults = (text: string) => {
       const parsed = parseSimulationResults(text);
       if (Object.keys(parsed).length === 0) return;
 
+      const enriched = enrichSimulationResults(parsed);
+
+      Object.assign(localSimResults, enriched);
+
       setSimulatedResults((prev) => ({
         ...prev,
-        ...parsed,
+        ...enriched,
       }));
     };
     
@@ -285,6 +382,7 @@ export default function MetricsPage() {
           tokenOut: event.tokenOut,
           userAddress: event.userAddress || userAddress || "0x0000000000000000000000000000000000000000",
           quotes: event.quotes,
+          blockNumber: event.blockNumber,
         }),
       });
 
@@ -303,12 +401,12 @@ export default function MetricsPage() {
       };
       setSimulatedProviders(new Set(plannedProviders.flatMap((provider) => [
         provider,
-        provider.replace(/[^a-zA-Z0-9]/g, ''),
+        normalizeProviderKey(provider),
       ])));
       setSkippedSimulation(Object.fromEntries(
         skippedProviders.flatMap((skip) => [
           [skip.provider, skip],
-          [skip.provider.replace(/[^a-zA-Z0-9]/g, ''), skip],
+          [normalizeProviderKey(skip.provider), skip],
         ])
       ));
       const streamRes = await fetch(`/api/jobs/${jobId}/stream`);
@@ -328,8 +426,14 @@ export default function MetricsPage() {
           const ssePayload = line.startsWith("data:") ? line.slice(5).trim() : "";
           if (ssePayload) {
             try {
-              const eventData = JSON.parse(ssePayload) as { output?: string; result?: { output?: string } };
-              mergeSimulationResults(eventData.output || eventData.result?.output || "");
+              const eventData = JSON.parse(ssePayload) as { status?: string; output?: string; result?: { output?: string } };
+              const output = eventData.output || eventData.result?.output || "";
+              if (output) {
+                setSimulationStage(extractSimulationStage(output));
+              } else if (eventData.status === "queued" || eventData.status === "running") {
+                setSimulationStage(eventData.status.toUpperCase());
+              }
+              mergeSimulationResults(output);
               continue;
             } catch {
               // Fall through to raw text parsing for non-JSON stream chunks.
@@ -343,7 +447,116 @@ export default function MetricsPage() {
       if (chunkBuf) {
         mergeSimulationResults(chunkBuf);
       }
+
+      // ----------------------------------------------------
+      // RECONSTRUCT EVENT WITH TRUE SIMULATED VALUES FOR LOGGING
+      // ----------------------------------------------------
+      const simulatedQuotesList = event.quotes.map(q => {
+        const sim = localSimResults[q.provider] || localSimResults[normalizeProviderKey(q.provider)];
+        if (!isValidSimulationResult(sim) || (sim.error && SIM_FAILURE_REASONS.has(sim.error))) {
+           return { ...q, success: false };
+        }
+
+        const gasCostWei = q.gasPriceWei
+          ? (BigInt(sim.gas) * BigInt(q.gasPriceWei)).toString()
+          : q.gasCostWei;
+        
+        return {
+          ...q,
+          outputAmountRaw: sim.output,
+          estimatedGas: sim.gas,
+          outputAmountFormatted: formatUnits(sim.output, event.tokenOutDecimals),
+          gasCostWei,
+          gasCostFormatted: gasCostWei ? formatUnits(gasCostWei, 18) : q.gasCostFormatted,
+        };
+      });
+
+      const bestOutputRaw = simulatedQuotesList.reduce((max: string | undefined, q) => {
+        if (!q.success || !q.outputAmountRaw) return max;
+        if (!max) return q.outputAmountRaw;
+        return new BigNumber(q.outputAmountRaw).gt(max) ? q.outputAmountRaw : max;
+      }, undefined);
+
+      const lowestGasRaw = simulatedQuotesList.reduce((min: string | undefined, q) => {
+        if (!q.success || !q.estimatedGas) return min;
+        if (!min) return q.estimatedGas;
+        return new BigNumber(q.estimatedGas).lt(min) ? q.estimatedGas : min;
+      }, undefined);
+
+      const fastestMs = simulatedQuotesList.reduce((min: number | undefined, q) => {
+        if (!q.success || !q.latencyMs) return min;
+        if (!min) return q.latencyMs;
+        return q.latencyMs < min ? q.latencyMs : min;
+      }, undefined);
+
+      let baselineOutputRaw: string | undefined;
+      if (event.baselineProvider === "best") {
+        baselineOutputRaw = bestOutputRaw;
+      } else {
+        const baselineQuote = simulatedQuotesList.find((q) => q.provider === event.baselineProvider);
+        if (baselineQuote?.success) {
+          baselineOutputRaw = baselineQuote.outputAmountRaw;
+        }
+      }
+
+      const finalizedQuotes = simulatedQuotesList.map(q => {
+        if (!q.success) return q;
+        const deviationPct = bestOutputRaw
+          ? ((parseFloat(q.outputAmountRaw || "0") - parseFloat(bestOutputRaw)) / parseFloat(bestOutputRaw) * 100).toFixed(4)
+          : "0.0000";
+        const deviationVsBaselinePct = baselineOutputRaw
+          ? ((parseFloat(q.outputAmountRaw || "0") - parseFloat(baselineOutputRaw)) / parseFloat(baselineOutputRaw) * 100).toFixed(4)
+          : undefined;
+        let quoteDirection: QuoteDirection = "equal";
+        if (bestOutputRaw && q.outputAmountRaw === bestOutputRaw) {
+          quoteDirection = "best";
+        } else if (baselineOutputRaw) {
+          const qVal = new BigNumber(q.outputAmountRaw || "0");
+          const bVal = new BigNumber(baselineOutputRaw);
+          if (qVal.gt(bVal)) quoteDirection = "overquote";
+          else if (qVal.lt(bVal)) quoteDirection = "underquote";
+        }
+
+        return {
+          ...q,
+          deviationPct,
+          deviationAbsPct: Math.abs(parseFloat(deviationPct)).toFixed(4),
+          deviationVsBaselinePct,
+          quoteDirection,
+          isBestQuote: bestOutputRaw !== undefined && q.outputAmountRaw === bestOutputRaw,
+          isLowestGas: lowestGasRaw !== undefined && q.estimatedGas === lowestGasRaw,
+          isFastest: fastestMs !== undefined && q.latencyMs === fastestMs,
+        }
+      });
+
+      const bestProvider = finalizedQuotes.find((q) => q.isBestQuote)?.provider;
+      const lowestGasProvider = finalizedQuotes.find((q) => q.isLowestGas)?.provider;
+      const fastestProvider = finalizedQuotes.find((q) => q.isFastest)?.provider;
+
+      const finalizedEvent = {
+        ...event,
+        bestProvider,
+        bestOutputRaw,
+        lowestGasProvider,
+        fastestProvider,
+        quotes: finalizedQuotes,
+      };
+
+      const saveRes = await fetch("/api/aggregator/save-sim", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(finalizedEvent),
+      });
+
+      if (!saveRes.ok) {
+        throw new Error(await saveRes.text());
+      }
+
+      setSimulationStage("SAVED");
+      await fetchHistoryAndStats(event.chainId);
+
     } catch (err) {
+      setSimulationStage("FAILED");
       console.warn("Simulation failed:", err);
     } finally {
       setIsSimulating(false);
@@ -409,12 +622,12 @@ export default function MetricsPage() {
   };
 
   const getSimulationResultForProvider = (provider: string) => {
-    const normalizedProvider = provider.replace(/[^a-zA-Z0-9]/g, '');
+    const normalizedProvider = normalizeProviderKey(provider);
     return simulatedResults[normalizedProvider] || simulatedResults[provider];
   };
 
   const getSimulationStateForProvider = (provider: string) => {
-    const normalizedProvider = provider.replace(/[^a-zA-Z0-9]/g, '');
+    const normalizedProvider = normalizeProviderKey(provider);
     const skip = skippedSimulation[normalizedProvider] || skippedSimulation[provider];
     if (skip) return skip.reason.toUpperCase();
     if (getSimulationResultForProvider(provider)) return "EXACT_READY";
@@ -428,15 +641,24 @@ export default function MetricsPage() {
     return getRecomputedQuotes(quotesList).sort((a, b) => {
       const aSim = getSimulationResultForProvider(a.provider);
       const bSim = getSimulationResultForProvider(b.provider);
-      const aOutput = aSim?.output || a.outputAmountRaw;
-      const bOutput = bSim?.output || b.outputAmountRaw;
+      
+      const aValidSim = isValidSimulationResult(aSim);
+      const bValidSim = isValidSimulationResult(bSim);
 
       if (a.success !== b.success) return a.success ? -1 : 1;
       if (!a.success || !b.success) return a.latencyMs - b.latencyMs;
-      if (!aOutput && bOutput) return 1;
-      if (aOutput && !bOutput) return -1;
-      if (aOutput && bOutput) {
-        const outputDelta = new BigNumber(bOutput).comparedTo(aOutput) ?? 0;
+
+      // 1. Strictly prioritize successful simulations over unsimulated/failed ones
+      if (aValidSim && !bValidSim) return -1;
+      if (!aValidSim && bValidSim) return 1;
+
+      // 2. If both are valid simulations, compare actual simulated output
+      if (aValidSim && bValidSim) {
+        const outputDelta = new BigNumber(bSim!.output!).comparedTo(aSim!.output!) ?? 0;
+        if (outputDelta !== 0) return outputDelta;
+      } else {
+        // 3. Otherwise (neither simulated or both failed), compare raw quotes
+        const outputDelta = new BigNumber(b.outputAmountRaw || 0).comparedTo(a.outputAmountRaw || 0) ?? 0;
         if (outputDelta !== 0) return outputDelta;
       }
 
@@ -445,55 +667,40 @@ export default function MetricsPage() {
     });
   };
 
-  const getExactComparison = (quote: StandardizedQuote, quotesList: StandardizedQuote[]) => {
+  const getExactComparison = (quote: StandardizedQuote) => {
     const simResult = getSimulationResultForProvider(quote.provider);
-    const exactOutputRaw = simResult?.output;
+    if (!isValidSimulationResult(simResult)) {
+      return null;
+    }
+
+    const exactOutputRaw = simResult.output;
     if (!quote.success || !exactOutputRaw) {
       return null;
     }
 
-    const exactOutputs = quotesList
-      .map((q) => getSimulationResultForProvider(q.provider)?.output)
-      .filter((output): output is string => Boolean(output));
-
-    if (exactOutputs.length === 0) {
-      return null;
+    const quotedOutputRaw = quote.outputAmountRaw;
+    if (!quotedOutputRaw || parseFloat(quotedOutputRaw) === 0) {
+      return {
+        simDev: 0,
+        exactDirection: "equal" as QuoteDirection,
+      };
     }
 
-    const exactBestOutputRaw = exactOutputs.reduce((max, output) => (
-      new BigNumber(output).gt(max) ? output : max
-    ));
+    const simDev = simResult.simDevPct !== undefined
+      ? parseFloat(simResult.simDevPct)
+      : ((parseFloat(exactOutputRaw) - parseFloat(quotedOutputRaw)) / parseFloat(quotedOutputRaw) * 100);
 
-    let exactBaselineOutputRaw: string | undefined;
-    if (localBaseline === "best") {
-      exactBaselineOutputRaw = exactBestOutputRaw;
-    } else {
-      exactBaselineOutputRaw = getSimulationResultForProvider(localBaseline)?.output;
-    }
-
-    const exactBestDev = exactBestOutputRaw
-      ? ((parseFloat(exactOutputRaw) - parseFloat(exactBestOutputRaw)) / parseFloat(exactBestOutputRaw) * 100)
-      : 0;
-
-    const exactBaseDev = exactBaselineOutputRaw
-      ? ((parseFloat(exactOutputRaw) - parseFloat(exactBaselineOutputRaw)) / parseFloat(exactBaselineOutputRaw) * 100)
-      : undefined;
-
-    let exactDirection: QuoteDirection = "equal";
-    if (localBaseline === "best") {
-      exactDirection = exactOutputRaw === exactBestOutputRaw ? "best" : "underquote";
-    } else if (exactBaselineOutputRaw) {
-      const exactValue = new BigNumber(exactOutputRaw);
-      const baselineValue = new BigNumber(exactBaselineOutputRaw);
-      if (exactValue.gt(baselineValue)) exactDirection = "overquote";
-      else if (exactValue.lt(baselineValue)) exactDirection = "underquote";
+    let exactDirection: QuoteDirection = simResult.type || "equal";
+    if (!simResult.type) {
+      const simVal = new BigNumber(exactOutputRaw);
+      const quoteVal = new BigNumber(quotedOutputRaw);
+      if (quoteVal.lt(simVal)) exactDirection = "underquote";
+      else if (quoteVal.gt(simVal)) exactDirection = "overquote";
     }
 
     return {
-      exactBestDev,
-      exactBaseDev,
+      simDev,
       exactDirection,
-      isExactBest: exactOutputRaw === exactBestOutputRaw,
     };
   };
 
@@ -516,14 +723,41 @@ export default function MetricsPage() {
     return token ? token.symbol : address.slice(0, 6) + "..." + address.slice(-4);
   };
 
+  const renderSimLoading = (label: string) => (
+    <span className={styles.matrixLoading}>
+      <span className={styles.inlineBarcode}>
+        <BarcodeDeco height={6} />
+      </span>
+      <SlotStatus text={label} blinkOnSettle={false} />
+    </span>
+  );
+
+  const renderSimPending = (provider: string, label: string) => {
+    const state = getSimulationStateForProvider(provider);
+    if (state === "SIM_RUNNING" || state === "SIM_PENDING") {
+      return renderSimLoading(label);
+    }
+
+    return <span className={styles.pendingExact}>{state}</span>;
+  };
+
+  const formatSimGasCost = (quote: StandardizedQuote, simResult?: SimulationResult) => {
+    if (simResult?.gasCostFormatted) return simResult.gasCostFormatted;
+    if (!isValidSimulationResult(simResult) || !quote.gasPriceWei) return null;
+    return formatUnits((BigInt(simResult.gas) * BigInt(quote.gasPriceWei)).toString(), 18);
+  };
+
   return (
     <div className={styles.metricsContainer}>
       <header className={styles.titleHeader}>
         <div className={styles.titleInfo}>
-          <h1>DEX AGGREGATOR METRICS</h1>
-          <div className={styles.barDeco}>
-            <BarcodeDeco />
-          </div>
+          <h1>DEX AGGREGATOR</h1>
+          <SlotStatus
+            key={HEADER_SLOT_LABELS[headerSlotIndex]}
+            text={HEADER_SLOT_LABELS[headerSlotIndex]}
+            className={styles.headerSlotStatus}
+            blinkOnSettle={false}
+          />
         </div>
         <div className={styles.headerMeta}>
           <span className={storageStatus?.persistent ? styles.storageOk : styles.storageWarn}>
@@ -556,16 +790,16 @@ export default function MetricsPage() {
           {/* SWAP INPUT PANEL */}
           <div className={`${styles.inputPanel} ${styles.terminalWindow}`}>
             <div className={styles.windowHeader}>
-              <span className={styles.panelTitle}>[ SWAP CONFIG ]</span>
+              <span className={styles.panelTitle}>[ SWAP_CONFIG ]</span>
               <span className={styles.windowControls}>SYS_SRC // 0XAA [-][+][x]</span>
             </div>
             
             <div className={styles.formBody}>
               <div className={styles.formRow}>
               <div className={styles.formGroup}>
-                <Label className={styles.formLabel}>TOKEN IN (Sell)</Label>
+                <Label className={styles.formLabel}>TOKEN_IN (Sell)</Label>
                 <div className={styles.tokenQuickSelect}>
-                  {(TOKEN_REGISTRY[chainId] || []).slice(0, 3).map((t) => (
+                  {(TOKEN_REGISTRY[chainId] || []).slice(1, 5).map((t) => (
                     <button
                       key={t.address}
                       className={`${styles.quickSelectBtn} ${tokenInAddress.toLowerCase() === t.address.toLowerCase() ? styles.quickActive : ""}`}
@@ -587,9 +821,9 @@ export default function MetricsPage() {
 
             <div className={styles.formRow}>
               <div className={styles.formGroup}>
-                <Label className={styles.formLabel}>TOKEN OUT (Buy)</Label>
+                <Label className={styles.formLabel}>TOKEN_OUT (Buy)</Label>
                 <div className={styles.tokenQuickSelect}>
-                  {(TOKEN_REGISTRY[chainId] || []).slice(1, 4).map((t) => (
+                  {(TOKEN_REGISTRY[chainId] || []).slice(1, 5).map((t) => (
                     <button
                       key={t.address}
                       className={`${styles.quickSelectBtn} ${tokenOutAddress.toLowerCase() === t.address.toLowerCase() ? styles.quickActive : ""}`}
@@ -656,7 +890,7 @@ export default function MetricsPage() {
 
             <div className={`${styles.formRow} ${styles.actionRow}`}>
               <div className={styles.formGroup}>
-                <Label className={styles.formLabel}>USER ADDRESS (Optional)</Label>
+                <Label className={styles.formLabel}>USER_ADDRESS (Optional)</Label>
                 <Input
                   value={userAddress}
                   onChange={(e) => setUserAddress(e.target.value)}
@@ -689,56 +923,150 @@ export default function MetricsPage() {
                   <SlotStatus text="HISTORY" blinkOnSettle={false} />
                 </div>
               ) : sortedMetrics.length > 0 ? (
-                sortedMetrics.map((m, index) => {
-                  const isBestLeader = m.provider === leaderProvider;
-                  const bestRatePct = Math.round(m.bestQuoteRate * 100);
-                  const successPct = Math.round(m.successRate * 100);
-                  const latencyScore = m.totalQuotes > 0
-                    ? Math.max(4, Math.round((1 - m.avgLatencyMs / maxLeaderboardLatency) * 100))
-                    : 0;
+                <>
+                  <div className={styles.leaderSummary}>
+                    <span>ACTIVE:{sortedMetrics.filter((m) => m.totalQuotes > 0).length}</span>
+                    <span>TOP:{leaderProvider?.toUpperCase() || "--"}</span>
+                    <span>SLOTS:{AGGREGATOR_PROVIDERS.length}</span>
+                  </div>
+                  <div className={styles.leaderGrid}>
+                    {sortedMetrics.map((m, index) => {
+                      const isBestLeader = m.provider === leaderProvider;
+                      const bestRatePct = Math.round(m.bestQuoteRate * 100);
+                      const successPct = Math.round(m.successRate * 100);
+                      const latencyScore = m.totalQuotes > 0
+                        ? Math.max(4, Math.round((1 - m.avgLatencyMs / maxLeaderboardLatency) * 100))
+                        : 0;
+                      const scorePct = Math.round((bestRatePct * 0.45) + (successPct * 0.35) + (latencyScore * 0.2));
 
-                  return (
-                    <div
-                      key={m.provider}
-                      className={`${styles.leaderCard} ${isBestLeader ? styles.leaderCardActive : ""}`}
-                    >
-                      <div className={styles.leaderTopline}>
-                        <span className={styles.rankTag}>#{index + 1}</span>
-                        <strong>{m.provider.toUpperCase()}</strong>
-                        {isBestLeader && <span className={styles.badgeLabel}>LEADER</span>}
-                      </div>
-
-                      <div className={styles.meterGrid}>
-                        <span>BEST</span>
+                      return (
                         <div
-                          className={styles.meterTrack}
-                          style={{ "--meter": `${bestRatePct}%` } as React.CSSProperties}
-                        />
-                        <strong>{bestRatePct}%</strong>
+                          key={m.provider}
+                          className={`${styles.leaderCard} ${isBestLeader ? styles.leaderCardActive : ""}`}
+                        >
+                          <div className={styles.leaderTopline}>
+                            <span className={styles.rankTag}>#{index + 1}</span>
+                            <strong>{m.provider.toUpperCase()}</strong>
+                            {isBestLeader && <span className={styles.badgeLabel}>LEADER</span>}
+                          </div>
 
-                        <span>OK</span>
-                        <div
-                          className={styles.meterTrack}
-                          style={{ "--meter": `${successPct}%` } as React.CSSProperties}
-                        />
-                        <strong>{successPct}%</strong>
+                          <div className={styles.leaderBody}>
+                            <div className={styles.circleGauge} aria-label={`score ${scorePct}%`}>
+                              <svg viewBox="0 0 44 44" role="img" aria-hidden="true">
+                                <circle className={styles.gaugeTrack} cx="22" cy="22" r="16" pathLength="100" />
+                                <circle
+                                  className={styles.gaugeValue}
+                                  cx="22"
+                                  cy="22"
+                                  r="16"
+                                  pathLength="100"
+                                  style={{ strokeDasharray: `${scorePct} 100` }}
+                                />
+                              </svg>
+                              <span>{scorePct}</span>
+                            </div>
 
-                        <span>FAST</span>
-                        <div
-                          className={`${styles.meterTrack} ${styles.meterWarn}`}
-                          style={{ "--meter": `${latencyScore}%` } as React.CSSProperties}
-                        />
-                        <strong>{formatLatency(m.avgLatencyMs)}</strong>
-                      </div>
+                            <div className={styles.meterGrid}>
+                              <span>BEST</span>
+                              <div
+                                className={styles.meterTrack}
+                                style={{ "--meter": `${bestRatePct}%` } as React.CSSProperties}
+                              />
+                              <strong>{bestRatePct}%</strong>
 
-                      <div className={styles.leaderFooter}>
-                        <span>Q:{m.totalQuotes}</span>
-                        <span>DEV:{formatMetricPct(m.avgAbsDeviationPct)}</span>
-                        <span>TO:{formatPct(m.timeoutRate, 0)}</span>
-                      </div>
+                              <span>STEAD</span>
+                              <div
+                                className={styles.meterTrack}
+                                style={{ "--meter": `${successPct}%` } as React.CSSProperties}
+                              />
+                              <strong>{successPct}%</strong>
+
+                              <span>SWIFT</span>
+                              <div
+                                className={`${styles.meterTrack} ${styles.meterWarn}`}
+                                style={{ "--meter": `${latencyScore}%` } as React.CSSProperties}
+                              />
+                              <strong>{formatLatency(m.avgLatencyMs)}</strong>
+                            </div>
+                          </div>
+
+                          <div className={styles.leaderFooter}>
+                            <span>Q:{m.totalQuotes}</span>
+                            <span>DEV:{formatMetricPct(m.avgAbsDeviationPct)}</span>
+                            <span>TO:{formatPct(m.timeoutRate, 0)}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className={styles.leaderRadar}>
+                    <div className={styles.radarCanvas}>
+                      <svg viewBox="0 -10 150 116" role="img" aria-label="Provider radar comparison">
+                        <line className={styles.radarAxis} x1="75" y1="58" x2="75" y2="14" />
+                        <line className={styles.radarAxis} x1="75" y1="58" x2="113" y2="80" />
+                        <line className={styles.radarAxis} x1="75" y1="58" x2="37" y2="80" />
+                        <polygon className={styles.radarRing} points="75,14 113,80 37,80" />
+                        <text className={styles.radarLabel} x="75" y="9" textAnchor="middle">BEST</text>
+                        <text className={styles.radarLabel} x="119" y="88">STEAD</text>
+                        <text className={styles.radarLabel} x="31" y="88" textAnchor="end">SWIFT</text>
+
+                        {sortedMetrics.slice(0, AGGREGATOR_PROVIDERS.length).map((m, index) => {
+                          const bestRatePct = Math.round(m.bestQuoteRate * 100);
+                          const successPct = Math.round(m.successRate * 100);
+                          const latencyScore = m.totalQuotes > 0
+                            ? Math.max(4, Math.round((1 - m.avgLatencyMs / maxLeaderboardLatency) * 100))
+                            : 0;
+                          const providerColor = RADAR_PROVIDER_COLORS[index % RADAR_PROVIDER_COLORS.length];
+                          const point = (angleDeg: number, value: number) => {
+                            const radius = 44 * Math.max(0, Math.min(100, value)) / 100;
+                            const angle = angleDeg * Math.PI / 180;
+                            return `${75 + Math.cos(angle) * radius},${58 + Math.sin(angle) * radius}`;
+                          };
+                          const points = [
+                            point(-90, bestRatePct),
+                            point(30, successPct),
+                            point(150, latencyScore),
+                          ].join(" ");
+
+                          return (
+                            <polygon
+                              key={m.provider}
+                              points={points}
+                              fill={providerColor}
+                              stroke={providerColor}
+                              className={[
+                                styles.radarPoly,
+                                hoveredRadarProvider === m.provider ? styles.radarPolyActive : "",
+                                hoveredRadarProvider && hoveredRadarProvider !== m.provider ? styles.radarPolyMuted : "",
+                              ].filter(Boolean).join(" ")}
+                            />
+                          );
+                        })}
+                      </svg>
                     </div>
-                  );
-                })
+
+                    <div className={styles.radarLegend}>
+                      {sortedMetrics.slice(0, AGGREGATOR_PROVIDERS.length).map((m, index) => (
+                        <span
+                          key={m.provider}
+                          className={[
+                            styles.radarLegendItem,
+                            hoveredRadarProvider === m.provider ? styles.radarLegendActive : "",
+                          ].filter(Boolean).join(" ")}
+                          style={{ color: RADAR_PROVIDER_COLORS[index % RADAR_PROVIDER_COLORS.length] }}
+                          onMouseEnter={() => setHoveredRadarProvider(m.provider)}
+                          onMouseLeave={() => setHoveredRadarProvider(null)}
+                          onFocus={() => setHoveredRadarProvider(m.provider)}
+                          onBlur={() => setHoveredRadarProvider(null)}
+                          tabIndex={0}
+                        >
+                          <i className={styles.radarLegendSwatch} aria-hidden="true" />
+                          {m.provider.toUpperCase()}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </>
               ) : (
                 <div className={styles.emptyLogs}>[ NO_LEADERBOARD_DATA ]</div>
               )}
@@ -751,8 +1079,10 @@ export default function MetricsPage() {
           {/* LIVE QUOTES MATRIX */}
           <div className={`${styles.matrixPanel} ${styles.terminalWindow}`}>
           <div className={styles.windowHeader}>
-            <span className={styles.panelTitle}>[ LIVE QUOTES COMPARISON ]</span>
-            <span className={styles.windowControls}>SYS_SRC // 0XAC [-][+][x]</span>
+            <span className={styles.panelTitle}>[ LIVE_QUOTES_COMPARISON ]</span>
+            <span className={styles.windowControls}>
+              SYS_SRC // 0XAC {isSimulating ? `SIM:${simulationStage}` : "SIM:IDLE"} [-][+][x]
+            </span>
           </div>
           <div className={styles.tableWrapper}>
             <table className={`${styles.retroTable} ${styles.table}`}>
@@ -760,12 +1090,11 @@ export default function MetricsPage() {
                 <tr>
                   <th>PROVIDER</th>
                   <th>QUOTE</th>
-                  <th>EXACT QUOTE</th>
-                  <th>BEST DEV</th>
-                  <th>BASE DEV</th>
+                  <th>EXACT_QUOTE</th>
+                  <th>DEVIATION</th>
                   <th>TYPE</th>
                   <th>GAS</th>
-                  <th>GAS COST</th>
+                  <th>GAS_COST</th>
                   <th>LATENCY</th>
                   <th>STATUS</th>
                 </tr>
@@ -775,7 +1104,7 @@ export default function MetricsPage() {
                   AGGREGATOR_PROVIDERS.map((prov) => (
                     <tr key={prov} className={styles.loadingRow}>
                       <td><strong className={styles.provTag}>{prov.toUpperCase()}</strong></td>
-                      <td colSpan={9} className={styles.loadingQuoteCell}>
+                      <td colSpan={8} className={styles.loadingQuoteCell}>
                         <span className={styles.loadingCell}>
                           <BarcodeDeco height={8} />
                           <SlotStatus text="QUOTE" blinkOnSettle={false} />
@@ -784,13 +1113,34 @@ export default function MetricsPage() {
                     </tr>
                   ))
                 ) : liveEvent ? (
-                  getRankedQuotes(liveEvent.quotes).map((quote, rankIndex) => {
+                  (() => {
+                    const rankedQuotes = getRankedQuotes(liveEvent.quotes);
+                    const validSimulationRows = rankedQuotes
+                      .map((quote) => ({
+                        quote,
+                        sim: getSimulationResultForProvider(quote.provider),
+                      }))
+                      .filter((row) => row.quote.success && isValidSimulationResult(row.sim));
+                    const simulatedBestProvider = validSimulationRows.reduce<string | undefined>((best, row) => {
+                      if (!best) return row.quote.provider;
+                      const bestSim = getSimulationResultForProvider(best);
+                      return new BigNumber(row.sim!.output).gt(bestSim?.output || "0") ? row.quote.provider : best;
+                    }, undefined);
+                    const simulatedLowestGasProvider = validSimulationRows.reduce<string | undefined>((best, row) => {
+                      if (!best) return row.quote.provider;
+                      const bestSim = getSimulationResultForProvider(best);
+                      return new BigNumber(row.sim!.gas).lt(bestSim?.gas || "0") ? row.quote.provider : best;
+                    }, undefined);
+
+                    return rankedQuotes.map((quote) => {
                     const simResult = getSimulationResultForProvider(quote.provider);
-                    const simulationState = getSimulationStateForProvider(quote.provider);
-                    const isCurrentBest = quote.success && rankIndex === 0;
-                    const exactComparison = getExactComparison(quote, liveEvent.quotes);
+                    const hasValidSimulation = isValidSimulationResult(simResult);
+                    const isCurrentBest = quote.provider === simulatedBestProvider;
+                    const isLowestSimGas = quote.provider === simulatedLowestGasProvider;
+                    const exactComparison = getExactComparison(quote);
+                    const gasCostFormatted = formatSimGasCost(quote, simResult);
                     
-                    const actualOutFormatted = simResult?.output 
+                    const actualOutFormatted = hasValidSimulation
                       ? formatUnits(simResult.output, tokenOutDecimals) 
                       : null;
 
@@ -804,7 +1154,7 @@ export default function MetricsPage() {
                             <strong className={styles.provTag}>{quote.provider.toUpperCase()}</strong>
                             <span className={styles.providerBadges}>
                               {isCurrentBest && <span className={styles.badgeLabel}>BEST_NOW</span>}
-                              {quote.isLowestGas && <span className={`${styles.badgeLabel} ${styles.badgeGas}`}>LOW GAS</span>}
+                              {isLowestSimGas && <span className={`${styles.badgeLabel} ${styles.badgeGas}`}>LOW_GAS</span>}
                               {quote.isFastest && <span className={`${styles.badgeLabel} ${styles.badgeFast}`}>FASTEST</span>}
                             </span>
                           </div>
@@ -833,45 +1183,33 @@ export default function MetricsPage() {
                                 })} {tokenOutSymbol}
                               </span>
                             ) : (
-                              <span className={styles.pendingExact}>{simulationState}</span>
+                              renderSimPending(quote.provider, "EXACT")
                             )
                           ) : (
                             <span className={styles.textError}>--</span>
                           )}
                         </td>
-                        <td className={exactComparison?.exactBestDev === 0 ? styles.textSuccess : exactComparison ? styles.textError : ""}>
-                          {quote.success
-                            ? exactComparison
-                              ? (exactComparison.exactBestDev === 0 ? "0.00%" : `${exactComparison.exactBestDev.toFixed(2)}%`)
-                              : <span className={styles.pendingExact}>{simulationState}</span>
-                            : "--"}
-                        </td>
                         <td className={
-                          exactComparison?.exactBaseDev !== undefined
-                            ? exactComparison.exactBaseDev > 0
+                          exactComparison?.simDev !== undefined
+                            ? exactComparison.simDev > 0
                               ? styles.textSuccess
-                              : exactComparison.exactBaseDev < 0
+                              : exactComparison.simDev < 0
                                 ? styles.textError
                                 : ""
                             : ""
                         }>
                           {quote.success
-                            ? exactComparison?.exactBaseDev !== undefined
-                              ? (exactComparison.exactBaseDev === 0 ? "0.00%" : `${exactComparison.exactBaseDev > 0 ? "+" : ""}${exactComparison.exactBaseDev.toFixed(2)}%`)
-                              : <span className={styles.pendingExact}>{simulationState}</span>
+                            ? exactComparison
+                              ? (exactComparison.simDev === 0 ? "0.0000%" : `${exactComparison.simDev > 0 ? "+" : ""}${exactComparison.simDev.toFixed(4)}%`)
+                              : renderSimPending(quote.provider, "DEV")
                             : "--"}
                         </td>
                         <td>
                           {quote.success ? (
                             <div className={styles.directionStack}>
                               <span className={`${styles.dirTag} ${exactComparison ? styles[exactComparison.exactDirection] : styles.equal}`}>
-                                {exactComparison ? exactComparison.exactDirection.toUpperCase() : simulationState}
+                                {exactComparison ? exactComparison.exactDirection.toUpperCase() : renderSimPending(quote.provider, "TYPE")}
                               </span>
-                              {actualOutFormatted && quote.outputAmountFormatted && (
-                                <span className={parseFloat(actualOutFormatted) < parseFloat(quote.outputAmountFormatted) ? styles.actualUnderquote : styles.actualExact}>
-                                  {parseFloat(actualOutFormatted) < parseFloat(quote.outputAmountFormatted) ? "UNDERQUOTE" : "EXACT"}
-                                </span>
-                              )}
                             </div>
                           ) : (
                             <span className={styles.textError}>FAILED</span>
@@ -880,22 +1218,21 @@ export default function MetricsPage() {
                         <td>
                           {quote.success ? (
                             <div className={styles.gasStack}>
-                              <span>{parseInt(quote.estimatedGas || "0").toLocaleString()} g</span>
-                              {simResult && (
-                                <div className={styles.gasActual}>
-                                  ACTUAL: {parseInt(simResult.gas).toLocaleString()} g
-                                </div>
+                              {hasValidSimulation ? (
+                                <span className={styles.gasActual}>{parseInt(simResult.gas, 10).toLocaleString()} g</span>
+                              ) : (
+                                renderSimPending(quote.provider, "GAS")
                               )}
                             </div>
                           ) : "--"}
                         </td>
                         <td>
-                          {quote.success && quote.gasCostFormatted ? (
+                          {quote.success && gasCostFormatted ? (
                             <span className={styles.gasText}>
-                              {parseFloat(quote.gasCostFormatted).toFixed(6)} ETH
+                              {parseFloat(gasCostFormatted).toFixed(6)} ETH
                             </span>
                           ) : (
-                            "--"
+                            quote.success ? renderSimPending(quote.provider, "COST") : "--"
                           )}
                         </td>
                         <td>{quote.latencyMs}ms</td>
@@ -914,10 +1251,11 @@ export default function MetricsPage() {
                         </td>
                       </tr>
                     );
-                  })
+                    });
+                  })()
                 ) : (
                   <tr>
-                    <td colSpan={10} className={styles.emptyCell}>
+                    <td colSpan={9} className={styles.emptyCell}>
                       [ AWAITING_OPERATOR_INPUT ] RUN_QUOTE_TO_POPULATE_MATRIX
                     </td>
                   </tr>
@@ -930,7 +1268,7 @@ export default function MetricsPage() {
         {/* RECENT SWAP COMPARISON LOGS */}
         <div className={`${styles.historySection} ${styles.terminalWindow}`}>
           <div className={styles.windowHeader}>
-            <span className={styles.panelTitle}>[ RECENT LOGS ]</span>
+            <span className={styles.panelTitle}>[ RECENT_LOGS ]</span>
               <span className={styles.windowControls}>
                 {storageStatus?.persistent ? storageStatus.historyKey : "MEMORY_BUFFER"} [-][+][x]
               </span>
@@ -981,9 +1319,9 @@ export default function MetricsPage() {
                         <table className={styles.detailsMiniTable}>
                           <thead>
                             <tr>
-                              <th>AGG</th>
-                              <th>QUOTE AMOUNT</th>
-                              <th>DEV</th>
+                              <th>PROVIDER</th>
+                              <th>EXACT_QUOTE</th>
+                              <th>DEVIATION</th>
                               <th>GAS</th>
                               <th>LATENCY</th>
                             </tr>
@@ -1002,7 +1340,7 @@ export default function MetricsPage() {
                                     )}
                                   </td>
                                   <td className={q.isBestQuote ? styles.textSuccess : styles.textError}>
-                                    {q.success ? (q.isBestQuote ? "0.00%" : `${dev.toFixed(2)}%`) : "--"}
+                                    {q.success ? (q.isBestQuote ? "0.0000%" : `${dev.toFixed(4)}%`) : "--"}
                                   </td>
                                   <td>{q.success ? formatGasValue(q.estimatedGas) : "--"}</td>
                                   <td>{formatLatency(q.latencyMs)}</td>

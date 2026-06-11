@@ -9,6 +9,37 @@ import os from 'os';
 
 const projectRoot = path.resolve(__dirname, '../../../'); // evm-utilities root
 const sourceFoundryDir = path.join(projectRoot, 'foundry');
+const ANSI_ESCAPE_RE = /\x1B\[[0-?]*[ -/]*[@-~]/g;
+const FORK_RPC_RE = /vm\.createSelectFork\("([^"]+)"\)/;
+
+function maskRpcUrl(rawUrl: string): string {
+  try {
+    const url = new URL(rawUrl);
+    if (url.username) url.username = '***';
+    if (url.password) url.password = '***';
+
+    for (const key of url.searchParams.keys()) {
+      if (/key|token|secret|auth|api/i.test(key)) {
+        url.searchParams.set(key, '***');
+      }
+    }
+
+    const parts = url.pathname.split('/').filter(Boolean);
+    const last = parts.at(-1);
+    if (last && last.length > 12 && /[a-z0-9_-]{12,}/i.test(last)) {
+      parts[parts.length - 1] = `${last.slice(0, 4)}...${last.slice(-4)}`;
+      url.pathname = `/${parts.join('/')}`;
+    }
+
+    return url.toString();
+  } catch {
+    return rawUrl.replace(/([?&](?:api_?key|key|token|secret|auth)=)[^&]+/gi, '$1***');
+  }
+}
+
+function extractForkRpc(scriptContent: string): string | undefined {
+  return scriptContent.match(FORK_RPC_RE)?.[1];
+}
 
 // ── Binary resolution ─────────────────────────────────────────
 
@@ -72,16 +103,29 @@ export async function runSimulation(
 ): Promise<FoundryResult> {
   const { forge } = findBinaries();
   const sessionId = Math.random().toString(36).substring(7);
+  const forkRpc = extractForkRpc(scriptContent);
+  onChunk(`[FOUNDRY] workspace_init session=${sessionId}\n`);
+  if (forkRpc) {
+    onChunk(`[FOUNDRY] fork_rpc=${maskRpcUrl(forkRpc)}\n`);
+    console.log(`[foundryService] simulate fork rpc=${maskRpcUrl(forkRpc)}`);
+  }
   const tempDir = setupWorkspace(sessionId, scriptContent);
   const { projectBin, userBin } = resolvePaths();
   const fakeHome = path.join(tempDir, '.home');
 
   return new Promise((resolve) => {
-    let outputBuf = '';
+    let outputBuf = `[FOUNDRY] workspace_init session=${sessionId}\n`;
+    if (forkRpc) {
+      outputBuf += `[FOUNDRY] fork_rpc=${maskRpcUrl(forkRpc)}\n`;
+    }
+    const args = ['test', '--mt', 'testSimulation', '--decode-internal', '-vvvv', '--color', 'always'];
+    const commandLine = `[FOUNDRY] spawn ${forge} ${args.join(' ')}\n`;
+    outputBuf += commandLine;
+    onChunk(commandLine);
 
     const child = spawn(
       forge,
-      ['test', '--mt', 'testSimulation', '--decode-internal', '-vvvv', '--color', 'always'],
+      args,
       {
         cwd: tempDir,
         env: {
@@ -97,7 +141,16 @@ export async function runSimulation(
       }
     );
 
+    child.once('spawn', () => {
+      const chunk = '[FOUNDRY] compile_and_test_started\n';
+      outputBuf += chunk;
+      onChunk(chunk);
+    });
+
     signal?.addEventListener('abort', () => {
+      const chunk = '[FOUNDRY] abort_signal\n';
+      outputBuf += chunk;
+      onChunk(chunk);
       try { child.kill('SIGTERM'); } catch {}
     });
 
@@ -116,10 +169,15 @@ export async function runSimulation(
     child.on('close', (code) => {
       cleanupWorkspace(tempDir);
       const exitCode = code ?? 1;
+      const closeChunk = `[FOUNDRY] process_closed exitCode=${exitCode}\n`;
+      outputBuf += closeChunk;
+      onChunk(closeChunk);
+      const plainOutput = outputBuf.replace(ANSI_ESCAPE_RE, '');
       const success =
         exitCode === 0 &&
-        (outputBuf.includes('Suite result: ok') ||
-          outputBuf.includes('Transaction successfully executed'));
+        (plainOutput.includes('Suite result: ok') ||
+          plainOutput.includes('[PASS]') ||
+          plainOutput.includes('Transaction successfully executed'));
       resolve({ output: outputBuf, exitCode, success });
     });
 

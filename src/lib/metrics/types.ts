@@ -2,9 +2,7 @@ export type AggregatorProvider =
   | "0x"
   | "okx"
   | "1inch"
-  | "kyber"
-  | "stormlink"
-  | "lifi";
+  | "stormlink";
 
 export type QuoteDirection =
   | "best"
@@ -57,6 +55,8 @@ export interface StandardizedQuote {
   deviationPct?: string;
   deviationAbsPct?: string;
 
+  dexes?: string[];
+
   deviationVsBaselinePct?: string;
   quoteDirection: QuoteDirection;
 
@@ -94,6 +94,7 @@ export interface QuoteComparisonEvent {
   fastestProvider?: AggregatorProvider;
 
   quotes: StandardizedQuote[];
+  blockNumber?: string;
 }
 
 export interface ProviderStats {

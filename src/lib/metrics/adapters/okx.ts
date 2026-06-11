@@ -64,7 +64,9 @@ export class OkxAdapter implements QuoteAdapter {
       url.searchParams.set("toTokenAddress", normalizedOut);
       url.searchParams.set("amount", amountInRaw);
       url.searchParams.set("swapMode", "exactIn");
-      url.searchParams.set("slippagePercent", params.slippageBps ? String(params.slippageBps / 100) : "1");
+      url.searchParams.set("slippagePercent", "100");
+      url.searchParams.set("dexIds", "34,30,40,89,29,108,53,200,239,262,55,27,259,330,173,58,210,226,41,37,33,32,86,227,246,245,405,594,438,528,401,522,404,105,333,80,88,54,51,527")
+      
       if (params.userAddress) {
         url.searchParams.set("userWalletAddress", params.userAddress);
         url.searchParams.set("approveTransaction", "true");
@@ -94,6 +96,7 @@ export class OkxAdapter implements QuoteAdapter {
             toTokenAmount?: string;
             fromTokenAmount?: string;
           };
+          routerList?: any[][];
           toTokenAmount?: string;
           fromTokenAmount?: string;
           gas?: string;

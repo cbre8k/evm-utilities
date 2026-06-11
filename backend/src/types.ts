@@ -106,6 +106,27 @@ export interface SimulationInputs {
   amount: string;
 }
 
+export interface TraceCallManyQuote {
+  provider: string;
+  to: string;
+  data: string;
+  value: string;
+  approveSpender: string;
+  decodeReturnAmount?: boolean;
+}
+
+export interface TraceCallManySimulationInputs {
+  mode: 'traceCallMany';
+  rpcUrl: string;
+  chainId: number;
+  blockNumber?: string;
+  userAddress: string;
+  tokenIn: string;
+  tokenOut: string;
+  amountInRaw: string;
+  quotes: TraceCallManyQuote[];
+}
+
 // ── Job Queue Messages ───────────────────────────────────────
 
 export interface TraceJobMessage {
@@ -117,7 +138,9 @@ export interface TraceJobMessage {
 
 export interface SimulateJobMessage {
   jobId: string;
-  inputs: SimulationInputs & { rpcUrl: string; scriptContent: string };
+  inputs:
+    | (SimulationInputs & { rpcUrl: string; scriptContent: string; mode?: 'forge' })
+    | TraceCallManySimulationInputs;
 }
 
 export interface DecodeJobMessage {

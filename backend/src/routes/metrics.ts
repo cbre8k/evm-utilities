@@ -5,7 +5,8 @@ import { MetricProviderStat } from '../models/MetricProviderStat';
 
 const router = Router();
 
-const PROVIDERS = ['0x', 'okx', '1inch', 'kyber', 'stormlink', 'lifi'];
+const PROVIDERS = ['0x', 'okx', '1inch', 'stormlink'];
+const PROVIDER_SET = new Set(PROVIDERS);
 
 type MetricQuote = {
   provider: string;
@@ -17,6 +18,8 @@ type MetricQuote = {
   deviationAbsPct?: string;
   estimatedGas?: string;
   isBestQuote?: boolean;
+  isLowestGas?: boolean;
+  isFastest?: boolean;
   quoteDirection?: 'best' | 'underquote' | 'overquote' | 'equal' | 'failed';
 };
 
@@ -26,6 +29,24 @@ type MetricEventBody = {
   chainId: number;
   quotes?: MetricQuote[];
 };
+
+function sanitizeMetricEvent(event: Record<string, any>): Record<string, any> {
+  const quotes = Array.isArray(event.quotes)
+    ? event.quotes.filter((quote: MetricQuote) => PROVIDER_SET.has(quote.provider))
+    : [];
+
+  const bestProvider = PROVIDER_SET.has(event.bestProvider) ? event.bestProvider : quotes.find((q: MetricQuote) => q.isBestQuote)?.provider;
+  const lowestGasProvider = PROVIDER_SET.has(event.lowestGasProvider) ? event.lowestGasProvider : quotes.find((q: MetricQuote) => q.isLowestGas)?.provider;
+  const fastestProvider = PROVIDER_SET.has(event.fastestProvider) ? event.fastestProvider : quotes.find((q: MetricQuote) => q.isFastest)?.provider;
+
+  return {
+    ...event,
+    quotes,
+    bestProvider,
+    lowestGasProvider,
+    fastestProvider,
+  };
+}
 
 function toNumber(value: unknown, fallback = 0): number {
   const parsed = typeof value === 'number' ? value : parseFloat(String(value ?? ''));
@@ -60,6 +81,10 @@ function computeMetric(provider: string, raw: Record<string, any>) {
 }
 
 async function updateQuoteStats(quote: MetricQuote): Promise<void> {
+  if (!PROVIDER_SET.has(quote.provider)) {
+    return;
+  }
+
   const statsKey = {
     chainId: Number(quote.chainId),
     provider: quote.provider,
@@ -192,7 +217,9 @@ router.get('/history', async (req, res, next) => {
     const metrics = PROVIDERS.map((provider) => computeMetric(provider, statsByProvider.get(provider) || {}));
 
     res.json({
-      history: events.map((entry) => entry.event),
+      history: events
+        .map((entry) => sanitizeMetricEvent(entry.event as Record<string, any>))
+        .filter((event) => Array.isArray(event.quotes) && event.quotes.length > 0),
       metrics,
       storage: {
         mode: 'mongodb',
