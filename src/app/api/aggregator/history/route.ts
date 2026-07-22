@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecentHistory, getComputedMetrics, getMetricsStorageStatus } from "@/lib/metrics/redis";
+import { serverError } from '@/lib/api';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('api/aggregator/history');
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,11 +26,7 @@ export async function GET(req: NextRequest) {
       storage: getMetricsStorageStatus(chainId),
     });
   } catch (err) {
-    console.error("[API Aggregator History] Exception:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+    return serverError(log, err);
   }
 }
 export const dynamic = "force-dynamic";

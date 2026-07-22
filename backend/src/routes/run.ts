@@ -8,6 +8,14 @@ import path from 'path';
 import os from 'os';
 import { spawn } from 'child_process';
 import { config } from '../config';
+import {
+  PROJECT_ROOT,
+  SOURCE_FOUNDRY_DIR,
+  cleanupWorkspace,
+  foundrySpawnEnv,
+  locateFoundryBinaries,
+  setupWorkspace,
+} from '../services/foundryWorkspace';
 
 const router = Router();
 
@@ -15,105 +23,7 @@ const MAX_CONCURRENT = config.jobs.maxConcurrent;
 const PROCESS_TIMEOUT_MS = config.jobs.processTimeoutMs;
 let activeJobs = 0;
 
-// ── Foundry paths ────────────────────────────────────────────
-// Walk up from __dirname until we find the repo root (has package.json + foundry/)
-function findProjectRoot(): string {
-  let dir = __dirname;
-  for (let i = 0; i < 10; i++) {
-    if (fs.existsSync(path.join(dir, 'foundry')) && fs.existsSync(path.join(dir, 'package.json'))) {
-      return dir;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break;
-    dir = parent;
-  }
-  // Fallback: assume CWD is project root
-  return process.cwd();
-}
-const projectRoot = findProjectRoot();
-const sourceFoundryDir = path.join(projectRoot, 'foundry');
-
-function locateBinaries() {
-  const projectBin = path.join(projectRoot, 'bin');
-  const backendBin = path.join(projectRoot, 'backend', 'foundry-bin');
-  const homeDir = process.env.HOME || '/root';
-  const userBin = path.join(homeDir, '.foundry/bin');
-
-  // Check backend/foundry-bin (Render build) first, then foundry install, then project bin (macOS)
-  const candidates = [
-    backendBin,
-    userBin,
-    '/root/.foundry/bin',
-    '/opt/render/.foundry/bin',
-    '/opt/render/project/src/backend/foundry-bin',
-    '/usr/local/bin',
-    projectBin,
-  ];
-
-  let forgeBin = '';
-  let castBin = '';
-
-  for (const dir of candidates) {
-    if (fs.existsSync(path.join(dir, 'forge'))) {
-      forgeBin = path.join(dir, 'forge');
-      castBin = path.join(dir, 'cast');
-      console.log(`[run] found foundry binaries in ${dir}`);
-      break;
-    }
-  }
-
-  if (!forgeBin) {
-    console.warn('[run] foundry binaries not found in:', candidates.join(', '));
-    forgeBin = 'forge';
-    castBin = 'cast';
-  }
-
-  return { forgeBin, castBin, projectBin, userBin };
-}
-
-function setupLightWorkspace(sessionId: string, scriptContent?: string): string {
-  const tempDir = path.join(os.tmpdir(), `foundry-${sessionId}`);
-
-  fs.mkdirSync(path.join(tempDir, 'test'), { recursive: true });
-  fs.mkdirSync(path.join(tempDir, 'src'), { recursive: true });
-  fs.mkdirSync(path.join(tempDir, 'script'), { recursive: true });
-  fs.mkdirSync(path.join(tempDir, '.home'), { recursive: true });
-
-  const libSource = path.join(sourceFoundryDir, 'lib');
-  const libDest = path.join(tempDir, 'lib');
-  if (!fs.existsSync(libDest)) {
-    fs.symlinkSync(libSource, libDest, 'dir');
-  }
-
-  const configFiles = ['foundry.toml'];
-  for (const file of configFiles) {
-    const src = path.join(sourceFoundryDir, file);
-    if (fs.existsSync(src)) {
-      fs.copyFileSync(src, path.join(tempDir, file));
-    }
-  }
-
-  const counterSrc = path.join(sourceFoundryDir, 'src', 'Counter.sol');
-  if (fs.existsSync(counterSrc)) {
-    fs.copyFileSync(counterSrc, path.join(tempDir, 'src', 'Counter.sol'));
-  }
-
-  if (scriptContent) {
-    fs.writeFileSync(path.join(tempDir, 'test', 'Simulation.t.sol'), scriptContent);
-  }
-
-  return tempDir;
-}
-
-function cleanupWorkspace(tempDir: string) {
-  try {
-    fs.rmSync(tempDir, { recursive: true, force: true });
-  } catch (e) {
-    console.error('Failed to cleanup temp dir', e);
-  }
-}
-
-// POST /run — streams output as text
+// POST /run — streams cast/forge output back as chunked text
 router.post('/', (req, res) => {
   // --- CONCURRENCY ---
   if (activeJobs >= MAX_CONCURRENT) {
@@ -140,7 +50,7 @@ router.post('/', (req, res) => {
     try { res.write(msg); } catch {}
   };
 
-  const { forgeBin, castBin, projectBin, userBin } = locateBinaries();
+  const bins = locateFoundryBinaries();
   const formatField = (f: string) => f === 'txHash' ? 'transaction hash' : f === 'rpcUrl' ? 'rpc url' : f;
 
   let command = '';
@@ -156,7 +66,7 @@ router.post('/', (req, res) => {
       res.end();
       return;
     }
-    command = castBin;
+    command = bins.cast;
     args = ['run', inputs.txHash, '--rpc-url', inputs.rpcUrl];
     if (inputs.quick) args.push('--quick');
     args.push('--color', 'always');
@@ -164,8 +74,8 @@ router.post('/', (req, res) => {
 
   } else if (type === 'SIMULATE') {
     const sessionId = Math.random().toString(36).substring(7);
-    tempDir = setupLightWorkspace(sessionId, inputs.scriptContent);
-    command = forgeBin;
+    tempDir = setupWorkspace(sessionId, inputs.scriptContent);
+    command = bins.forge;
     args = ['test', '--mt', 'testSimulation', '-vvvv', '--decode-internal', '--color', 'always'];
     send(`> forge ${args.join(' ')}\r\n\r\n`);
 
@@ -177,29 +87,20 @@ router.post('/', (req, res) => {
   }
 
   // Check foundry directory
-  if (!fs.existsSync(sourceFoundryDir) && type === 'SIMULATE') {
+  if (!fs.existsSync(SOURCE_FOUNDRY_DIR) && type === 'SIMULATE') {
     send('Error: Source foundry directory not found.\n');
     activeJobs--;
     res.end();
     return;
   }
 
-  const cwd = tempDir || projectRoot;
+  const cwd = tempDir || PROJECT_ROOT;
   const fakeHome = tempDir ? path.join(tempDir, '.home') : path.join(os.tmpdir(), '.foundry-home');
   if (!fs.existsSync(fakeHome)) fs.mkdirSync(fakeHome, { recursive: true });
 
   const child = spawn(command, args, {
     cwd,
-    env: {
-      ...process.env,
-      PATH: `${projectBin}:${userBin}:${process.env.PATH}`,
-      FORCE_COLOR: '1',
-      TERM: 'xterm-256color',
-      COLUMNS: '100',
-      LINES: '24',
-      HOME: fakeHome,
-      FOUNDRY_FUZZ_RUNS: '1',
-    },
+    env: foundrySpawnEnv(fakeHome, bins),
   });
 
   let isAborted = false;

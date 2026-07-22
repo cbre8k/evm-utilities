@@ -5,8 +5,12 @@ import { findBestOutputRaw, calculateDeviationPct, determineQuoteDirection } fro
 import { getComputedMetrics, getMetricsStorageStatus } from "@/lib/metrics/redis";
 import type { QuoteRequest, StandardizedQuote, QuoteComparisonEvent, AggregatorProvider } from "@/lib/metrics/types";
 import { getRandomTopHolder } from "@/lib/metrics/holders";
-import { NETWORKS } from "@/lib/constants";
+import { networkByChainId } from "@/lib/constants";
 import { formatUnits } from "ethers";
+import { serverError } from '@/lib/api';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('api/aggregator');
 
 /**
  * Custom Promise.race wrapper to support timeout on each aggregator call
@@ -32,23 +36,8 @@ async function withTimeout<T>(
  */
 async function getChainState(chainId: number): Promise<{ gasPrice: string; blockNumber?: string }> {
   // Translate chainId to network
-  const network = NETWORKS.find(
-    (n) =>
-      Number(
-        n.id === "mainnet"
-          ? 1
-          : n.id === "bsc"
-          ? 56
-          : n.id === "arbitrum"
-          ? 42161
-          : n.id === "optimism"
-          ? 10
-          : n.id === "base"
-          ? 8453
-          : 0
-      ) === chainId
-  );
-  
+  const network = networkByChainId(chainId);
+
   const rpcUrl = network?.fullnodeRpcUrls?.[0];
   if (rpcUrl) {
     try {
@@ -300,10 +289,6 @@ export async function POST(req: NextRequest) {
       storage: getMetricsStorageStatus(chainId),
     });
   } catch (err) {
-    console.error("[API Aggregator] Exception:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+    return serverError(log, err);
   }
 }

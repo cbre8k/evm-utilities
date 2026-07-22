@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import { BACKEND_URL } from '@/lib/env';
+import { serverError } from '@/lib/api';
+import { createLogger } from '@shared/utils/logger';
 
-const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
+const log = createLogger('api/sourcify');
 
 export async function GET(
   request: Request,
@@ -10,7 +13,7 @@ export async function GET(
     const { chainId, address } = await params;
     
     // Proxy to the backend sourcify service
-    const res = await fetch(`${BACKENDURL}/sourcify/${chainId}/${address}`, {
+    const res = await fetch(`${BACKEND_URL}/sourcify/${chainId}/${address}`, {
       next: { revalidate: 3600 } // Cache for 1 hour
     });
 
@@ -24,7 +27,6 @@ export async function GET(
     const data = await res.json();
     return NextResponse.json(data);
   } catch (err) {
-    console.error('[API Sourcify Error]:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return serverError(log, err);
   }
 }

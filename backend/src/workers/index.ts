@@ -1,7 +1,7 @@
 // ============================================================
 // workers/index.ts — starts all workers in one process
 // ============================================================
-import 'module-alias/register';
+import '../aliases'; // resolve @shared/* alias (compiled JS only) — must precede @shared imports
 
 import { connectMongo } from '../db/mongo';
 import { getRedis } from '../db/redis';
@@ -9,9 +9,12 @@ import { connectRabbitMQ } from '../db/rabbitmq';
 import { startTraceWorker } from './traceWorker';
 import { startSimulateWorker } from './simulateWorker';
 import { startDecodeWorker } from './decodeWorker';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('workers');
 
 async function main() {
-  console.log('[workers] starting...');
+  log.info('starting...');
 
   await connectMongo();
   getRedis(); // init redis connection
@@ -23,10 +26,10 @@ async function main() {
     startDecodeWorker(),
   ]);
 
-  console.log('[workers] all workers running');
+  log.info('all workers running');
 }
 
 main().catch((err) => {
-  console.error('[workers] fatal error:', err);
+  log.error('fatal error:', err);
   process.exit(1);
 });

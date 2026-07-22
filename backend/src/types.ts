@@ -50,8 +50,6 @@ import type { AddressStateDiff, GasNode } from '@shared/types/state';
 import type { EventLog as EventLogType } from '@shared/types/events';
 import type { TenderlyAssetChange, TenderlyExposureChange, TenderlyBalanceChange } from '@shared/types/tenderly';
 
-export type JobStatus = 'queued' | 'running' | 'done' | 'failed';
-
 export interface ShareTraceData {
   txHash: string;
   rpcUrl: string;

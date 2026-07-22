@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server';
+import { BACKEND_URL } from '@/lib/env';
 
 export const dynamic = 'force-dynamic';
 
-const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
 const encoder = new TextEncoder();
 
 function isExpectedStreamClose(err: unknown): boolean {
@@ -31,7 +31,7 @@ export async function GET(
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       try {
-        const backendRes = await fetch(`${BACKENDURL}/jobs/${jobId}/stream`, {
+        const backendRes = await fetch(`${BACKEND_URL}/jobs/${jobId}/stream`, {
           headers: { Accept: 'text/event-stream' },
           signal: abortController.signal,
         });

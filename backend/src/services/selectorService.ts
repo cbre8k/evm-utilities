@@ -8,10 +8,9 @@ import { config } from '../config';
 import type { DecodedCalldata, DecodedArg, DecodedOutput, DecodedOutputValue } from '../types';
 import { getVerifiedSource } from './sourcifyService';
 import { getContractSource } from './etherscanService';
-import { FOURBYTE_API } from '@shared/constants/selectors';
+import { FOURBYTE_API, OPENCHAIN_API, SIGNATURE_LOOKUP_TIMEOUT_MS } from '@shared/constants/selectors';
 import { Interface } from 'ethers';
 
-const OPENCHAIN_API = 'https://api.openchain.xyz/signature-database/v1/lookup';
 
 type AbiParam = {
   name?: string;
@@ -119,7 +118,7 @@ async function decodeWithContractAbi(
   return {
     selector,
     functionName: matchedAbi.name ?? '',
-    args: decodeCalldataArgs(input, abiArgs.map((param: any, index: number) => ({
+    args: decodeCalldataArgs(input, abiArgs.map((param: { name?: string; type?: string }, index: number) => ({
       name: typeof param?.name === 'string' && param.name.trim() ? param.name : `arg${index}`,
       type: String(param?.type ?? ''),
     }))),
@@ -310,11 +309,11 @@ async function fetchFrom4byte(
   try {
     const res = await fetch(`${FOURBYTE_API.LOOKUP}?function=${hex}`, {
       headers: { 'User-Agent': 'evm-utilities/1.0' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(SIGNATURE_LOOKUP_TIMEOUT_MS),
     });
     if (!res.ok) return null;
 
-    const data = await res.json() as any;
+    const data = await res.json() as { results?: Array<{ text_signature?: string; signature?: string }> };
     const entries = data?.results ?? [];
     if (!entries.length) return null;
 
@@ -332,12 +331,12 @@ async function fetchFromOpenchain(
 ): Promise<{ functionName: string; args: DecodedArg[] } | null> {
   try {
     const res = await fetch(
-      `${OPENCHAIN_API}?function=${hex}&filter=true`,
-      { signal: AbortSignal.timeout(5000) }
+      `${OPENCHAIN_API.LOOKUP}?function=${hex}&filter=true`,
+      { signal: AbortSignal.timeout(SIGNATURE_LOOKUP_TIMEOUT_MS) }
     );
     if (!res.ok) return null;
 
-    const data = await res.json() as any;
+    const data = await res.json() as { result?: { function?: Record<string, Array<{ name?: string }>> } };
     const sigs = data?.result?.function?.[hex];
     if (!Array.isArray(sigs) || !sigs.length) return null;
 
@@ -350,49 +349,6 @@ async function fetchFromOpenchain(
 
 // ── Event name lookup by full topic0 hash ────────────────────
 
-/**
- * Look up event name from a full 32-byte topic0 hash.
- * Tries: Redis cache → Sourcify ABI → 4byte API → OpenChain API.
- * Results are cached in Redis for future lookups.
- */
-export async function lookupEventName(
-  topic0: string,
-  emitterAddress?: string,
-  chainId?: number,
-): Promise<string | null> {
-  const normalized = topic0.toLowerCase();
-  const cacheKey = `event:${normalized}`;
-
-  // 1. Redis cache
-  const cached = await cacheGet<string>(cacheKey);
-  if (cached) return cached;
-
-  // 2. Sourcify ABI — match event entries by name
-  if (emitterAddress && chainId) {
-    try {
-      const verified = await getVerifiedSource(chainId, emitterAddress);
-      if (verified?.abi?.length) {
-        for (const entry of verified.abi) {
-          if (entry?.type !== 'event' || !entry?.name) continue;
-          // We can't compute keccak256, but the 4byte API can resolve topic0
-          // for us. Just cache all event names from the ABI by looking up via API.
-        }
-      }
-    } catch { /* skip */ }
-  }
-
-  // 3. 4byte Sourcify API — event lookup
-  const name = await fetchEventFrom4byte(normalized) ?? await fetchEventFromOpenchain(normalized);
-  if (!name) return null;
-
-  await cacheSet(cacheKey, name, config.ttl.selector);
-  return name;
-}
-
-/**
- * Batch lookup event names for multiple topic0 hashes.
- * Returns a map: topic0 → event name.
- */
 export async function lookupEventNames(
   topic0s: string[],
   emitterByTopic?: Map<string, { address: string; chainId: number }>,
@@ -440,11 +396,11 @@ async function fetchEventFrom4byte(topic0: string): Promise<string | null> {
   try {
     const res = await fetch(`${FOURBYTE_API.LOOKUP}?event=${topic0}`, {
       headers: { 'User-Agent': 'evm-utilities/1.0' },
-      signal: AbortSignal.timeout(5000),
+      signal: AbortSignal.timeout(SIGNATURE_LOOKUP_TIMEOUT_MS),
     });
     if (!res.ok) return null;
 
-    const data = await res.json() as any;
+    const data = await res.json() as { result?: { event?: Record<string, Array<{ name?: string }>> } };
     const sigs = data?.result?.event?.[topic0];
     if (!Array.isArray(sigs) || !sigs.length) return null;
 
@@ -460,12 +416,12 @@ async function fetchEventFrom4byte(topic0: string): Promise<string | null> {
 async function fetchEventFromOpenchain(topic0: string): Promise<string | null> {
   try {
     const res = await fetch(
-      `${OPENCHAIN_API}?event=${topic0}&filter=true`,
-      { signal: AbortSignal.timeout(5000) },
+      `${OPENCHAIN_API.LOOKUP}?event=${topic0}&filter=true`,
+      { signal: AbortSignal.timeout(SIGNATURE_LOOKUP_TIMEOUT_MS) },
     );
     if (!res.ok) return null;
 
-    const data = await res.json() as any;
+    const data = await res.json() as { result?: { event?: Record<string, Array<{ name?: string }>> } };
     const sigs = data?.result?.event?.[topic0];
     if (!Array.isArray(sigs) || !sigs.length) return null;
 
@@ -485,12 +441,12 @@ async function fetchEventBatchFromOpenchain(topic0s: string[]): Promise<Map<stri
     const batch = topic0s.slice(i, i + batchSize);
     try {
       const res = await fetch(
-        `${OPENCHAIN_API}?event=${batch.join(',')}&filter=true`,
-        { signal: AbortSignal.timeout(5000) },
+        `${OPENCHAIN_API.LOOKUP}?event=${batch.join(',')}&filter=true`,
+        { signal: AbortSignal.timeout(SIGNATURE_LOOKUP_TIMEOUT_MS) },
       );
       if (!res.ok) continue;
 
-      const data = await res.json() as any;
+      const data = await res.json() as { result?: { event?: Record<string, Array<{ name?: string }> | null> } };
       const events = data?.result?.event;
       if (!events) continue;
 

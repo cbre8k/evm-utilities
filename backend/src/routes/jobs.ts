@@ -4,9 +4,20 @@
 
 import { Router } from 'express';
 import { getRedis } from '../db/redis';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('jobs/stream');
 
 const router = Router();
 const POLL_INTERVAL_MS = 500;
+
+/** Shape of the JSON blob workers store under `job:<id>:output`. */
+interface JobResultPayload {
+  output?: string;
+  exitCode?: number;
+  success?: boolean;
+  error?: string;
+}
 
 // GET /jobs/:jobId/stream
 // Server-Sent Events — streams job status until done/failed
@@ -47,7 +58,7 @@ router.get('/:jobId/stream', async (req, res) => {
       ]);
 
       // Parse output chunk to stream incrementally
-      let parsed: any = null;
+      let parsed: JobResultPayload | null = null;
       let outputDelta = '';
       if (rawOutput) {
         try { parsed = JSON.parse(rawOutput); } catch {}
@@ -91,7 +102,7 @@ router.get('/:jobId/stream', async (req, res) => {
         cleanup();
       }
     } catch (err) {
-      console.error('[jobs/stream] poll error:', err);
+      log.error('poll error:', err);
       cleanup();
     }
   };
@@ -119,7 +130,7 @@ router.get('/:jobId', async (req, res, next) => {
       return;
     }
 
-    let result: any = null;
+    let result: unknown = null;
     if (rawOutput) {
       try { result = JSON.parse(rawOutput); } catch {}
     }

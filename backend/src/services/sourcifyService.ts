@@ -1,6 +1,11 @@
 // ── Uses Sourcify API v2: GET /v2/contract/{chainId}/{address} ──
 // https://sourcify.dev/server/api-docs/swagger.json
 
+import { createLogger } from '@shared/utils/logger';
+import { errMessage } from '@shared/utils/errors';
+
+const log = createLogger('sourcify');
+
 const SOURCIFY_URL = 'https://sourcify.dev/server';
 // Module-level result caches — survive the lifetime of the worker process.
 const contractNameCache = new Map<string, string | null>();
@@ -84,7 +89,7 @@ export async function getVerifiedSource(
       }
 
       if (!res.ok) {
-        console.error(`[Sourcify] HTTP ${res.status} for ${address} on chain ${chainId}`);
+        log.error(`HTTP ${res.status} for ${address} on chain ${chainId}`);
         verifiedSourceCache.set(key, null);
         return null;
       }
@@ -119,7 +124,7 @@ export async function getVerifiedSource(
       verifiedSourceCache.set(key, result);
       return result;
     } catch (err) {
-      console.error(`[Sourcify] Error for ${address} on chain ${chainId}:`, (err as any).message);
+      log.error(`Error for ${address} on chain ${chainId}:`, errMessage(err));
       // Don't cache errors — allow a retry on the next request.
       return null;
     } finally {

@@ -4,6 +4,9 @@
 
 import Redis from 'ioredis';
 import { config } from '../config';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('redis');
 
 let client: Redis | null = null;
 
@@ -15,9 +18,9 @@ export function getRedis(): Redis {
       enableReadyCheck: true,
     });
 
-    client.on('connect', () => console.log('[redis] connected'));
-    client.on('error', (err) => console.error('[redis] error:', err));
-    client.on('close', () => console.warn('[redis] connection closed'));
+    client.on('connect', () => log.info('connected'));
+    client.on('error', (err) => log.error('error:', err));
+    client.on('close', () => log.warn('connection closed'));
   }
   return client;
 }
@@ -50,8 +53,4 @@ export async function cacheSet(key: string, value: unknown, ttlSeconds?: number)
   } else {
     await getRedis().set(key, json);
   }
-}
-
-export async function cacheDel(key: string): Promise<void> {
-  await getRedis().del(key);
 }

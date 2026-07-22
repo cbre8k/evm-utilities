@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveAI } from '@/lib/ai';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('api/agent-chat');
 
 export const runtime = 'nodejs';
 
 type Message = { role: 'user' | 'assistant' | 'system'; content: string };
-
-function resolveAI(): { endpoint: string; token: string } | null {
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (githubToken) return { endpoint: 'https://models.inference.ai.azure.com/chat/completions', token: githubToken };
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) return { endpoint: 'https://api.openai.com/v1/chat/completions', token: openaiKey };
-  return null;
-}
 
 // ── Action schema injected into system prompt ─────────────────────────────────
 
@@ -129,7 +125,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply, actions, source: 'ai' });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error('[agent-chat] error:', msg);
+    log.error('request failed:', msg);
     return NextResponse.json({ reply: `⚠ AI error: ${msg}`, actions: [], source: 'error' });
   }
 }

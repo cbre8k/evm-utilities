@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveQuoteComparisonEvent, updateProviderStats } from "@/lib/metrics/redis";
 import type { QuoteComparisonEvent } from "@/lib/metrics/types";
+import { serverError } from '@/lib/api';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('api/aggregator/save-sim');
 
 export async function POST(req: NextRequest) {
   try {
@@ -18,10 +22,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("[API Save Sim] Exception:", err);
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : String(err) },
-      { status: 500 }
-    );
+    return serverError(log, err);
   }
 }

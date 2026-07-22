@@ -1,9 +1,7 @@
 import { JsonRpcProvider, Contract } from "ethers";
 import type { AggregatorProvider } from "./types";
-import { NETWORKS } from "../constants";
-
-export const NATIVE_TOKEN_ADDRESS = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+import { networkByChainId } from "../constants";
+import { NATIVE_TOKEN_ADDRESS, ZERO_ADDRESS, isNativeToken } from "@shared/utils/tokens";
 
 export interface TokenInfo {
   address: string;
@@ -51,19 +49,6 @@ export const TOKEN_REGISTRY: Record<number, TokenInfo[]> = {
     { address: "0x50c5725949a6f017460147b20a21374bd5565453", symbol: "USDT", decimals: 6, name: "Tether USD" },
   ],
 };
-
-/**
- * Checks if an address represents the native gas token
- */
-export function isNativeToken(address: string): boolean {
-  const clean = address.toLowerCase().trim();
-  return (
-    clean === NATIVE_TOKEN_ADDRESS.toLowerCase() ||
-    clean === ZERO_ADDRESS ||
-    clean === "eth" ||
-    clean === "bnb"
-  );
-}
 
 /**
  * Normalizes token address for a specific provider
@@ -131,7 +116,7 @@ export async function getTokenDetails(
   }
 
   // 2. Query RPC (safe fallback)
-  const network = NETWORKS.find((n) => Number(n.id === "mainnet" ? 1 : n.id === "bsc" ? 56 : n.id === "arbitrum" ? 42161 : n.id === "optimism" ? 10 : n.id === "base" ? 8453 : 0) === chainId);
+  const network = networkByChainId(chainId);
   const rpcUrl = network?.fullnodeRpcUrls[0];
   if (rpcUrl) {
     try {

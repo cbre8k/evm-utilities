@@ -1,7 +1,10 @@
-import type { QuoteAdapter } from "./base";
+import { QUOTE_TIMEOUT_MS, type QuoteAdapter } from "./base";
 import type { QuoteRequest, StandardizedQuote } from "../types";
 import { normalizeTokenForProvider, getWrappedNativeAddress } from "../tokens";
 import { formatUnits } from "ethers";
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('metrics/0x');
 
 const ZERO_X_BASE_URLS: Record<number, string> = {
   1: "https://api.0x.org",
@@ -73,7 +76,7 @@ export class ZeroXAdapter implements QuoteAdapter {
           "0x-version": "v2",
           "Content-Type": "application/json",
         },
-        signal: AbortSignal.timeout(5000), // 5 seconds timeout
+        signal: AbortSignal.timeout(QUOTE_TIMEOUT_MS),
       });
 
       const latencyMs = Date.now() - startedAt;
@@ -110,7 +113,7 @@ export class ZeroXAdapter implements QuoteAdapter {
 
       const dexes = Array.from(new Set(data.route?.fills?.map((f) => f.source).filter(Boolean))) as string[];
 
-      console.log("0x quote dexes:", dexes);
+      log.debug("quote dexes:", dexes);
 
       return {
         provider: this.provider,

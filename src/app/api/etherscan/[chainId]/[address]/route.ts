@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
+import { BACKEND_URL } from '@/lib/env';
+import { serverError } from '@/lib/api';
+import { createLogger } from '@shared/utils/logger';
 
-const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
+const log = createLogger('api/etherscan');
 
 export async function GET(
   request: Request,
@@ -8,7 +11,7 @@ export async function GET(
 ) {
   try {
     const { chainId, address } = await params;
-    const res = await fetch(`${BACKENDURL}/etherscan/${chainId}/${address}`, {
+    const res = await fetch(`${BACKEND_URL}/etherscan/${chainId}/${address}`, {
       next: { revalidate: 3600 },
     });
 
@@ -22,7 +25,6 @@ export async function GET(
     const data = await res.json();
     return NextResponse.json(data);
   } catch (err) {
-    console.error('[API Etherscan Error]:', err);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    return serverError(log, err);
   }
 }

@@ -11,6 +11,10 @@ import { runSimulation } from '../services/foundryService';
 import { runTraceCallManySimulation } from '../services/traceCallManySimulationService';
 import { config } from '../config';
 import type { SimulateJobMessage, SimulationInputs } from '../types';
+import { createLogger } from '@shared/utils/logger';
+import { errMessage } from '@shared/utils/errors';
+
+const log = createLogger('simulateWorker');
 
 export async function startSimulateWorker(): Promise<void> {
   await consumeQueue(QUEUES.TX_SIMULATE, handleSimulateJob);
@@ -20,7 +24,7 @@ async function handleSimulateJob(msg: ConsumeMessage, _ch: Channel): Promise<voi
   const { jobId, inputs } =
     JSON.parse(msg.content.toString()) as SimulateJobMessage;
 
-  console.log(`[simulateWorker] processing job ${jobId}`);
+  log.info(`processing job ${jobId}`);
 
   const redis = getRedis();
   const statusKey = `job:${jobId}:status`;
@@ -95,14 +99,14 @@ async function handleSimulateJob(msg: ConsumeMessage, _ch: Channel): Promise<voi
     await redis.setex(outputKey, config.ttl.job, finalPayload);
     await redis.setex(shareHashKey, config.ttl.job, share.hash);
 
-    console.log(`[simulateWorker] done job ${jobId} — shareHash ${share.hash}`);
-  } catch (err: any) {
-    console.error(`[simulateWorker] error job ${jobId}:`, err.message);
+    log.info(`done job ${jobId} — shareHash ${share.hash}`);
+  } catch (err) {
+    log.error(`error job ${jobId}:`, errMessage(err));
     await redis.setex(statusKey, config.ttl.job, 'failed');
     await redis.setex(
       outputKey,
       config.ttl.job,
-      JSON.stringify({ status: 'failed', error: err.message })
+      JSON.stringify({ status: 'failed', error: errMessage(err) })
     );
     await Simulation.findOneAndUpdate({ jobId }, { status: 'failed', completedAt: new Date() });
     throw err;

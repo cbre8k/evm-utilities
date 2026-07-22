@@ -35,7 +35,7 @@ function normalizeSources(
   const trimmed = (raw ?? '').trim();
   if (!trimmed) return [];
 
-  let parsed: any = null;
+  let parsed: { sources?: Record<string, { content?: string }> } | null = null;
   if (
     (trimmed.startsWith('{') && trimmed.endsWith('}')) ||
     (trimmed.startsWith('{{') && trimmed.endsWith('}}'))
@@ -50,7 +50,7 @@ function normalizeSources(
 
   if (parsed?.sources) {
     return Object.entries(parsed.sources).map(([path, source]) => {
-      const content = (source as any)?.content ?? '';
+      const content = source?.content ?? '';
       return {
         name: path.split('/').pop() ?? path,
         path,
@@ -78,7 +78,7 @@ export async function getContractSource(
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(12000) });
     if (!res.ok) return null;
-    const data = await res.json() as any;
+    const data = await res.json() as { status?: string; result?: unknown };
 
     if (!data || data.status !== '1' || !Array.isArray(data.result) || data.result.length === 0) {
       return null;

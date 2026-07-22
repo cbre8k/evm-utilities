@@ -3,10 +3,18 @@
 // ============================================================
 
 import type {
+  CallTracerFrame, ParityTrace, PrestateResult, RpcBlock,
+  RpcStructLog, RpcTransaction, RpcTransactionReceipt, StructLogResult,
+} from '@shared/types/rpc';
+import type {
   TxOverview, TraceNode, TokenTransfer,
   EventLog, NativeTransfer, ERC20Transfer, ERC721Transfer, ERC1155Transfer,
   AddressStateDiff, StorageChange, GasNode,
 } from '../types';
+import { createLogger } from '@shared/utils/logger';
+import { errMessage } from '@shared/utils/errors';
+
+const log = createLogger('rpcService');
 
 // ── EVM event topics ─────────────────────────────────────────
 const SIG = {
@@ -35,7 +43,7 @@ const EVENT_NAME_BY_SIG: Record<string, string> = {
 
 const RPC_TIMEOUT_MS = 30_000;
 
-async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {
+export async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Promise<T> {
   const res = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -54,10 +62,10 @@ async function rpcCall<T>(rpcUrl: string, method: string, params: unknown[]): Pr
   let data: { result?: T; error?: { message: string; code?: number } };
   try {
     data = JSON.parse(text);
-  } catch (parseErr: any) {
+  } catch (parseErr) {
     // Include a snippet of the body so it is easier to diagnose truncation.
     const snippet = text.slice(0, 200);
-    throw new Error(`RPC invalid JSON for ${method}: ${parseErr.message} — body: ${snippet}`);
+    throw new Error(`RPC invalid JSON for ${method}: ${errMessage(parseErr)} — body: ${snippet}`);
   }
 
   if (data.error) throw new Error(`RPC [${method}]: ${data.error.message}`);
@@ -96,10 +104,6 @@ function decodeAbiString(hex: string): string | null {
 export async function getChainId(rpcUrl: string): Promise<number> {
   const hex = await rpcCall<string>(rpcUrl, 'eth_chainId', []);
   return parseInt(hex, 16);
-}
-
-export async function getCode(rpcUrl: string, address: string): Promise<string> {
-  return rpcCall<string>(rpcUrl, 'eth_getCode', [address.toLowerCase(), 'latest']);
 }
 
 export async function getTokenSymbol(rpcUrl: string, address: string): Promise<string | null> {
@@ -171,22 +175,25 @@ export async function enrichErc20Transfers(
   });
 }
 
-export async function getTransaction(rpcUrl: string, txHash: string): Promise<any> {
-  return rpcCall<any>(rpcUrl, 'eth_getTransactionByHash', [txHash]);
+export async function getTransaction(rpcUrl: string, txHash: string): Promise<RpcTransaction | null> {
+  return rpcCall<RpcTransaction | null>(rpcUrl, 'eth_getTransactionByHash', [txHash]);
 }
 
-export async function getTransactionReceipt(rpcUrl: string, txHash: string): Promise<any> {
-  return rpcCall<any>(rpcUrl, 'eth_getTransactionReceipt', [txHash]);
+export async function getTransactionReceipt(
+  rpcUrl: string,
+  txHash: string,
+): Promise<RpcTransactionReceipt | null> {
+  return rpcCall<RpcTransactionReceipt | null>(rpcUrl, 'eth_getTransactionReceipt', [txHash]);
 }
 
-export async function getBlockByNumber(rpcUrl: string, blockNumber: string): Promise<any> {
-  return rpcCall<any>(rpcUrl, 'eth_getBlockByNumber', [blockNumber, false]);
+export async function getBlockByNumber(rpcUrl: string, blockNumber: string): Promise<RpcBlock | null> {
+  return rpcCall<RpcBlock | null>(rpcUrl, 'eth_getBlockByNumber', [blockNumber, false]);
 }
 
 export async function buildTxOverview(rpcUrl: string, txHash: string, fallbackRpcUrls: string[] = []): Promise<TxOverview> {
   // Try primary + each fallback in order until we get a tx response
   const urlsToTry = [rpcUrl, ...fallbackRpcUrls.filter(u => u && u !== rpcUrl)];
-  let tx: any = null;
+  let tx: RpcTransaction | null = null;
   let effectiveRpcUrl = rpcUrl;
 
   for (const url of urlsToTry) {
@@ -198,7 +205,7 @@ export async function buildTxOverview(rpcUrl: string, txHash: string, fallbackRp
 
   if (!tx) throw new Error(`Transaction not found: ${txHash}`);
   if (effectiveRpcUrl !== rpcUrl) {
-    console.log(`[rpcService] buildTxOverview: fell back to ${effectiveRpcUrl} for ${txHash}`);
+    log.info(`buildTxOverview: fell back to ${effectiveRpcUrl} for ${txHash}`);
   }
 
   // Start tx + receipt in parallel; kick off block fetch as soon as tx resolves
@@ -213,21 +220,21 @@ export async function buildTxOverview(rpcUrl: string, txHash: string, fallbackRp
   ]);
   if (!receipt) throw new Error(`Receipt not found: ${txHash}`);
   return {
-    hash: tx.hash,
+    hash: tx.hash ?? "",
     from: tx.from?.toLowerCase() ?? '',
     to: tx.to?.toLowerCase() ?? null,
     value: tx.value ?? '0x0',
     gasUsed: receipt.gasUsed ?? '0x0',
     gasLimit: tx.gas ?? '0x0',
     gasPrice: tx.gasPrice ?? tx.maxFeePerGas ?? '0x0',
-    blockNumber: parseInt(tx.blockNumber, 16),
-    blockHash: tx.blockHash,
+    blockNumber: parseInt(tx.blockNumber ?? "0x0", 16),
+    blockHash: tx.blockHash ?? "",
     timestamp: block?.timestamp ? parseInt(block.timestamp, 16) : undefined,
     txType: tx.type ?? '0x0',
-    txIndex: parseInt(tx.transactionIndex, 16),
-    nonce: parseInt(tx.nonce, 16),
+    txIndex: parseInt(tx.transactionIndex ?? "0x0", 16),
+    nonce: parseInt(tx.nonce ?? "0x0", 16),
     status: receipt.status === '0x1' ? 'success' : 'failed',
-    input: tx.input,
+    input: tx.input ?? "0x",
   };
 }
 
@@ -242,7 +249,7 @@ export async function buildTxOverview(rpcUrl: string, txHash: string, fallbackRp
 // that normalizeCallTree already understands.
 
 /** Normalise a Parity gas value which may be decimal or hex string → hex string */
-function parityGasToHex(v: any): string {
+function parityGasToHex(v: string | number | null | undefined): string {
   if (v == null) return '0x0';
   const s = String(v);
   if (s.startsWith('0x') || s.startsWith('0X')) return s;
@@ -250,7 +257,7 @@ function parityGasToHex(v: any): string {
   try { return '0x' + BigInt(s).toString(16); } catch { return '0x0'; }
 }
 
-function parityTracesToCallTracer(traces: any[]): any {
+function parityTracesToCallTracer(traces: ParityTrace[]): CallTracerFrame | null {
   if (!traces?.length) return null;
 
   // Sort by traceAddress depth then index so parents are processed before children
@@ -263,7 +270,7 @@ function parityTracesToCallTracer(traces: any[]): any {
     return aA.length - bA.length;
   });
 
-  const nodeMap = new Map<string, any>();
+  const nodeMap = new Map<string, CallTracerFrame>();
 
   for (const trace of sorted) {
     // 'reward' entries (block reward) can appear in trace_block responses but
@@ -283,7 +290,7 @@ function parityTracesToCallTracer(traces: any[]): any {
     //   action.refundAddress = the ETH recipient (the "to")
     //   action.balance      = balance transferred
     // There is no action.from / action.to / action.callType / action.input.
-    const node: any = {
+    const node: CallTracerFrame = {
       type: isSuicide
         ? 'SELFDESTRUCT'
         : isCreate
@@ -321,7 +328,7 @@ function parityTracesToCallTracer(traces: any[]): any {
     if (addr.length > 0) {
       const parentKey = addr.slice(0, -1).join(',');
       const parent = nodeMap.get(parentKey);
-      if (parent) parent.calls.push(node);
+      if (parent) parent.calls?.push(node);
       // If parent not found (data gap), the node is silently dropped rather
       // than attached to the wrong place in the tree.
     }
@@ -341,10 +348,13 @@ function parityTracesToCallTracer(traces: any[]): any {
 //   6. trace_transaction                            (Erigon, Nethermind)
 //   7. null — caller handles graceful degradation
 
-export async function debugTraceTransaction(rpcUrl: string, txHash: string): Promise<any> {
+export async function debugTraceTransaction(
+  rpcUrl: string,
+  txHash: string,
+): Promise<CallTracerFrame | null> {
   // 1. Standard Geth callTracer with inline logs
   try {
-    return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+    return await rpcCall<CallTracerFrame>(rpcUrl, 'debug_traceTransaction', [
       txHash,
       { tracer: 'callTracer', tracerConfig: { withLog: true } },
     ]);
@@ -352,17 +362,17 @@ export async function debugTraceTransaction(rpcUrl: string, txHash: string): Pro
 
   // 2. callTracer without withLog
   try {
-    return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+    return await rpcCall<CallTracerFrame>(rpcUrl, 'debug_traceTransaction', [
       txHash,
       { tracer: 'callTracer' },
     ]);
-  } catch (err: any) {
-    console.warn(`[rpcService] debug_traceTransaction failed for ${txHash}: ${err.message}`);
+  } catch (err) {
+    log.warn(`debug_traceTransaction failed for ${txHash}: ${errMessage(err)}`);
   }
 
   // 3. trace_replayTransaction with callTracer+withLog (BSC, Erigon — same response shape)
   try {
-    return await rpcCall<any>(rpcUrl, 'trace_replayTransaction', [
+    return await rpcCall<CallTracerFrame>(rpcUrl, 'trace_replayTransaction', [
       txHash,
       { tracer: 'callTracer', tracerConfig: { withLog: true } },
     ]);
@@ -370,38 +380,38 @@ export async function debugTraceTransaction(rpcUrl: string, txHash: string): Pro
 
   // 4. trace_replayTransaction with callTracer (without withLog)
   try {
-    const result = await rpcCall<any>(rpcUrl, 'trace_replayTransaction', [
+    const result = await rpcCall<CallTracerFrame>(rpcUrl, 'trace_replayTransaction', [
       txHash,
       { tracer: 'callTracer' },
     ]);
     if (result?.type) {
-      console.log(`[rpcService] using trace_replayTransaction+callTracer for ${txHash}`);
+      log.info(`using trace_replayTransaction+callTracer for ${txHash}`);
       return result;
     }
-  } catch (err: any) {
-    console.warn(`[rpcService] trace_replayTransaction+callTracer failed for ${txHash}: ${err.message}`);
+  } catch (err) {
+    log.warn(`trace_replayTransaction+callTracer failed for ${txHash}: ${errMessage(err)}`);
   }
 
   // 5. trace_replayTransaction Parity ['trace'] format
   try {
-    const result = await rpcCall<any>(rpcUrl, 'trace_replayTransaction', [txHash, ['trace']]);
+    const result = await rpcCall<{ trace?: ParityTrace[] }>(rpcUrl, 'trace_replayTransaction', [txHash, ['trace']]);
     if (result?.trace?.length) {
-      console.log(`[rpcService] using trace_replayTransaction+parityTrace for ${txHash}`);
+      log.info(`using trace_replayTransaction+parityTrace for ${txHash}`);
       return parityTracesToCallTracer(result.trace);
     }
-  } catch (err: any) {
-    console.warn(`[rpcService] trace_replayTransaction failed for ${txHash}: ${err.message}`);
+  } catch (err) {
+    log.warn(`trace_replayTransaction failed for ${txHash}: ${errMessage(err)}`);
   }
 
   // 6. trace_transaction (Erigon, Nethermind)
   try {
-    const traces = await rpcCall<any[]>(rpcUrl, 'trace_transaction', [txHash]);
+    const traces = await rpcCall<ParityTrace[]>(rpcUrl, 'trace_transaction', [txHash]);
     if (traces?.length) {
-      console.log(`[rpcService] using trace_transaction for ${txHash}`);
+      log.info(`using trace_transaction for ${txHash}`);
       return parityTracesToCallTracer(traces);
     }
-  } catch (err: any) {
-    console.warn(`[rpcService] trace_transaction failed for ${txHash}: ${err.message}`);
+  } catch (err) {
+    log.warn(`trace_transaction failed for ${txHash}: ${errMessage(err)}`);
   }
 
   return null;
@@ -409,16 +419,20 @@ export async function debugTraceTransaction(rpcUrl: string, txHash: string): Pro
 
 // ── debug_traceTransaction (prestateTracer diffMode) ─────────
 
-export async function getPrestateTrace(rpcUrl: string, txHash: string): Promise<any> {
+export async function getPrestateTrace(
+  rpcUrl: string,
+  txHash: string,
+): Promise<PrestateResult | null> {
   try {
-    return await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+    return await rpcCall<PrestateResult>(rpcUrl, 'debug_traceTransaction', [
       txHash,
       { tracer: 'prestateTracer', tracerConfig: { diffMode: true } },
     ]);
   } catch {
     // diffMode not supported — fall back to regular prestate
     try {
-      const pre = await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+      // Non-diff mode returns the account map directly as the "pre" state.
+      const pre = await rpcCall<PrestateResult['pre']>(rpcUrl, 'debug_traceTransaction', [
         txHash,
         { tracer: 'prestateTracer' },
       ]);
@@ -446,7 +460,7 @@ const MINIMAL_TRACE_OPS = new Set([
 
 function parseMinimalTrace(entries: unknown[]): import('../types').FilteredStructLog[] {
   const out: import('../types').FilteredStructLog[] = [];
-  for (const raw of entries as any[]) {
+  for (const raw of entries as RpcStructLog[]) {
     if (!raw.op) continue;
     const entry: import('../types').FilteredStructLog = {
       pc:      raw.pc      ?? 0,
@@ -525,7 +539,7 @@ export async function getFilteredStructLog(
   }`;
 
   try {
-    const result = await rpcCall<any>(rpcUrl, 'debug_traceTransaction', [
+    const result = await rpcCall<RpcStructLog[] | StructLogResult>(rpcUrl, 'debug_traceTransaction', [
       txHash,
       { tracer: minimalTracer, timeout: '60s' },
     ]);
@@ -535,13 +549,13 @@ export async function getFilteredStructLog(
     // Some RPCs do not support JS tracers — fall back to standard structLogs,
     // filtering to the minimal op set and extracting jumpTo + jumpStack from the stack.
     try {
-      const fallback = await rpcCall<{ structLogs?: unknown[] }>(rpcUrl, 'debug_traceTransaction', [
+      const fallback = await rpcCall<StructLogResult>(rpcUrl, 'debug_traceTransaction', [
         txHash,
         { disableStack: false, disableMemory: true, disableStorage: true },
       ]);
-      const filtered = (fallback?.structLogs ?? []).filter((e: any) => MINIMAL_TRACE_OPS.has(e.op));
+      const filtered = (fallback?.structLogs ?? []).filter((e) => MINIMAL_TRACE_OPS.has(e.op ?? ""));
       // Standard structlog stack is bottom-to-top: reverse last 12 to get peek order
-      for (const e of filtered as any[]) {
+      for (const e of filtered) {
         if ((e.op === 'JUMP' || e.op === 'JUMPI') && Array.isArray(e.stack) && e.stack.length > 0) {
           const top = String(e.stack[e.stack.length - 1]);
           e.jumpTo = top.startsWith('0x') ? top : `0x${top}`;
@@ -563,7 +577,11 @@ export async function getFilteredStructLog(
 
 let nodeCounter = 0;
 
-export function normalizeCallTree(raw: any, parentId?: string, depth = 0): TraceNode {
+export function normalizeCallTree(
+  raw: CallTracerFrame | null | undefined,
+  parentId?: string,
+  depth = 0,
+): TraceNode {
   // raw can be null when debugTraceTransaction failed — return a minimal stub
   if (!raw) {
     const id = `node-${nodeCounter++}`;
@@ -584,10 +602,10 @@ export function normalizeCallTree(raw: any, parentId?: string, depth = 0): Trace
   }
 
   const id = `node-${nodeCounter++}`;
-  const children = (raw.calls ?? []).map((c: any) => normalizeCallTree(c, id, depth + 1));
+  const children = (raw.calls ?? []).map((c) => normalizeCallTree(c, id, depth + 1));
 
   // Inline logs from callTracer withLog:true
-  const logs = ((raw.logs ?? []) as any[]).map((l) => ({
+  const logs = (raw.logs ?? []).map((l) => ({
     address: (l.address ?? '').toLowerCase(),
     topics: l.topics ?? [],
     data: l.data ?? '0x',
@@ -614,7 +632,7 @@ export function normalizeCallTree(raw: any, parentId?: string, depth = 0): Trace
 }
 
 // ── Full log parsing (all types) ─────────────────────────────
-export function parseAllLogs(receipt: any): {
+export function parseAllLogs(receipt: RpcTransactionReceipt | null): {
   allLogs: EventLog[];
   erc20Transfers: ERC20Transfer[];
   erc721Transfers: ERC721Transfer[];
@@ -625,46 +643,48 @@ export function parseAllLogs(receipt: any): {
   const erc721Transfers: ERC721Transfer[] = [];
   const erc1155Transfers: ERC1155Transfer[] = [];
 
-  if (!Array.isArray(receipt.logs)) return { allLogs, erc20Transfers, erc721Transfers, erc1155Transfers };
+  if (!receipt || !Array.isArray(receipt.logs)) return { allLogs, erc20Transfers, erc721Transfers, erc1155Transfers };
 
   for (const log of receipt.logs) {
-    const topic0 = log.topics?.[0]?.toLowerCase();
-    const logIndex = parseInt(log.logIndex, 16);
-    const address = log.address?.toLowerCase();
+    const topics = log.topics ?? [];
+    const data = log.data ?? '0x';
+    const topic0 = topics[0]?.toLowerCase();
+    const logIndex = parseInt(log.logIndex ?? '0x0', 16);
+    const address = log.address?.toLowerCase() ?? '';
 
     // Base log entry
     const eventLog: EventLog = {
       address,
-      topics: log.topics ?? [],
-      data: log.data ?? '0x',
+      topics,
+      data,
       logIndex,
     };
 
     if (topic0 === SIG.TRANSFER) {
-      const topicCount = log.topics.length;
+      const topicCount = topics.length;
       if (topicCount === 3) {
         // ERC-20 Transfer(address from, address to, uint256 value)
-        const from = '0x' + log.topics[1].slice(26);
-        const to   = '0x' + log.topics[2].slice(26);
-        const amount = log.data !== '0x' ? BigInt(log.data).toString() : '0';
+        const from = '0x' + topics[1].slice(26);
+        const to   = '0x' + topics[2].slice(26);
+        const amount = data !== '0x' ? BigInt(data).toString() : '0';
         erc20Transfers.push({ tokenAddress: address, from: from.toLowerCase(), to: to.toLowerCase(), amount, logIndex });
         eventLog.eventName = 'Transfer';
         eventLog.decoded = { from: from.toLowerCase(), to: to.toLowerCase(), value: amount };
       } else if (topicCount === 4) {
         // ERC-721 Transfer(address from, address to, uint256 tokenId)
-        const from    = '0x' + log.topics[1].slice(26);
-        const to      = '0x' + log.topics[2].slice(26);
-        const tokenId = BigInt(log.topics[3]).toString();
+        const from    = '0x' + topics[1].slice(26);
+        const to      = '0x' + topics[2].slice(26);
+        const tokenId = BigInt(topics[3]).toString();
         erc721Transfers.push({ tokenAddress: address, from: from.toLowerCase(), to: to.toLowerCase(), tokenId, logIndex });
         eventLog.eventName = 'Transfer (ERC-721)';
         eventLog.decoded = { from: from.toLowerCase(), to: to.toLowerCase(), tokenId };
       }
     } else if (topic0 === SIG.TRANSFER_SINGLE) {
       // ERC-1155 TransferSingle(address operator, address from, address to, uint256 id, uint256 value)
-      const operator = '0x' + log.topics[1].slice(26);
-      const from     = '0x' + log.topics[2].slice(26);
-      const to       = '0x' + log.topics[3].slice(26);
-      const [id, value] = parseUint256Pair(log.data);
+      const operator = '0x' + topics[1].slice(26);
+      const from     = '0x' + topics[2].slice(26);
+      const to       = '0x' + topics[3].slice(26);
+      const [id, value] = parseUint256Pair(data);
       erc1155Transfers.push({
         tokenAddress: address, operator: operator.toLowerCase(),
         from: from.toLowerCase(), to: to.toLowerCase(),
@@ -673,9 +693,9 @@ export function parseAllLogs(receipt: any): {
       eventLog.eventName = 'TransferSingle (ERC-1155)';
     } else if (topic0 === SIG.TRANSFER_BATCH) {
       // ERC-1155 TransferBatch — data has dynamic arrays, skip deep decode
-      const operator = '0x' + log.topics[1].slice(26);
-      const from     = '0x' + log.topics[2].slice(26);
-      const to       = '0x' + log.topics[3].slice(26);
+      const operator = '0x' + topics[1].slice(26);
+      const from     = '0x' + topics[2].slice(26);
+      const to       = '0x' + topics[3].slice(26);
       erc1155Transfers.push({
         tokenAddress: address, operator: operator.toLowerCase(),
         from: from.toLowerCase(), to: to.toLowerCase(),
@@ -703,21 +723,6 @@ function parseUint256Pair(data: string): [bigint, bigint] {
   }
 }
 
-// ── ERC-20 Transfer (legacy helper, now uses parseAllLogs) ───
-
-export function parseTokenTransfers(receipt: any): TokenTransfer[] {
-  const { erc20Transfers } = parseAllLogs(receipt);
-  return erc20Transfers.map(t => ({
-    tokenAddress: t.tokenAddress,
-    from: t.from,
-    to: t.to,
-    amount: t.amount,
-    logIndex: t.logIndex,
-  }));
-}
-
-// ── Native ETH transfers from call tree ──────────────────────
-
 export function extractNativeTransfers(node: TraceNode, out: NativeTransfer[] = []): NativeTransfer[] {
   const val = node.value && node.value !== '0x0' && node.value !== '0x'
     ? BigInt(node.value)
@@ -738,7 +743,7 @@ export function extractNativeTransfers(node: TraceNode, out: NativeTransfer[] = 
 
 // ── State diffs from prestateTracer ──────────────────────────
 
-export function buildStateDiffs(prestateResult: any): AddressStateDiff[] {
+export function buildStateDiffs(prestateResult: PrestateResult | null | undefined): AddressStateDiff[] {
   if (!prestateResult) return [];
   const { pre = {}, post = {} } = prestateResult;
   const addresses = new Set([...Object.keys(pre), ...Object.keys(post)]);
@@ -793,7 +798,7 @@ export function buildStateDiffs(prestateResult: any): AddressStateDiff[] {
 
 export function buildGasTree(node: TraceNode, totalGas: number): GasNode {
   const gasUsed = parseHexOrDecimal(node.gasUsed);
-  const gasLimit = parseHexOrDecimal((node as any).gas ?? node.gasUsed);
+  const gasLimit = parseHexOrDecimal(node.gas ?? node.gasUsed);
   const childrenNodes = node.children.map(c => buildGasTree(c, totalGas));
   const childrenGas = childrenNodes.reduce((s, c) => s + c.gasUsed, 0);
   const op = node.caller_op ?? node.type;

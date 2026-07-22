@@ -39,33 +39,6 @@ function DepthGuides({ connectors, isLast }: { connectors: boolean[]; isLast: bo
   );
 }
 
-// ── Return row ────────────────────────────────────────────────
-
-export function ReturnRow({
-  depth,
-  value,
-  reverted,
-  connectors,
-}: {
-  depth: number;
-  value: string;
-  reverted: boolean;
-  connectors: boolean[];
-}) {
-  const rowStyle = { '--trace-depth': depth } as CSSProperties;
-  return (
-    <div className={`${styles.traceListRow} ${styles.traceListRowReturn}`} style={rowStyle}>
-      <div className={styles.traceListOp}></div>
-      <div className={styles.traceListDesc}>
-        <DepthGuides connectors={connectors} isLast={true} />
-        <span className={reverted ? styles.traceRevTag : styles.traceReturn}>{value}</span>
-      </div>
-    </div>
-  );
-}
-
-// ── Leaf row (event / storage / opcode) ───────────────────────
-
 export function LeafRow({
   entry,
   contractName: inheritedName,

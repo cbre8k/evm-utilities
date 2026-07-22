@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import { getShare, createSimulateShare } from '../services/shareService';
+import type { ShareSimulateData } from '../types';
 
 const router = Router();
 
@@ -29,13 +30,7 @@ router.get('/:hash', async (req, res, next) => {
 // Body: { rpcUrl, inputs, output, exitCode, success }
 router.post('/', async (req, res, next) => {
   try {
-    const { rpcUrl, inputs, output, exitCode, success } = req.body as {
-      rpcUrl: string;
-      inputs: any;
-      output: string;
-      exitCode: number;
-      success: boolean;
-    };
+    const { rpcUrl, inputs, output, exitCode, success } = req.body as ShareSimulateData;
 
     if (!rpcUrl || !output) {
       res.status(400).json({ error: 'rpcUrl and output are required' });

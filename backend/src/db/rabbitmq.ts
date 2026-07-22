@@ -3,6 +3,9 @@
 // ============================================================
 import amqplib, { type ChannelModel, type Channel, type ConsumeMessage } from 'amqplib';
 import { config } from '../config';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('rabbitmq');
 
 // ── Queue names (single source of truth) ─────────────────────
 export const QUEUES = {
@@ -20,16 +23,16 @@ export async function connectRabbitMQ(): Promise<ChannelModel> {
   if (connection) return connection;
 
   connection = await amqplib.connect(config.rabbitmq.url);
-  console.log('[rabbitmq] connected to', config.rabbitmq.url);
+  log.info('connected to', config.rabbitmq.url);
 
   connection.on('error', (err: Error) => {
-    console.error('[rabbitmq] connection error:', err.message);
+    log.error('connection error:', err.message);
     connection = null;
     publishChannel = null;
   });
 
   connection.on('close', () => {
-    console.warn('[rabbitmq] connection closed');
+    log.warn('connection closed');
     connection = null;
     publishChannel = null;
   });
@@ -86,7 +89,7 @@ export async function consumeQueue(
   handler: (msg: ConsumeMessage, ch: Channel) => Promise<void>
 ): Promise<void> {
   const ch = await createConsumerChannel();
-  console.log(`[rabbitmq] worker listening on queue: ${queue}`);
+  log.info(`worker listening on queue: ${queue}`);
 
   await ch.consume(queue, async (msg) => {
     if (!msg) return;
@@ -94,7 +97,7 @@ export async function consumeQueue(
       await handler(msg, ch);
       ch.ack(msg);
     } catch (err) {
-      console.error(`[rabbitmq] handler error on ${queue}:`, err);
+      log.error(`handler error on ${queue}:`, err);
       ch.nack(msg, false, false); // dead-letter, don't requeue
     }
   });

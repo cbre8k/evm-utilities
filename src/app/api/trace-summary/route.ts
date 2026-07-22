@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { resolveAI } from '@/lib/ai';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('api/trace-summary');
 
 export const runtime = 'nodejs';
 
@@ -26,26 +30,6 @@ function ruleBased(traceText: string): string {
   }
   bullets.push('• (AI summary unavailable — set GITHUB_TOKEN or OPENAI_API_KEY for detailed analysis)');
   return bullets.join('\n');
-}
-
-// Resolves the API endpoint and auth token.
-// Priority: GITHUB_TOKEN (GitHub Models) → OPENAI_API_KEY (OpenAI)
-function resolveAI(): { endpoint: string; token: string } | null {
-  const githubToken = process.env.GITHUB_TOKEN;
-  if (githubToken) {
-    return {
-      endpoint: 'https://models.inference.ai.azure.com/chat/completions',
-      token: githubToken,
-    };
-  }
-  const openaiKey = process.env.OPENAI_API_KEY;
-  if (openaiKey) {
-    return {
-      endpoint: 'https://api.openai.com/v1/chat/completions',
-      token: openaiKey,
-    };
-  }
-  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -90,7 +74,7 @@ Do not add any other sections. Be concise and accurate.`,
       return NextResponse.json({ summary: content, source: 'ai' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[trace-summary] AI error:', msg);
+      log.error('AI error:', msg);
       return NextResponse.json({ summary: `⚠ AI error: ${msg}\n\n${ruleBased(traceText)}`, source: 'rule-based' });
     }
   }

@@ -1,7 +1,7 @@
 // ============================================================
 // index.ts — Express app entry point
 // ============================================================
-import 'module-alias/register'; // resolve @shared/* path alias at runtime
+import './aliases'; // resolve @shared/* alias (compiled JS only) — must precede @shared imports
 import 'dotenv/config'; // must be first — loads .env before any other import
 
 import express from 'express';
@@ -22,6 +22,10 @@ import etherscanRouter from './routes/etherscan';
 import runRouter from './routes/run';
 import metricsRouter from './routes/metrics';
 import { config } from './config';
+import { createLogger } from '@shared/utils/logger';
+import { errMessage } from '@shared/utils/errors';
+
+const log = createLogger('server');
 
 const app = express();
 
@@ -49,34 +53,34 @@ app.use(errorHandler);
 async function start() {
   // Always start listening first — routes will return 503 if infra is down
   app.listen(config.port, () => {
-    console.log(`[server] listening on http://localhost:${config.port}`);
-    console.log(`[server] env: ${config.nodeEnv}`);
+    log.info(`listening on http://localhost:${config.port}`);
+    log.info(`env: ${config.nodeEnv}`);
   });
 
   // Connect to infrastructure — non-fatal, will retry on each request
   connectMongo().catch((err) =>
-    console.warn('[server] mongo not available:', err.message)
+    log.warn('mongo not available:', errMessage(err))
   );
 
   try {
     getRedis();
-  } catch (err: any) {
-    console.warn('[server] redis not available:', err.message);
+  } catch (err) {
+    log.warn('redis not available:', errMessage(err));
   }
 
   connectRabbitMQ()
     .then(() => {
       // Start workers only when RabbitMQ is available
       import('./workers/index').catch((err) =>
-        console.warn('[server] workers failed to start:', err.message)
+        log.warn('workers failed to start:', errMessage(err))
       );
     })
     .catch((err) =>
-      console.warn('[server] rabbitmq not available (workers disabled):', err.message)
+      log.warn('rabbitmq not available (workers disabled):', errMessage(err))
     );
 }
 
 start().catch((err) => {
-  console.error('[server] fatal startup error:', err);
+  log.error('fatal startup error:', err);
   process.exit(1);
 });

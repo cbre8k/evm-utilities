@@ -1,4 +1,4 @@
-import type { QuoteAdapter } from "./base";
+import { QUOTE_TIMEOUT_MS, type QuoteAdapter } from "./base";
 import type { QuoteRequest, StandardizedQuote } from "../types";
 import { normalizeTokenForProvider, getWrappedNativeAddress } from "../tokens";
 import { formatUnits } from "ethers";
@@ -78,7 +78,7 @@ export class OkxAdapter implements QuoteAdapter {
 
       const res = await fetch(url.toString(), {
         headers,
-        signal: AbortSignal.timeout(5000), // 5 seconds timeout
+        signal: AbortSignal.timeout(QUOTE_TIMEOUT_MS),
       });
 
       const latencyMs = Date.now() - startedAt;
@@ -96,7 +96,7 @@ export class OkxAdapter implements QuoteAdapter {
             toTokenAmount?: string;
             fromTokenAmount?: string;
           };
-          routerList?: any[][];
+          routerList?: unknown[][];
           toTokenAmount?: string;
           fromTokenAmount?: string;
           gas?: string;

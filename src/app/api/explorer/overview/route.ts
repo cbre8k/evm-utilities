@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
+import { BACKEND_URL } from '@/lib/env';
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const res = await fetch(`${BACKENDURL}/explorer/overview`, {
+  const res = await fetch(`${BACKEND_URL}/explorer/overview`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),

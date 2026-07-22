@@ -6,9 +6,10 @@
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { FOURBYTE_API, OPENCHAIN_API } from '@shared/constants/selectors';
 
-const OPENCHAIN = 'https://api.openchain.xyz/signature-database/v1/lookup';
-const FOURBYTE  = 'https://api.4byte.sourcify.dev/signature-database/v1/lookup';
+const LOOKUP_TIMEOUT_MS = 5_000;
+const EDGE_CACHE_SECONDS = 86_400; // 24 h — signatures are immutable
 
 export async function GET(req: NextRequest) {
   const topic = req.nextUrl.searchParams.get('topic') ?? '';
@@ -19,9 +20,9 @@ export async function GET(req: NextRequest) {
 
   // 1. OpenChain (preferred — returns full text signature)
   try {
-    const res = await fetch(`${OPENCHAIN}?event=${t}&filter=true`, {
-      signal: AbortSignal.timeout(5000),
-      next: { revalidate: 86400 }, // cache 24 h at the edge
+    const res = await fetch(`${OPENCHAIN_API.LOOKUP}?event=${t}&filter=true`, {
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
+      next: { revalidate: EDGE_CACHE_SECONDS },
     });
     if (res.ok) {
       const data = await res.json() as { result?: { event?: Record<string, Array<{ name: string }>> } };
@@ -34,8 +35,8 @@ export async function GET(req: NextRequest) {
 
   // 2. 4byte / Sourcify fallback
   try {
-    const res = await fetch(`${FOURBYTE}?event=${t}`, {
-      signal: AbortSignal.timeout(5000),
+    const res = await fetch(`${FOURBYTE_API.LOOKUP}?event=${t}`, {
+      signal: AbortSignal.timeout(LOOKUP_TIMEOUT_MS),
     });
     if (res.ok) {
       const data = await res.json() as { result?: { event?: Record<string, Array<{ name: string }>> } };

@@ -1,19 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { NETWORKS } from "@/lib/constants";
+import { networkByChainId } from "@/lib/constants";
 import type { StandardizedQuote } from "@/lib/metrics/types";
 import { getAddress } from "ethers";
+import { maskRpcUrl } from "@shared/utils/rpcUrl";
+import { BACKEND_URL } from '@/lib/env';
+import { serverError } from '@/lib/api';
+import { createLogger } from '@shared/utils/logger';
 
-const BACKENDURL = process.env.BACKENDURL || 'http://localhost:4000';
+const log = createLogger('api/aggregator/simulate');
+
 const DEFAULT_SIMULATION_RPC = "https://ethereum-rpc.publicnode.com";
+/**
+ * Endpoints that support `trace_callMany`, by chain id. These are keyed
+ * archive nodes, so they come from the environment only — when none is
+ * configured the caller falls back to the network's public fullnode list.
+ */
 const TRACE_CALL_MANY_RPC_BY_CHAIN: Record<number, string[]> = {
   1: [
     ...(process.env.TRACE_CALL_MANY_MAINNET_RPCS || "")
       .split(",")
       .map((url) => url.trim())
       .filter(Boolean),
-    process.env.TRACE_CALL_MANY_MAINNET_RPC || "https://api.zan.top/node/v1/eth/mainnet/ce4d3c74601a49e082d5065f5c170e68",
-    "https://api.zan.top/node/v1/eth/mainnet/cf8b6e95c5ee483b84df3a697d5b5040",
-  ],
+    process.env.TRACE_CALL_MANY_MAINNET_RPC,
+  ].filter((url): url is string => Boolean(url)),
 };
 const simulateRpcCursorByChain = new Map<number, number>();
 
@@ -33,31 +42,6 @@ function normalizeSimulationToken(address: string): string {
     return clean;
   }
   return getAddress(address);
-}
-
-function maskRpcUrl(rawUrl: string): string {
-  try {
-    const url = new URL(rawUrl);
-    if (url.username) url.username = "***";
-    if (url.password) url.password = "***";
-
-    for (const key of url.searchParams.keys()) {
-      if (/key|token|secret|auth|api/i.test(key)) {
-        url.searchParams.set(key, "***");
-      }
-    }
-
-    const parts = url.pathname.split("/").filter(Boolean);
-    const last = parts.at(-1);
-    if (last && last.length > 12 && /[a-z0-9_-]{12,}/i.test(last)) {
-      parts[parts.length - 1] = `${last.slice(0, 4)}...${last.slice(-4)}`;
-      url.pathname = `/${parts.join("/")}`;
-    }
-
-    return url.toString();
-  } catch {
-    return rawUrl.replace(/([?&](?:api_?key|key|token|secret|auth)=)[^&]+/gi, "$1***");
-  }
 }
 
 function pickSimulationRpc(chainId: number, rpcUrls?: string[]): { rpcUrl: string; index: number; total: number } {
@@ -206,23 +190,16 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    const network = NETWORKS.find((n) => {
-      const mappedChainId =
-        n.id === "mainnet" ? 1 :
-        n.id === "bsc" ? 56 :
-        n.id === "arbitrum" ? 42161 :
-        n.id === "optimism" ? 10 :
-        n.id === "base" ? 8453 :
-        0;
-      return mappedChainId === chainId;
-    });
+    const network = networkByChainId(chainId);
     const selectedRpc = pickSimulationRpc(
       chainId,
-      TRACE_CALL_MANY_RPC_BY_CHAIN[chainId] || network?.fullnodeRpcUrls
+      TRACE_CALL_MANY_RPC_BY_CHAIN[chainId]?.length
+        ? TRACE_CALL_MANY_RPC_BY_CHAIN[chainId]
+        : network?.fullnodeRpcUrls
     );
     const rpcUrl = selectedRpc.rpcUrl;
-    console.info(
-      `[Aggregator Simulate] mode=traceCallMany chain=${chainId} rpc=${maskRpcUrl(rpcUrl)} rpcSlot=${selectedRpc.index + 1}/${selectedRpc.total} block=latest providers=${quotes.length}`
+    log.info(
+      `mode=traceCallMany chain=${chainId} rpc=${maskRpcUrl(rpcUrl)} rpcSlot=${selectedRpc.index + 1}/${selectedRpc.total} block=latest providers=${quotes.length}`
     );
 
     const traceQuotes: Array<{
@@ -245,7 +222,7 @@ export async function POST(req: NextRequest) {
       try {
         txData = await getTxData(quote);
       } catch (err) {
-        console.error(`[Simulate Route] Failed to get tx data for ${quote.provider}:`, err);
+        log.error(`failed to get tx data for ${quote.provider}`, err);
         skippedProviders.push({ provider: quote.provider, reason: "build_failed" });
         continue;
       }
@@ -282,7 +259,7 @@ export async function POST(req: NextRequest) {
       quotes: traceQuotes,
     };
 
-    const backendRes = await fetch(`${BACKENDURL}/simulate`, {
+    const backendRes = await fetch(`${BACKEND_URL}/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ inputs })
@@ -301,7 +278,6 @@ export async function POST(req: NextRequest) {
     });
 
   } catch (err) {
-    console.error("[Simulate Route Error]", err);
-    return NextResponse.json({ error: String(err) }, { status: 500 });
+    return serverError(log, err);
   }
 }

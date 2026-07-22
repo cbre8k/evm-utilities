@@ -22,94 +22,29 @@ import type {
   QuoteDirection,
 } from "@/lib/metrics/types";
 import { useNetwork } from "@/contexts/NetworkContext";
+import { createLogger } from '@shared/utils/logger';
+import {
+  formatPct,
+  formatMetricPct,
+  formatGasValue,
+  formatLatency,
+  formatQuoteAmount,
+  isValidSimulationResult,
+  normalizeProviderKey,
+  extractSimulationStage,
+  SIM_FAILURE_REASONS,
+  HEADER_SLOT_LABELS,
+  RADAR_PROVIDER_COLORS,
+  type MetricsStorageStatus,
+  type SimulationSkip,
+  type SimulationResult,
+} from './metricsFormat';
 
-type MetricsStorageStatus = {
-  mode: "mongodb" | "redis" | "memory";
-  persistent: boolean;
-  historyKey: string;
-  statsKeyPattern: string;
-  message: string;
-};
-
-type SimulationSkip = {
-  provider: string;
-  reason: string;
-};
-
-type SimulationResult = {
-  gas: string;
-  output: string;
-  error?: string;
-  exactQuoteFormatted?: string;
-  simDevPct?: string;
-  type?: QuoteDirection;
-  gasCostFormatted?: string;
-};
-
-const SIM_FAILURE_REASONS = new Set([
-  "revert",
-  "exception",
-  "approve_failed",
-  "build_failed",
-  "missing_calldata",
-]);
-
-const HEADER_SLOT_LABELS = ["METRICS", "BENCHMARKS", "STATISTICS", "ANALYTICS"];
-const RADAR_PROVIDER_COLORS = ["#8aff80", "#7df9ff", "#f5c542", "#ff4d4d"];
-
-function formatPct(value: number, digits = 1): string {
-  return `${Number.isFinite(value) ? (value * 100).toFixed(digits) : "0.0"}%`;
-}
-
-function formatMetricPct(value: number, digits = 2): string {
-  return `${Number.isFinite(value) ? value.toFixed(digits) : "0.00"}%`;
-}
-
-function formatGasValue(value?: string): string {
-  if (!value) return "--";
-  const gas = parseInt(value, 10);
-  return Number.isFinite(gas) ? `${gas.toLocaleString()} g` : "--";
-}
-
-function formatLatency(value?: number): string {
-  return Number.isFinite(value) ? `${Math.round(value ?? 0)}ms` : "--";
-}
-
-function formatQuoteAmount(value?: string): string {
-  if (!value) return "--";
-  const amount = parseFloat(value);
-  if (!Number.isFinite(amount)) return "--";
-
-  return amount.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 4,
-  });
-}
-
-function isValidSimulationResult(result?: SimulationResult): result is SimulationResult {
-  return !!result && !result.error && result.output !== "0" && result.gas !== "0";
-}
-
-function normalizeProviderKey(provider: string): string {
-  return provider.replace(/[^a-zA-Z0-9]/g, '');
-}
-
-function extractSimulationStage(output: string): string {
-  const plain = output.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
-  if (plain.includes("[SIM_RESULT]")) return "RESULTS";
-  if (plain.includes("[TRACE_CALL_MANY] simulate")) return "TRACE";
-  if (plain.includes("[TRACE_CALL_MANY] rpc=")) return "RPC";
-  if (plain.includes("Compiler run successful")) return "RUNNING";
-  if (plain.includes("Compiling") || plain.includes("[FOUNDRY] compile_and_test_started")) return "COMPILE";
-  if (plain.includes("[FOUNDRY] spawn")) return "SPAWN";
-  if (plain.includes("[FOUNDRY] workspace_init")) return "WORKSPACE";
-  return "QUEUE";
-}
+const log = createLogger('metrics');
 
 export default function MetricsPage() {
   const { selectedNetwork } = useNetwork();
-  const chainIdMap: Record<string, number> = { mainnet: 1, bsc: 56, arbitrum: 42161, optimism: 10, base: 8453 };
-  const chainId = chainIdMap[selectedNetwork?.id || "mainnet"] || 1;
+  const chainId = selectedNetwork?.chainId || 1;
 
   const [tokenInAddress, setTokenInAddress] = useState<string>("0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
   const [tokenInSymbol, setTokenInSymbol] = useState<string>("ETH");
@@ -186,7 +121,7 @@ export default function MetricsPage() {
         setStorageStatus(data.storage);
       }
     } catch (err) {
-      console.error("Failed to fetch history:", err);
+      log.error("failed to fetch history", err);
     } finally {
       setIsHistoryLoading(false);
     }
@@ -232,7 +167,7 @@ export default function MetricsPage() {
         setTokenOutDecimals(details.decimals);
       }
     } catch (err) {
-      console.warn("Failed to lookup token details:", err);
+      log.warn("failed to look up token details", err);
     }
   };
 
@@ -557,7 +492,7 @@ export default function MetricsPage() {
 
     } catch (err) {
       setSimulationStage("FAILED");
-      console.warn("Simulation failed:", err);
+      log.warn("simulation failed", err);
     } finally {
       setIsSimulating(false);
     }

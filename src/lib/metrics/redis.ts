@@ -6,6 +6,12 @@ import type {
   ComputedProviderMetrics,
 } from "./types";
 import { AGGREGATOR_PROVIDERS } from "./providers";
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('metrics');
+
+/** Budget for a metrics read/write proxied through the Express backend. */
+const BACKEND_METRICS_TIMEOUT_MS = 5_000;
 
 const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
 const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -73,7 +79,7 @@ async function fetchBackendJson<T>(path: string, init?: RequestInit): Promise<T>
       "Content-Type": "application/json",
       ...init?.headers,
     },
-    signal: AbortSignal.timeout(5000),
+    signal: AbortSignal.timeout(BACKEND_METRICS_TIMEOUT_MS),
   });
 
   if (!res.ok) {
@@ -111,7 +117,7 @@ export async function saveQuoteComparisonEvent(event: QuoteComparisonEvent): Pro
       });
       return;
     } catch (err) {
-      console.error("[Backend Mongo] Error saving quote comparison event:", err);
+      log.error("mongo: failed to save quote comparison event", err);
     }
   }
 
@@ -134,7 +140,7 @@ export async function saveQuoteComparisonEvent(event: QuoteComparisonEvent): Pro
     pipeline.ltrim(chainKey, 0, 49);
     await pipeline.exec();
   } catch (err) {
-    console.error("[Redis] Error saving quote comparison event:", err);
+    log.error("redis: failed to save quote comparison event", err);
   }
 }
 
@@ -154,7 +160,7 @@ export async function updateProviderStats(quote: StandardizedQuote): Promise<voi
       });
       return;
     } catch (err) {
-      console.error("[Backend Mongo] Error updating provider stats:", err);
+      log.error("mongo: failed to update provider stats", err);
     }
   }
 
@@ -276,7 +282,7 @@ export async function updateProviderStats(quote: StandardizedQuote): Promise<voi
       }
     }
   } catch (err) {
-    console.error("[Redis] Error updating provider stats:", err);
+    log.error("redis: failed to update provider stats", err);
   }
 }
 
@@ -290,7 +296,7 @@ export async function getRecentHistory(chainId?: number): Promise<QuoteCompariso
       const data = await fetchBackendJson<{ history: QuoteComparisonEvent[] }>(`/metrics/history${query}`);
       return filterActiveProviderHistory(data.history || []);
     } catch (err) {
-      console.error("[Backend Mongo] Error loading recent history:", err);
+      log.error("mongo: failed to load recent history", err);
     }
   }
 
@@ -316,7 +322,7 @@ export async function getRecentHistory(chainId?: number): Promise<QuoteCompariso
     }
     return filterActiveProviderHistory(events);
   } catch (err) {
-    console.error("[Redis] Error loading recent history:", err);
+    log.error("redis: failed to load recent history", err);
     return [];
   }
 }
@@ -331,7 +337,7 @@ export async function getComputedMetrics(chainId?: number): Promise<ComputedProv
       const data = await fetchBackendJson<{ metrics: ComputedProviderMetrics[] }>(`/metrics/history${query}`);
       return data.metrics || [];
     } catch (err) {
-      console.error("[Backend Mongo] Error loading computed metrics:", err);
+      log.error("mongo: failed to load computed metrics", err);
     }
   }
 
@@ -370,7 +376,7 @@ export async function getComputedMetrics(chainId?: number): Promise<ComputedProv
         try {
           rawStats = await redis.hgetall<Record<string, string>>(statsKey);
         } catch (err) {
-          console.error(`[Redis] Error loading stats for ${statsKey}:`, err);
+          log.error(`redis: failed to load stats for ${statsKey}`, err);
         }
       }
 

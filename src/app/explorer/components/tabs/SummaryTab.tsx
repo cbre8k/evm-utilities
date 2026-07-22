@@ -9,6 +9,7 @@ import type {
 import { CopyButton, Label, TabBar, type TabBarItem } from '@/components/ui';
 import styles from '../../explorer.module.scss';
 import CallTraceTab from './CallTraceTab';
+import { hasMeaningfulDecodedCalldata, hasMeaningfulDecodedOutput } from '@shared/utils/decoded';
 
 type IoTab = 'decoded' | 'raw';
 const IO_TABS: TabBarItem<IoTab>[] = [
@@ -27,23 +28,6 @@ function parseDecodedArgValue(type: string, value: string): string | string[] {
   }
 
   return value === '' ? '""' : value;
-}
-
-function hasMeaningfulDecodedInput(decodedCalldata: DecodedCalldata | undefined) {
-  if (!decodedCalldata?.functionName) return false;
-  if (decodedCalldata.args.length === 0) return true;
-  return decodedCalldata.args.some((arg) => {
-    const value = arg.value.trim();
-    return value !== '' && value !== '""';
-  });
-}
-
-function hasMeaningfulDecodedOutput(decodedOutput: DecodedOutput | undefined) {
-  if (!decodedOutput?.functionName || decodedOutput.values.length === 0) return false;
-  return decodedOutput.values.some((output) => {
-    const value = output.value.trim();
-    return value !== '' && value !== '""';
-  });
 }
 
 interface Props {
@@ -71,7 +55,7 @@ export default function SummaryTab({
   const [outputTab, setOutputTab] = useState<IoTab>('raw');
   const rawInput = txOverview.input || '0x';
   const rawOutputValue = rawOutput || '—';
-  const canDecodeInput = hasMeaningfulDecodedInput(decodedCalldata);
+  const canDecodeInput = hasMeaningfulDecodedCalldata(decodedCalldata);
   const canDecodeOutput = hasMeaningfulDecodedOutput(decodedOutput);
   const activeInputTab: IoTab = canDecodeInput ? inputTab : 'raw';
   const activeOutputTab: IoTab = canDecodeOutput ? outputTab : 'raw';

@@ -4,6 +4,9 @@
 
 import mongoose from 'mongoose';
 import { config } from '../config';
+import { createLogger } from '@shared/utils/logger';
+
+const log = createLogger('mongo');
 
 let isConnected = false;
 
@@ -15,15 +18,15 @@ export async function connectMongo(): Promise<void> {
   });
 
   isConnected = true;
-  console.log('[mongo] connected to', config.mongo.uri);
+  log.info('connected to', config.mongo.uri);
 
   mongoose.connection.on('error', (err) => {
-    console.error('[mongo] connection error:', err);
+    log.error('connection error:', err);
     isConnected = false;
   });
 
   mongoose.connection.on('disconnected', () => {
-    console.warn('[mongo] disconnected');
+    log.warn('disconnected');
     isConnected = false;
   });
 }

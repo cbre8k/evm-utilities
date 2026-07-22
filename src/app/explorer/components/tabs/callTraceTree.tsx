@@ -190,7 +190,7 @@ export function TraceTree({
             connectors={connectors}
             isLast={isLast}
             onSelect={item.entry.kind === 'opcode'
-              ? (entry) => onSelectOpcode?.(entry as any, item.id)
+              ? (entry) => { if (entry.kind === 'opcode') onSelectOpcode?.(entry, item.id); }
               : undefined}
             selected={selectedOpcodeId === item.id}
           />

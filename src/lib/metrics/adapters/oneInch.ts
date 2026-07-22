@@ -1,4 +1,4 @@
-import type { QuoteAdapter } from "./base";
+import { QUOTE_TIMEOUT_MS, type QuoteAdapter } from "./base";
 import type { QuoteRequest, StandardizedQuote } from "../types";
 import { normalizeTokenForProvider, getWrappedNativeAddress } from "../tokens";
 import { formatUnits } from "ethers";
@@ -33,7 +33,7 @@ export class OneInchAdapter implements QuoteAdapter {
           'Content-Type': 'application/json',
           'Authorization': `Bearer yGeJizGXM9CMyzWQtRL4boEKc3ygUtnF`
         },
-        signal: AbortSignal.timeout(5000), // 5 seconds timeout
+        signal: AbortSignal.timeout(QUOTE_TIMEOUT_MS),
       });
 
       const latencyMs = Date.now() - startedAt;
@@ -47,7 +47,7 @@ export class OneInchAdapter implements QuoteAdapter {
         dstAmount?: string; 
         toAmount?: string; 
         gas?: number | string;
-        protocols?: any[];
+        protocols?: unknown[];
       };
       const outputAmountRaw = data.dstAmount || data.toAmount;
 
